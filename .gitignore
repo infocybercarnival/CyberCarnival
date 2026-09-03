@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+backend/.env
+**/__pycache__/
+*.py[cod]
+backend/venv/
+.venv/
+backend/logs/*.log
+backend/data/*.json
+backend/data/uploads/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+.DS_Store

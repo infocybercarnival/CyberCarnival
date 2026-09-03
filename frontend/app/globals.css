@@ -1,0 +1,302 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
+  --font-body: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
+  --font-display: var(--font-oxanium), 'Oxanium', sans-serif;
+  --font-mono: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
+  --font-arvo: var(--font-arvo), 'Arvo', serif;
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-violet-glow: var(--violet-glow);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+:root {
+  color-scheme: dark;
+  --font-space-grotesk: 'Space Grotesk', sans-serif;
+  --font-oxanium: 'Oxanium', sans-serif;
+  --font-jetbrains-mono: 'JetBrains Mono', monospace;
+  --font-arvo: 'Arvo', serif;
+  /* near-black */
+  --background: oklch(0.13 0.015 300);
+  /* off-white */
+  --foreground: oklch(0.96 0.005 300);
+  --card: oklch(0.17 0.02 300);
+  --card-foreground: oklch(0.96 0.005 300);
+  --popover: oklch(0.17 0.02 300);
+  --popover-foreground: oklch(0.96 0.005 300);
+  /* electric violet */
+  --primary: oklch(0.62 0.24 296);
+  --primary-foreground: oklch(0.98 0.005 300);
+  /* deep purple */
+  --secondary: oklch(0.28 0.09 296);
+  --secondary-foreground: oklch(0.96 0.005 300);
+  --muted: oklch(0.2 0.02 300);
+  --muted-foreground: oklch(0.68 0.02 300);
+  --accent: oklch(0.62 0.24 296);
+  --accent-foreground: oklch(0.98 0.005 300);
+  --destructive: oklch(0.6 0.2 25);
+  --border: oklch(0.96 0.005 300 / 12%);
+  --input: oklch(0.96 0.005 300 / 15%);
+  --ring: oklch(0.62 0.24 296);
+  --violet-glow: oklch(0.7 0.2 296);
+  --radius: 0.25rem;
+}
+
+.hero-carnival-title {
+  font-family: "Chakra Petch", sans-serif;
+  font-weight: 700;
+  font-style: normal;
+}
+
+/* ---- Cybersecurity Signal Glitch Effect ---- */
+.cyber-glitch-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.cyber-glitch-wrapper::before,
+.cyber-glitch-wrapper::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  background: transparent;
+}
+
+/* RGB Split Layer 1 (Purple shift top slice) */
+.cyber-glitch-wrapper::before {
+  color: rgba(168, 85, 247, 0.9);
+  text-shadow: -2px 0 8px rgba(168, 85, 247, 0.8);
+  clip-path: inset(10% 0 65% 0);
+  transform: translate(0, 0);
+}
+
+/* RGB Split Layer 2 (Cyan shift bottom slice) */
+.cyber-glitch-wrapper::after {
+  color: rgba(56, 189, 248, 0.9);
+  text-shadow: 2px 0 8px rgba(56, 189, 248, 0.8);
+  clip-path: inset(55% 0 15% 0);
+  transform: translate(0, 0);
+}
+
+/* Active Glitch Burst Keyframes */
+.is-glitching .cyber-glitch-wrapper::before {
+  opacity: 0.9;
+  animation: cyber-glitch-top 0.35s steps(2, jump-none) forwards;
+}
+
+.is-glitching .cyber-glitch-wrapper::after {
+  opacity: 0.85;
+  animation: cyber-glitch-bottom 0.35s steps(2, jump-none) forwards;
+}
+
+.is-glitching {
+  animation: cyber-glitch-base 0.35s steps(2, jump-none);
+}
+
+@keyframes cyber-glitch-base {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-1.5px, 0.5px); }
+  40% { transform: translate(1px, -0.5px); }
+  60% { transform: translate(-0.5px, 0); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes cyber-glitch-top {
+  0% {
+    clip-path: inset(12% 0 68% 0);
+    transform: translate(-3px, -1px);
+  }
+  30% {
+    clip-path: inset(35% 0 45% 0);
+    transform: translate(3px, 1px);
+  }
+  60% {
+    clip-path: inset(5% 0 80% 0);
+    transform: translate(-2px, 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes cyber-glitch-bottom {
+  0% {
+    clip-path: inset(60% 0 15% 0);
+    transform: translate(3px, 1px);
+  }
+  30% {
+    clip-path: inset(20% 0 60% 0);
+    transform: translate(-3px, -1px);
+  }
+  60% {
+    clip-path: inset(75% 0 5% 0);
+    transform: translate(2px, 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+}
+
+/* Reduced Motion Accessibility Override */
+@media (prefers-reduced-motion: reduce) {
+  .is-glitching,
+  .is-glitching .cyber-glitch-wrapper::before,
+  .is-glitching .cyber-glitch-wrapper::after {
+    animation: none !important;
+    opacity: 0 !important;
+  }
+}
+
+.arvo-regular {
+  font-family: "Arvo", serif;
+  font-weight: 400;
+  font-style: normal;
+}
+
+.arvo-bold {
+  font-family: "Arvo", serif;
+  font-weight: 700;
+  font-style: normal;
+}
+
+.arvo-regular-italic {
+  font-family: "Arvo", serif;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.arvo-bold-italic {
+  font-family: "Arvo", serif;
+  font-weight: 700;
+  font-style: italic;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+  h1, h2, h3, .font-display {
+    font-family: var(--font-oxanium), 'Oxanium', sans-serif;
+  }
+  .font-sans, p, button, input, label {
+    font-family: var(--font-space-grotesk), 'Space Grotesk', sans-serif;
+  }
+  .font-mono {
+    font-family: var(--font-jetbrains-mono), 'JetBrains Mono', monospace;
+  }
+}
+
+/* ---- reveal-on-scroll ---- */
+.reveal {
+  opacity: 0;
+  transform: translateY(2.5rem);
+  transition:
+    opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+@keyframes sheen-sweep {
+  0% {
+    transform: translateX(-130%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(230%) skewX(-20deg);
+  }
+}
+
+/* Navbar Logo Subtle Floating & Breathing Glow Keyframes */
+@keyframes logo-float {
+  0%, 100% {
+    transform: translateY(0px);
+    filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.4));
+  }
+  50% {
+    transform: translateY(-2.5px);
+    filter: drop-shadow(0 0 11px rgba(168, 85, 247, 0.65));
+  }
+}
+
+@keyframes logo-fade-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-logo-entrance {
+  animation: logo-fade-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-logo-float {
+  animation: logo-float 4.5s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-logo-entrance,
+  .animate-logo-float {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

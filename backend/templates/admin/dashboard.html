@@ -1,0 +1,172 @@
+{% extends "admin/base.html" %}
+{% block title %}Dashboard — CyberCarnival Admin{% endblock %}
+{% block body %}
+<meta name="csrf-token" content="{{ csrf_token() }}" />
+
+<div class="shell">
+  <header class="topbar">
+    <div class="auth-brand">CYBERCARNIVAL<span>/ ADMIN</span></div>
+    <div class="topbar-right">
+      <span class="who">{{ admin_username }}</span>
+      <form method="post" action="{{ url_for('admin_auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit" class="btn-ghost">Log out</button>
+      </form>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="registrations">Registrations</button>
+    <button class="tab" data-tab="participants">Participants</button>
+    <button class="tab" data-tab="events">Events</button>
+    <button class="tab" data-tab="coordinators">Coordinators</button>
+    <button class="tab" data-tab="speakers">Speakers</button>
+    <button class="tab" data-tab="audit">Audit Log</button>
+  </nav>
+
+  <main>
+    <section id="tab-overview" class="panel active">
+      <h2>Overview</h2>
+      <div class="cards" id="overview-cards"></div>
+      <h3>Registrations by event</h3>
+      <table class="table" id="overview-table">
+        <thead><tr><th>Event</th><th>Registrations</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="tab-registrations" class="panel">
+      <h2>Registrations</h2>
+      <div class="toolbar">
+        <select id="reg-event-filter"><option value="">All events</option></select>
+        <a id="export-link" class="btn-ghost" href="/admin/api/registrations/export.csv">Export CSV</a>
+      </div>
+      <table class="table" id="reg-table">
+        <thead>
+          <tr><th>Team</th><th>Leader</th><th>Email</th><th>Event</th><th>Members</th><th>Transaction ID</th><th>Status</th><th>Registered</th><th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="tab-participants" class="panel">
+      <h2>Participants</h2>
+      <p class="hint">Accounts that verified OTP and signed up, split by whether they've registered for an event yet.</p>
+
+      <h3>Registered for at least one event</h3>
+      <table class="table" id="participants-registered-table">
+        <thead><tr><th>Token</th><th>Name</th><th>Username</th><th>Email</th><th>Phone</th><th>College</th></tr></thead>
+        <tbody></tbody>
+      </table>
+
+      <h3>Signed up, not registered for any event</h3>
+      <table class="table" id="participants-unregistered-table">
+        <thead><tr><th>Token</th><th>Name</th><th>Username</th><th>Email</th><th>Phone</th><th>Profile complete</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="tab-events" class="panel">
+      <h2>Events</h2>
+      <form id="event-form" class="inline-form" enctype="multipart/form-data">
+        <input type="hidden" name="event_id" id="event-id" />
+        <input name="name" placeholder="Event name" required maxlength="150" />
+        <select name="category">
+          <option value="TECHNICAL">TECHNICAL</option>
+          <option value="NON-TECHNICAL">NON-TECHNICAL</option>
+        </select>
+        <input name="tag" placeholder="Tag (e.g. COMPETITION)" maxlength="40" />
+        <input name="fee" placeholder="Fee (e.g. ₹250 PER TEAM)" maxlength="60" />
+        <label class="file-label">Actual fee, in ₹ (blank = free, no payment step) <input name="fee_rupees" type="number" min="0" step="0.01" placeholder="250" /></label>
+        <input name="min_team_size" type="number" min="1" placeholder="Min team size" />
+        <input name="max_team_size" type="number" min="1" placeholder="Max team size" />
+        <input name="max_teams" type="number" min="0" placeholder="Max teams (capacity)" />
+        <input name="venue" placeholder="Venue" maxlength="200" />
+        <input name="date" placeholder="Date (display text, e.g. 7 &amp; 8 OCTOBER)" maxlength="60" />
+        <label class="file-label">Actual start date <input name="start_date" type="date" /></label>
+        <label class="file-label">Actual end date (if multi-day) <input name="end_date" type="date" /></label>
+        <input name="time" placeholder="Time" maxlength="60" />
+        <input name="prize" placeholder="Prize" maxlength="120" />
+        <textarea name="description" placeholder="Description" maxlength="2000" rows="2"></textarea>
+        <label class="file-label">Poster <input name="poster" type="file" accept=".png,.jpg,.jpeg,.webp" /></label>
+        <div class="form-actions">
+          <button type="submit" id="event-submit-btn">Add event</button>
+          <button type="button" id="event-cancel-edit" class="btn-ghost" hidden>Cancel edit</button>
+        </div>
+      </form>
+      <table class="table" id="events-table">
+        <thead><tr><th>Poster</th><th>Name</th><th>Fee</th><th>Team size</th><th>Seats</th><th>Venue</th><th>Date</th><th>Active</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="tab-coordinators" class="panel">
+      <h2>Coordinators</h2>
+      <p class="hint">
+        Create a login for a student/event coordinator, assign them to their event(s), then send the
+        username + password shown below to them yourself (e.g. over WhatsApp) — there's no automatic
+        email for these accounts.
+      </p>
+      <form id="coordinator-form" class="inline-form">
+        <input name="full_name" placeholder="Coordinator's name" required maxlength="120" />
+        <input name="phone" placeholder="Phone (optional)" maxlength="20" />
+        <select name="event_ids" multiple size="4" style="min-width:220px;"></select>
+        <div class="form-actions">
+          <button type="submit">Create coordinator</button>
+        </div>
+      </form>
+      <div id="coordinator-credentials" hidden style="margin-bottom:16px; padding:12px; border:1px solid var(--accent); border-radius:var(--radius);"></div>
+      <table class="table" id="coordinators-table">
+        <thead><tr><th>Name</th><th>Username</th><th>Phone</th><th>Events</th><th>Active</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="tab-speakers" class="panel">
+      <h2>Speakers</h2>
+      <p class="hint">Manage the public Speakers page here — nothing on that page is hardcoded anymore.</p>
+      <form id="speaker-form" class="inline-form">
+        <input type="hidden" name="id" />
+        <input name="name" placeholder="Full name" required maxlength="120" />
+        <input name="designation" placeholder="Designation" maxlength="150" />
+        <input name="organization" placeholder="Organization" maxlength="150" />
+        <select name="category">
+          <option value="INDUSTRY">Industry</option>
+          <option value="SECURITY">Security</option>
+          <option value="RESEARCH">Research</option>
+          <option value="COMMUNITY">Community</option>
+        </select>
+        <input name="expertise" placeholder="Expertise (comma-separated)" />
+        <textarea name="bio" placeholder="Bio" rows="2" style="width:100%; margin-top:8px;"></textarea>
+        <input name="session_title" placeholder="Session title" style="margin-top:8px;" />
+        <input name="session_time" placeholder="Session time (e.g. 7 OCT · 10:30 AM)" />
+        <input name="session_venue" placeholder="Session venue" />
+        <input name="twitter_url" placeholder="Twitter/X URL" />
+        <input name="linkedin_url" placeholder="LinkedIn URL" />
+        <input name="github_url" placeholder="GitHub URL" />
+        <label class="file-label">Portrait <input name="portrait" type="file" accept="image/png,image/jpeg,image/webp" /></label>
+        <label><input type="checkbox" name="is_featured" /> Featured</label>
+        <div class="form-actions">
+          <button type="submit" id="speaker-submit-btn">Add speaker</button>
+          <button type="button" id="speaker-cancel-btn" hidden>Cancel edit</button>
+        </div>
+      </form>
+      <table class="table" id="speakers-table">
+        <thead><tr><th>Portrait</th><th>Name</th><th>Category</th><th>Featured</th><th>Active</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section id="tab-audit" class="panel">
+      <h2>Audit Log</h2>
+      <table class="table" id="audit-table">
+        <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+</div>
+
+<script src="/static/admin/js/admin.js"></script>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "email/_layout.html" %}
+{% block title %}Registration confirmed — {{ event_name }}{% endblock %}
+
+{% block badge %}
+<div style="width:40px; height:40px; border-radius:50%; background-color:#1a1625; margin:0 auto; line-height:40px; font-size:18px;">✓</div>
+{% endblock %}
+
+{% block heading %}REGISTRATION CONFIRMED!{% endblock %}
+
+{% block content %}
+<tr>
+  <td style="padding:8px 24px 16px;">
+    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.6; color:#a8a8b3; text-align:center;">
+      Hey {{ recipient_name }},<br>
+      your registration for <strong style="color:#f5f5f7;">{{ event_name }}</strong> has been successfully confirmed.
+    </p>
+  </td>
+</tr>
+
+<tr>
+  <td style="padding:0 24px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#161320; border:1px solid #2a2438; border-radius:10px;">
+      <tr>
+        <td style="padding:14px 18px;">
+          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Event</p>
+          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:15px; font-weight:bold; color:#f5f5f7;">{{ event_name }}</p>
+        </td>
+      </tr>
+      <tr><td style="border-top:1px solid #2a2438;"></td></tr>
+      {% if team_name %}
+      <tr>
+        <td style="padding:14px 18px;">
+          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Team</p>
+          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#f5f5f7;">{{ team_name }}</p>
+        </td>
+      </tr>
+      <tr><td style="border-top:1px solid #2a2438;"></td></tr>
+      {% endif %}
+      {% if event_date %}
+      <tr>
+        <td style="padding:14px 18px;">
+          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Date</p>
+          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#f5f5f7;">{{ event_date }}{% if event_time %} &middot; {{ event_time }}{% endif %}</p>
+        </td>
+      </tr>
+      <tr><td style="border-top:1px solid #2a2438;"></td></tr>
+      {% endif %}
+      {% if venue %}
+      <tr>
+        <td style="padding:14px 18px;">
+          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Venue</p>
+          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#f5f5f7;">{{ venue }}</p>
+        </td>
+      </tr>
+      <tr><td style="border-top:1px solid #2a2438;"></td></tr>
+      {% endif %}
+      {% if fee %}
+      <tr>
+        <td style="padding:14px 18px;">
+          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Fee</p>
+          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#f5f5f7;">{{ fee }}</p>
+        </td>
+      </tr>
+      {% endif %}
+    </table>
+  </td>
+</tr>
+
+<!-- QR ticket -->
+<tr>
+  <td align="center" style="padding:4px 24px 16px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:10px;">
+      <tr>
+        <td style="padding:12px;">
+          <img src="cid:qr" width="150" height="150" alt="Ticket QR code" style="display:block; width:150px; height:150px;">
+        </td>
+      </tr>
+    </table>
+    <p style="margin:10px 0 0; font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#77777f;">
+      Scan at the venue, or tap the button below.
+    </p>
+  </td>
+</tr>
+
+{% if members and members|length > 1 %}
+<tr>
+  <td style="padding:0 24px 16px;">
+    <p style="margin:0 0 6px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase; text-align:center;">Team Roster</p>
+    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#a8a8b3; text-align:center; line-height:1.7;">
+      {% for m in members %}{{ m }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+    </p>
+  </td>
+</tr>
+{% endif %}
+
+<tr>
+  <td align="center" style="padding:8px 24px 8px;">
+    <a href="{{ ticket_url }}" style="display:inline-block; background-color:#8f2aff; color:#ffffff; font-family:Arial, Helvetica, sans-serif; font-size:13px; font-weight:bold; letter-spacing:0.05em; text-decoration:none; padding:12px 28px; border-radius:8px;">VIEW EVENT DETAILS →</a>
+  </td>
+</tr>
+{% endblock %}

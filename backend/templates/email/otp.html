@@ -1,0 +1,36 @@
+{% extends "email/_layout.html" %}
+{% block title %}Your CyberCarnival verification code{% endblock %}
+
+{% block badge %}
+<div style="width:40px; height:40px; border-radius:50%; background-color:#1a1625; margin:0 auto; line-height:40px; font-size:18px;">🔐</div>
+{% endblock %}
+
+{% block heading %}VERIFY YOUR EMAIL{% endblock %}
+
+{% block content %}
+<tr>
+  <td style="padding:8px 24px 4px;">
+    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.6; color:#a8a8b3; text-align:center;">
+      Enter this code to continue creating your CyberCarnival account.
+    </p>
+  </td>
+</tr>
+<tr>
+  <td align="center" style="padding:20px 24px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" style="background-color:#161320; border:1px solid #8f2aff; border-radius:10px;">
+      <tr>
+        <td style="padding:16px 32px;">
+          <span style="font-family:'Courier New', Courier, monospace; font-size:32px; font-weight:bold; letter-spacing:0.35em; color:#f5f5f7;">{{ otp_code }}</span>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+<tr>
+  <td style="padding:0 24px 8px;">
+    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.6; color:#77777f; text-align:center;">
+      Expires in {{ ttl_minutes }} minutes. If you didn't request this, you can ignore this email.
+    </p>
+  </td>
+</tr>
+{% endblock %}

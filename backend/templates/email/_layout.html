@@ -1,0 +1,60 @@
+<!--
+Shared layout for every CyberCarnival email. Table-based, inline styles only
+— email clients (Gmail, Outlook especially) strip or mangle modern CSS
+(flexbox/grid, style blocks are unreliable in Outlook), so this uses the
+old-but-universal table layout pattern instead. Extended by otp.html,
+credentials.html, registration_confirmed.html via the "content" block below.
+
+Images (logo, QR) are referenced as cid:logo / cid:qr — inline attachments
+set up in utils/email.py, not remote URLs, so they render even for
+recipients who block remote image loading by default (most email clients).
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CyberCarnival{% endblock %}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#050509; font-family:Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#050509; padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="380" cellpadding="0" cellspacing="0" style="max-width:380px; width:100%; background-color:#0b0a10; border:1px solid #2a2438; border-radius:16px; overflow:hidden;">
+
+          <!-- Header / logo -->
+          <tr>
+            <td align="center" style="background-color:#12101a; padding:28px 24px 20px;">
+              <img src="cid:logo" width="180" alt="CyberCarnival 2026" style="display:block; max-width:180px; height:auto;">
+            </td>
+          </tr>
+
+          <!-- Status badge -->
+          <tr>
+            <td align="center" style="padding:22px 24px 4px;">
+              {% block badge %}{% endblock %}
+              <p style="margin:14px 0 0; font-family:Arial, Helvetica, sans-serif; font-size:20px; font-weight:bold; color:#f5f5f7; letter-spacing:0.02em;">
+                {% block heading %}{% endblock %}
+              </p>
+            </td>
+          </tr>
+
+          <!-- Per-email content -->
+          {% block content %}{% endblock %}
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:20px 24px 28px;">
+              <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:1.6; color:#77777f;">
+                CyberCarnival 2026 &middot; SRM Institute of Science and Technology, Ramapuram<br>
+                Questions? Reply to this email or write to info.cybercarnival@gmail.com
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
