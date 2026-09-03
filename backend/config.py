@@ -43,6 +43,7 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "") or f"{SITE_URL}/api/auth/google/callback"
 ALLOWED_EMAIL_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "").strip().lower()
+ADMIN_GOOGLE_EMAIL = os.environ.get("ADMIN_GOOGLE_EMAIL", "info.cybercarnival@gmail.com").strip().lower()
 
 # --- CAPTCHA (Cloudflare Turnstile) -----------------------------------------
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
@@ -101,6 +102,12 @@ UPLOAD_DIR = DATA_DIR / "uploads" / "posters"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_POSTER_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 ALLOWED_POSTER_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
+
+PAYMENT_PROOF_DIR = DATA_DIR / "uploads" / "payment_proofs"
+PAYMENT_PROOF_DIR.mkdir(parents=True, exist_ok=True)
+MAX_PAYMENT_PROOF_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
+ALLOWED_PAYMENT_PROOF_EXTENSIONS = {"png", "jpg", "jpeg"}
+ALLOWED_PAYMENT_PROOF_MIMES = {"image/png", "image/jpeg", "image/jpg", "image/pjpeg"}
 
 
 FRONTEND_DIST_DIR = Path(

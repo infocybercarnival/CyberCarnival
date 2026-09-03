@@ -33,6 +33,7 @@ def ensure_frontend_build() -> None:
     the project, `python app.py` can install frontend dependencies (first run
     only), build the static export, and then Flask serves both the UI and API.
     """
+    import shutil
     frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
     out_dir = frontend_dir / "out"
     if out_dir.exists() and (out_dir / "index.html").exists():
@@ -44,21 +45,26 @@ def ensure_frontend_build() -> None:
 
     print("[CyberCarnival] Frontend build not found; preparing frontend...")
 
-    if not (frontend_dir / "node_modules").exists():
-        print("[CyberCarnival] Installing frontend dependencies with pnpm...")
-        try:
-            subprocess.run("pnpm install", cwd=frontend_dir, shell=True, check=True)
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError("Frontend dependency installation failed. Make sure Node.js and pnpm are installed.") from exc
+    pm = "pnpm" if shutil.which("pnpm") else "npm"
+    install_cmd = f"{pm} install"
+    build_cmd = f"{pm} run build" if pm == "npm" else f"{pm} build"
 
-    print("[CyberCarnival] Building frontend static export...")
+    if not (frontend_dir / "node_modules").exists():
+        print(f"[CyberCarnival] Installing frontend dependencies with {pm}...")
+        try:
+            subprocess.run(install_cmd, cwd=frontend_dir, shell=True, check=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Frontend dependency installation failed using {pm}. Make sure Node.js is installed.") from exc
+
+    print(f"[CyberCarnival] Building frontend static export with {pm}...")
     try:
-        subprocess.run("pnpm build", cwd=frontend_dir, shell=True, check=True)
+        subprocess.run(build_cmd, cwd=frontend_dir, shell=True, check=True)
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError("Frontend build failed. Check the pnpm build output above.") from exc
+        raise RuntimeError(f"Frontend build failed using {pm}. Check the build output above.") from exc
 
     if not (out_dir / "index.html").exists():
         raise RuntimeError("Frontend build completed but frontend/out/index.html was not created.")
+
 
 
 

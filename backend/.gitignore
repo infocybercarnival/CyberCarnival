@@ -8,3 +8,6 @@ data/uploads/
 logs/*.log
 !data/.gitkeep
 !logs/.gitkeep
+*.dump
+*.db
+

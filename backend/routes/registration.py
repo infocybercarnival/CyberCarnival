@@ -7,7 +7,7 @@ from services.registration_service import (
     register_for_event, get_registration, preflight_warnings, member_preview,
     DuplicateRegistrationError, EventNotFoundError, EventFullError,
     RegistrationClosedError, UnknownMemberTokenError, TeamSizeError,
-    DuplicateTransactionError,
+    DuplicateTransactionError, UnconfiguredFeeError,
 )
 from services.user_service import get_user
 from services.audit_service import log_action
@@ -96,6 +96,8 @@ def submit_registration():
         return jsonify({"error": f"no account found for token {e.token}"}), 404
     except TeamSizeError as e:
         return jsonify({"error": str(e)}), 422
+    except UnconfiguredFeeError as e:
+        return jsonify({"error": str(e)}), 422
     except DuplicateTransactionError:
         return jsonify({"error": "this transaction ID has already been submitted"}), 409
 
@@ -104,8 +106,110 @@ def submit_registration():
         "id": record.id,
         "status": record.status,
         "warnings": warnings,
-        "payment_message": "Payment submitted for verification" if record.status == "pending_verification" else None,
+        "payment_url": f"/payment?eventId={record.event_id}&registrationId={record.id}" if record.status == "pending_payment" else None,
+        "payment_message": "Proceed to the payment page to complete your registration." if record.status == "pending_payment" else None,
     }), 201
+
+
+@bp.get("/api/events/<event_id>/payment/<registration_id>")
+@user_login_required
+@limiter.limit("30 per minute")
+def view_payment_details(event_id, registration_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "authentication required"}), 401
+    try:
+        from services.registration_service import get_payment_page_details, UnauthorizedRegistrationAccessError
+        details = get_payment_page_details(event_id, registration_id, user_id)
+        return jsonify(details)
+    except EventNotFoundError:
+        return jsonify({"error": "registration or event not found"}), 404
+    except UnauthorizedRegistrationAccessError:
+        return jsonify({"error": "you are not authorized to view this registration payment page"}), 403
+
+
+@bp.post("/api/registrations/<registration_id>/payment")
+@user_login_required
+@limiter.limit("10 per minute")
+def submit_payment(registration_id):
+    if not validate_csrf_origin(request):
+        return jsonify({"error": "invalid origin"}), 403
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "authentication required"}), 401
+
+    event_id = request.form.get("event_id", "").strip()
+    transaction_id = request.form.get("transaction_id", "").strip()
+    disclaimer_val = request.form.get("disclaimer_accepted", "").strip().lower()
+    disclaimer_accepted = disclaimer_val in {"true", "1", "yes", "on"}
+    file = request.files.get("payment_proof")
+
+    try:
+        from services.registration_service import (
+            submit_payment_proof, InvalidPaymentStateError, DisclaimerNotAcceptedError,
+            InvalidPaymentFileError, PaymentFileTooLargeError, UnauthorizedRegistrationAccessError
+        )
+        record = submit_payment_proof(
+            registration_id=registration_id,
+            user_id=user_id,
+            event_id=event_id,
+            transaction_id=transaction_id,
+            file=file,
+            disclaimer_accepted=disclaimer_accepted
+        )
+        log_action(user_id, "PAYMENT_PROOF_SUBMITTED", f"reg_id={record.id} txn={record.transaction_id}", request.remote_addr or "")
+        return jsonify({
+            "id": record.id,
+            "status": record.status,
+            "message": "Payment submitted successfully! Your registration for this event is now confirmed."
+        }), 200
+    except ValidationError as e:
+        return jsonify({"error": "validation failed", "fields": e.errors}), 422
+    except EventNotFoundError:
+        return jsonify({"error": "registration or event not found"}), 404
+    except UnauthorizedRegistrationAccessError:
+        return jsonify({"error": "you are not authorized to submit payment for this registration"}), 403
+    except InvalidPaymentStateError as e:
+        return jsonify({"error": str(e)}), 409
+    except DisclaimerNotAcceptedError as e:
+        return jsonify({"error": str(e)}), 422
+    except InvalidPaymentFileError as e:
+        return jsonify({"error": str(e)}), 422
+    except PaymentFileTooLargeError as e:
+        return jsonify({"error": str(e)}), 413
+    except DuplicateTransactionError:
+        return jsonify({"error": "this transaction ID has already been submitted"}), 409
+
+
+@bp.get("/api/registrations/<registration_id>/payment-proof")
+def view_payment_proof(registration_id):
+    from flask import send_from_directory
+    from models import EventRegistration, User
+    from services.coordinator_service import get_coordinator, coordinator_owns_event
+
+    user_id = session.get("user_id")
+    coord_id = session.get("coordinator_id")
+    is_admin = session.get("is_admin", False)
+
+    if not (user_id or coord_id or is_admin):
+        return jsonify({"error": "authentication required"}), 401
+
+    reg = get_registration(registration_id)
+    if not reg or not reg.payment_proof_filename:
+        return jsonify({"error": "payment proof not found"}), 404
+
+    is_owner = bool(user_id) and ((reg.leader_user_id == user_id) or any(m.user_id == user_id for m in reg.members))
+    
+    is_authorized_coord = False
+    if session.get("is_coordinator", False) and coord_id:
+        coord = get_coordinator(coord_id)
+        if coord and coordinator_owns_event(coord, reg.event_id):
+            is_authorized_coord = True
+
+    if not (is_admin or is_authorized_coord or is_owner):
+        return jsonify({"error": "unauthorized access to payment proof"}), 403
+
+    return send_from_directory(config.PAYMENT_PROOF_DIR, reg.payment_proof_filename)
 
 
 @bp.get("/api/registrations/<registration_id>/ticket")

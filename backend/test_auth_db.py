@@ -49,7 +49,7 @@ def test_auth_and_user_model():
 
         # 4. Verify My Events query with authenticated user identity
         registrations = (
-            EventRegistration.query.join(RegistrationMember)
+            EventRegistration.query.join(RegistrationMember, EventRegistration.id == RegistrationMember.registration_id)
             .filter(RegistrationMember.user_id == user1.id, EventRegistration.status == "confirmed")
             .all()
         )

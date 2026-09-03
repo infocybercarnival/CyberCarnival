@@ -88,8 +88,8 @@ export const EVENTS: EventInfo[] = [
       { name: 'Mrs. Juslin', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Sarvaesh', role: 'III Year CS D' },
-      { name: 'Pranav', role: 'II Year CS B' },
+      { name: 'Sarvaesh', role: 'III yr CS D', phone: '8939683359' },
+      { name: 'Pranav', role: 'II yr CS B' },
     ],
     rules: [
       'Team size: Maximum 2 members.',
@@ -132,8 +132,8 @@ export const EVENTS: EventInfo[] = [
       { name: 'Dr. Snehapriya', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Sanjaidharshan', role: 'III Year CS B' },
-      { name: 'Shamhithan', role: 'II Year CS C' },
+      { name: 'Sanjai', role: 'III yr CS B', phone: '9841254471' },
+      { name: 'Shamihithan', role: 'II yr CS' },
     ],
     rules: [
       'Team size: Maximum 2 members.',
@@ -173,13 +173,13 @@ export const EVENTS: EventInfo[] = [
     },
     expectedRegistrations: '20 Teams (60 Expected Participants)',
     facultyCoordinators: [
-      { name: 'Mrs. Chitra M', role: 'AP/CS & GT', phone: '+91 99762 33060' },
-      { name: 'Mrs. S. Lakshmi', role: 'AP/CS & GT', phone: '+91 99624 85494' },
+      { name: 'Mrs. CHITHRA', role: 'AP/CS' },
+      { name: 'Mrs. LAKSHMI', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Dhurgesh MJ', role: 'III Year CSE-CS-B', phone: '+91 94444 73677' },
-      { name: 'Chitranjan', role: 'III Year CSE', phone: '+91 93612 13547' },
-      { name: 'Mouriya S', role: 'II Year CS-C', phone: '+91 88838 26106' },
+      { name: 'Dhurgesh', role: 'III yr CS B', phone: '9444473677' },
+      { name: 'Chitranjan', role: 'III yr CS E', phone: '9361213547' },
+      { name: 'Mouriya S', role: 'II yr CS C' },
     ],
     rules: [
       'Attack only the designated event domains.',
@@ -230,8 +230,8 @@ export const EVENTS: EventInfo[] = [
       { name: 'Dr. RAMYA', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Manjith Akash U S', role: 'III Year CS D' },
-      { name: 'Advait Bansod', role: 'II Year CS A' },
+      { name: 'Manjith', role: 'III yr CS D', phone: '7604956971' },
+      { name: 'Advait Bansod', role: 'II yr CS A' },
     ],
     rules: [
       'Team size: Maximum 3 members.',
@@ -276,13 +276,13 @@ export const EVENTS: EventInfo[] = [
     },
     expectedRegistrations: '100',
     facultyCoordinators: [
-      { name: 'Dr. S. Sathya Priya', role: 'AP/CS', phone: '+91 9444175724' },
-      { name: 'Mrs. Chitra M', role: 'AP/CS & GT', phone: '+91 9976233060' },
+      { name: 'Dr. SATHYA PRIYA', role: 'ASP/CS' },
+      { name: 'Mrs. CHITHRA', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Felicia Ebinezer', role: 'III Year CSE - CS - B', phone: '+91 7010770378' },
-      { name: 'Sarah Alana Robson', role: 'III Year CSE - CS - C', phone: '+91 73056 80870' },
-      { name: 'Sai Saran.B', role: 'III Year CSE - CS - C', phone: '+91 8248943843' },
+      { name: 'Sara', role: 'III yr CS C', phone: '7305680870' },
+      { name: 'Felicia', role: 'III yr CS B', phone: '7010770378' },
+      { name: 'Sai Sharan', role: 'II yr CS C' },
     ],
   },
   {
@@ -303,12 +303,12 @@ export const EVENTS: EventInfo[] = [
     rounds: 'Single Round – Showcase & Evaluation',
     expectedRegistrations: '30 Teams',
     facultyCoordinators: [
-      { name: 'Ms. Sowmiya Sree', role: 'Faculty Coordinator' },
-      { name: 'Dr. Sathyapriya', role: 'Faculty Coordinator' },
+      { name: 'Dr. SATHYA PRIYA', role: 'ASP/CS' },
+      { name: 'Ms. SOWMIYA SREE C', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Sriman', role: 'III Year CS D' },
-      { name: 'Hemanth', role: 'II Year CS C' },
+      { name: 'Sriman', role: 'III yr CS D', phone: '6385152385' },
+      { name: 'D Hemanth Kumar', role: 'II yr CS C' },
     ],
     rules: [
       'Each team can have a maximum of 3 members.',
@@ -355,6 +355,18 @@ export const EVENTS: EventInfo[] = [
       fee: TBA,
       prize: TBA,
     },
+    facultyCoordinators: [
+      { name: 'Dr. SARAVANAN', role: 'ASP/CS (Workshop 1)' },
+      { name: 'Dr. JOSPIN JEYA', role: 'AP/CS (Workshop 1)' },
+      { name: 'Dr. GOWRI', role: 'AP/CS (Workshop 2)' },
+      { name: 'Dr. SHAAMILI VARSA', role: 'AP/CS (Workshop 2)' },
+    ],
+    studentCoordinators: [
+      { name: 'Keerthi', role: 'III yr CS B (Workshop 1)', phone: '7675898691' },
+      { name: 'Anirudh', role: 'II yr CS C (Workshop 1)', phone: '9840039864' },
+      { name: 'Ananya', role: 'III yr CS A (Workshop 2)', phone: '9391835441' },
+      { name: 'Abishek Balaji', role: 'II yr CS C (Workshop 2)' },
+    ],
   },
   {
     no: '08',
@@ -373,12 +385,12 @@ export const EVENTS: EventInfo[] = [
     },
     expectedRegistrations: '50 teams (100–120 members)',
     facultyCoordinators: [
-      { name: 'Dr. Gowri mam', role: 'Faculty Coordinator', phone: '9600094032' },
-      { name: 'Dr. Ramya mam', role: 'Faculty Coordinator', phone: '+91 99440 26001' },
+      { name: 'Dr. GOWRI', role: 'AP/CS' },
+      { name: 'Dr. RAMYA', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Rithika K', role: '3rd Yr CSE - CS-B', phone: '9150153198' },
-      { name: 'Goutham', role: '3rd Yr CSE - CS-B', phone: '9150120431' },
+      { name: 'Gowtham', role: 'III CS B', phone: '9150120431' },
+      { name: 'Rithika', role: 'III CS B', phone: '9150153198' },
     ],
     rules: [
       'Team size: 1–4 members.',
@@ -436,11 +448,11 @@ export const EVENTS: EventInfo[] = [
     expectedRegistrations: '50',
     facultyCoordinators: [
       { name: 'Dr. ILAMATHI', role: 'AP/CS' },
-      { name: 'DR. BHUVANESWARI', role: 'AP/CS' },
+      { name: 'Dr. BHUVANESWARI', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Sujith Raja R', role: 'III Yr CS A' },
-      { name: 'Tharunkrishna S', role: 'III Yr CS A' },
+      { name: 'Sujith Raja R', role: 'III CS A', phone: '8608397006' },
+      { name: 'Tharunkrishna', role: 'III CS A', phone: '9443267173' },
     ],
     rules: [
       'Participants will be assigned a specific character/persona and must portray it throughout the event.',
@@ -482,12 +494,12 @@ export const EVENTS: EventInfo[] = [
     },
     expectedRegistrations: '25 Teams',
     facultyCoordinators: [
-      { name: 'Dr. KAVITHA', role: 'Professor / CS' },
-      { name: 'Dr. SNEHAPRIYA', role: 'AP / CS' },
+      { name: 'Dr. KAVITHA', role: 'Professor/CS' },
+      { name: 'Dr. SNEHAPRIYA', role: 'AP/CS' },
     ],
     studentCoordinators: [
-      { name: 'Paavesh', role: '3rd Year CS' },
-      { name: 'Visweswara Rao', role: '3rd Year CS' },
+      { name: 'Paavesh', role: 'III CS C', phone: '8144420203' },
+      { name: 'Visweswara Rao', role: 'III CS C', phone: '9840031342' },
     ],
     rules: [
       'Each team must consist of 3 – 4 members.',
@@ -531,6 +543,16 @@ export const EVENTS: EventInfo[] = [
       fee: TBA,
       prize: TBA,
     },
+    facultyCoordinators: [
+      { name: 'Dr. SARAVANAN', role: 'ASP/CS' },
+      { name: 'Ms. SOWMIYA SREE', role: 'AP/CS' },
+      { name: 'Dr. ILAMATHI', role: 'AP/CS' },
+    ],
+    studentCoordinators: [
+      { name: 'Zaheer', role: 'III CS E', phone: '6304282740' },
+      { name: 'Somendra', role: 'III CS C', phone: '9843297456' },
+      { name: 'Chandan Sai', role: 'III CS E', phone: '9668079368' },
+    ],
   },
   {
     no: '12',

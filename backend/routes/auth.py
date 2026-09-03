@@ -206,14 +206,28 @@ def google_callback():
         logger.warning("Google ID token missing email or unverified email")
         return redirect(f"{frontend_base}/login?error=unverified_email")
 
-    # Check educational domain restriction if configured
+    admin_email = (config.ADMIN_GOOGLE_EMAIL or "info.cybercarnival@gmail.com").strip().lower()
+
+    # If the verified Google identity matches ADMIN_GOOGLE_EMAIL, establish admin session
+    if email == admin_email:
+        from services import admin_service, audit_service
+        admin = admin_service.get_or_create_admin_for_email(email)
+        session.clear()
+        session["admin_username"] = admin.username
+        session["is_admin"] = True
+        session.permanent = True
+        audit_service.log_action(admin.username, "google_oauth_admin_login", f"admin login via Google OAuth ({email})", request.remote_addr or "unknown")
+        logger.info("Successful Google OAuth admin login for email=%s admin_username=%s", email, admin.username)
+        return redirect("/admin/")
+
+    # Check educational domain restriction if configured for normal users
     if config.ALLOWED_EMAIL_DOMAIN:
         domain = email.split("@")[-1] if "@" in email else ""
         if domain.lower() != config.ALLOWED_EMAIL_DOMAIN:
             logger.warning("Google login attempt with unauthorized email domain: %s", email)
             return redirect(f"{frontend_base}/login?error=authorized_email_required")
 
-    # 5. User Registration / Account Linking via existing user service
+    # 5. User Registration / Account Linking via existing user service for normal users
     try:
         user = user_service.get_or_create_google_user(
             email=email,
@@ -229,7 +243,7 @@ def google_callback():
         logger.warning("Attempted login to inactive user account: %s", user.id)
         return redirect(f"{frontend_base}/login?error=account_disabled")
 
-    # 7. Establish application session
+    # 7. Establish application session for normal user
     session.clear()
     session["user_id"] = user.id
     session.permanent = True
@@ -378,7 +392,7 @@ def my_events():
     from models import EventRegistration, RegistrationMember
 
     registrations = (
-        EventRegistration.query.join(RegistrationMember)
+        EventRegistration.query.join(RegistrationMember, EventRegistration.id == RegistrationMember.registration_id)
         .filter(
             RegistrationMember.user_id == user.id,
             db.or_(

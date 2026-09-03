@@ -99,6 +99,8 @@ def event_registrations_detail(event_id: str) -> list:
                 "status": reg.status,
                 "transaction_id": reg.transaction_id,
                 "payment_amount": reg.payment_amount,
+                "payment_proof_url": f"/api/registrations/{reg.id}/payment-proof" if reg.payment_proof_filename else None,
+                "disclaimer_accepted": reg.disclaimer_accepted,
                 "members": [
                     {
                         "user_id": m.user.id,

@@ -216,9 +216,46 @@ export type RegistrationPayload = {
 
 export type RegistrationResult = {
   id: string
-  status: 'confirmed' | 'pending_verification'
+  status: 'confirmed' | 'pending_verification' | 'pending_payment'
   warnings: string[]
+  payment_url?: string | null
   payment_message?: string | null
+}
+
+export type PaymentPageData = {
+  registration_id: string
+  event_id: string
+  event_name: string
+  event_description: string
+  event_date: string | null
+  event_time: string | null
+  venue: string | null
+  fee_amount_paise: number
+  fee_amount_rupees: string
+  participant_mode: string
+  team_name: string | null
+  status: string
+  transaction_id: string
+  disclaimer_accepted: boolean
+  has_proof: boolean
+  upi_id: string
+  upi_payee_name: string
+  upi_dummy_mode: boolean
+  qr_url: string
+  members: { name: string; is_leader: boolean }[]
+}
+
+export async function fetchPaymentDetails(eventId: string, registrationId: string): Promise<PaymentPageData> {
+  const res = await apiFetch(`/api/events/${encodeURIComponent(eventId)}/payment/${encodeURIComponent(registrationId)}`)
+  return parseOrThrow(res)
+}
+
+export async function submitPaymentProof(registrationId: string, formData: FormData): Promise<{ id: string; status: string; message: string }> {
+  const res = await apiFetch(`/api/registrations/${encodeURIComponent(registrationId)}/payment`, {
+    method: 'POST',
+    body: formData,
+  })
+  return parseOrThrow(res)
 }
 
 export type PaymentInfo = {

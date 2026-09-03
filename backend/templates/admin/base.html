@@ -1,12 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}CyberCarnival Admin{% endblock %}</title>
+  <title>{% block title %}CyberCarnival Admin Command Center{% endblock %}</title>
+  
+  <!-- CyberCarnival Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=JetBrains+Mono:wght@400;500;600;700;800&family=Oxanium:wght@600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
   <link rel="stylesheet" href="/static/admin/css/admin.css" />
 </head>
-<body>
-  {% block body %}{% endblock %}
+<body class="bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
+  <!-- Atmospheric Falling Spiders & Starfield Background Canvas -->
+  <canvas id="bg-canvas" style="position:fixed; inset:0; z-index:0; pointer-events:none;"></canvas>
+
+  <!-- Ambient Top Hero Highlight Glow -->
+  <div aria-hidden="true" style="position:fixed; left:50%; top:0; z-index:1; width:100%; max-width:1200px; height:500px; transform:translateX(-50%); pointer-events:none; background:radial-gradient(ellipse 55% 45% at 50% 10%, rgba(168,85,247,0.22), transparent 70%);"></div>
+
+  <!-- Main Content Shell -->
+  <div style="position:relative; z-index:10;">
+    {% block body %}{% endblock %}
+  </div>
+
+  <script src="/static/admin/js/background-field.js"></script>
 </body>
 </html>

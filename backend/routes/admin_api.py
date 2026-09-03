@@ -53,6 +53,8 @@ def _reg_to_dict(reg):
         "status": reg.status,
         "transaction_id": reg.transaction_id,
         "payment_amount": reg.payment_amount,
+        "payment_proof_url": f"/api/registrations/{reg.id}/payment-proof" if reg.payment_proof_filename else None,
+        "disclaimer_accepted": reg.disclaimer_accepted,
         "participant_mode": reg.participant_mode,
         "member_count": len(members),
         "members": members,
@@ -130,6 +132,8 @@ def update_registration_status(registration_id):
         ok = regs.set_status(registration_id, status)
     except ValueError:
         return jsonify({"error": "invalid status"}), 422
+    except regs.DuplicateRegistrationError:
+        return jsonify({"error": "cannot activate status: a team member is already registered for this event"}), 409
     if not ok:
         return jsonify({"error": "not found"}), 404
     if status == "confirmed":
@@ -327,161 +331,9 @@ def _speaker_fields_from_form(form) -> dict:
     return data
 
 
-@bp.get("/speakers")
-@login_required
-def list_speakers_admin():
-    return jsonify([s.to_admin_dict() for s in speakers.list_speakers(include_inactive=True)])
-
-
-@bp.post("/speakers")
-@login_required
-@limiter.limit("30 per minute")
-def create_speaker():
-    form = request.form
-    name = form.get("name", "").strip()
-    if not name or len(name) > 120:
-        return jsonify({"error": "name is required (max 120 chars)"}), 422
-
-    data = _speaker_fields_from_form(form)
-    data["name"] = name
-    record = speakers.create_speaker(data)
-
-    portrait = request.files.get("portrait")
-    if portrait and portrait.filename:
-        try:
-            speakers.save_portrait(record, portrait)
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 422
-
-    audit_service.log_action(_actor(), "create_speaker", f"speaker {record.id} ({name})", _ip())
-    return jsonify(record.to_admin_dict()), 201
-
-
-@bp.put("/speakers/<speaker_id>")
-@login_required
-@limiter.limit("30 per minute")
-def edit_speaker(speaker_id):
-    form = request.form
-    data = _speaker_fields_from_form(form)
-    if "name" in data and (not data["name"] or len(data["name"]) > 120):
-        return jsonify({"error": "name is required (max 120 chars)"}), 422
-
-    record = speakers.update_speaker(speaker_id, data)
-    if not record:
-        return jsonify({"error": "not found"}), 404
-
-    portrait = request.files.get("portrait")
-    if portrait and portrait.filename:
-        try:
-            speakers.save_portrait(record, portrait)
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 422
-
-    audit_service.log_action(_actor(), "edit_speaker", f"speaker {speaker_id}", _ip())
-    return jsonify(record.to_admin_dict())
-
-
-@bp.delete("/speakers/<speaker_id>")
-@login_required
-@limiter.limit("60 per minute")
-def delete_speaker(speaker_id):
-    ok = speakers.delete_speaker(speaker_id)
-    if not ok:
-        return jsonify({"error": "not found"}), 404
-    audit_service.log_action(_actor(), "delete_speaker", f"speaker {speaker_id}", _ip())
-    return jsonify({"ok": True})
-
-
 # --- Audit log -------------------------------------------------------------------------
 
 @bp.get("/audit-log")
 @login_required
 def audit_log():
     return jsonify(audit_service.list_audit_log())
-
-
-# --- Coordinators ------------------------------------------------------------------------
-# Per-event logins the super admin creates here and hands off manually
-# (WhatsApp, per how this project actually shares credentials — there's no
-# emailed-credentials flow for these, unlike participant accounts). Each
-# coordinator is scoped to whichever event(s) they're assigned; enforced in
-# routes/coordinator_api.py, not here — this is the admin-side management,
-# not the coordinator-side scoped view.
-
-@bp.get("/coordinators")
-@login_required
-def list_coordinators():
-    return jsonify([c.to_admin_dict() for c in coordinators.list_coordinators()])
-
-
-@bp.post("/coordinators")
-@login_required
-@limiter.limit("30 per minute")
-def create_coordinator():
-    body = request.get_json(silent=True) or {}
-    full_name = (body.get("full_name") or "").strip()[:120]
-    phone = (body.get("phone") or "").strip()[:20]
-    event_ids = body.get("event_ids") or []
-
-    if not full_name:
-        return jsonify({"error": "full_name is required"}), 422
-    if not isinstance(event_ids, list) or not event_ids:
-        return jsonify({"error": "assign at least one event_id"}), 422
-
-    # System-generated, same pattern as participant accounts — the admin
-    # copies these from the response and sends them over WhatsApp; there's
-    # no email step for coordinators.
-    username = new_username()
-    password = new_temp_password()
-
-    try:
-        coord = coordinators.create_coordinator(username, password, full_name, phone, event_ids)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 422
-
-    audit_service.log_action(_actor(), "create_coordinator", f"coordinator {coord.id} ({full_name})", _ip())
-    # Only place the plaintext password is ever returned — the admin has to
-    # copy it now, same as any "here's your generated password" flow.
-    result = coord.to_admin_dict()
-    result["password"] = password
-    return jsonify(result), 201
-
-
-@bp.put("/coordinators/<coordinator_id>/events")
-@login_required
-@limiter.limit("30 per minute")
-def update_coordinator_events(coordinator_id):
-    body = request.get_json(silent=True) or {}
-    event_ids = body.get("event_ids") or []
-    if not isinstance(event_ids, list):
-        return jsonify({"error": "event_ids must be a list"}), 422
-
-    ok = coordinators.set_coordinator_events(coordinator_id, event_ids)
-    if not ok:
-        return jsonify({"error": "not found"}), 404
-    audit_service.log_action(_actor(), "update_coordinator_events", f"coordinator {coordinator_id}", _ip())
-    return jsonify({"ok": True})
-
-
-@bp.post("/coordinators/<coordinator_id>/toggle")
-@login_required
-@limiter.limit("60 per minute")
-def toggle_coordinator(coordinator_id):
-    body = request.get_json(silent=True) or {}
-    active = bool(body.get("active", True))
-    ok = coordinators.set_coordinator_active(coordinator_id, active)
-    if not ok:
-        return jsonify({"error": "not found"}), 404
-    audit_service.log_action(_actor(), "toggle_coordinator", f"coordinator {coordinator_id} active={active}", _ip())
-    return jsonify({"ok": True})
-
-
-@bp.delete("/coordinators/<coordinator_id>")
-@login_required
-@limiter.limit("60 per minute")
-def delete_coordinator(coordinator_id):
-    ok = coordinators.delete_coordinator(coordinator_id)
-    if not ok:
-        return jsonify({"error": "not found"}), 404
-    audit_service.log_action(_actor(), "delete_coordinator", f"coordinator {coordinator_id}", _ip())
-    return jsonify({"ok": True})

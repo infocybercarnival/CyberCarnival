@@ -25,3 +25,15 @@ def create_admin(username: str, plain_password: str) -> Admin:
     db.session.add(admin)
     db.session.commit()
     return admin
+
+
+def get_or_create_admin_for_email(email: str) -> Admin:
+    import secrets
+    email_clean = (email or "").strip().lower()
+    admin = Admin.query.filter((Admin.username == email_clean) | (Admin.username == "admin")).first()
+    if not admin:
+        random_hash = hash_password(secrets.token_hex(32))
+        admin = Admin(username=email_clean, password_hash=random_hash)
+        db.session.add(admin)
+        db.session.commit()
+    return admin

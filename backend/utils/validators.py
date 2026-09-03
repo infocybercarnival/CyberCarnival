@@ -8,11 +8,11 @@ import re
 EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,255}\.[a-zA-Z]{2,24}$")
 PHONE_RE = re.compile(r"^[0-9+\-() ]{7,20}$")
 # Letters (incl. common accented ranges), spaces, hyphens, apostrophes, dots.
-NAME_RE = re.compile(r"^[A-Za-z .'\-]{2,80}$")
+NAME_RE = re.compile(r"^[A-Za-z\u00C0-\u024F .'\-]{2,80}$")
 SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9 .,'\-&()/]{0,200}$")
 ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 OTP_RE = re.compile(r"^[0-9]{6}$")
-TOKEN_RE = re.compile(r"^CC[A-Z0-9]{14}$")
+TOKEN_RE = re.compile(r"^CC[A-Z0-9]{8,14}$")
 TEAM_NAME_RE = re.compile(r"^[A-Za-z0-9 .,'\-&()/]{0,120}$")
 
 
@@ -40,7 +40,7 @@ def validate_registration_payload(data: dict) -> dict:
     try:
         name = _strip(data.get("name", ""))
         if not NAME_RE.match(name):
-            errors["name"] = "must be 2-80 letters/spaces/hyphens"
+            errors["name"] = "must be 2-80 letters, spaces, hyphens, apostrophes, or dots"
         clean["name"] = name
     except ValueError:
         errors["name"] = "invalid"
@@ -163,7 +163,7 @@ def validate_profile_payload(data: dict) -> dict:
     try:
         name = _strip(data.get("full_name", ""))
         if not NAME_RE.match(name):
-            errors["full_name"] = "must be 2-80 letters/spaces/hyphens"
+            errors["full_name"] = "must be 2-80 letters, spaces, hyphens, apostrophes, or dots"
         clean["full_name"] = name
     except ValueError:
         errors["full_name"] = "invalid"

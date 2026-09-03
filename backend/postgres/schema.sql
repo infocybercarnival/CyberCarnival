@@ -137,23 +137,33 @@ CREATE TABLE event_registrations (
   payment_submitted_at timestamp without time zone,
   payment_verified_at timestamp without time zone,
   payment_verified_by varchar(120),
-  CONSTRAINT ck_registration_status CHECK (status IN ('confirmed','pending_verification','cancelled')),
+  payment_proof_filename varchar(255),
+  payment_proof_mime_type varchar(64),
+  payment_proof_size integer,
+  disclaimer_accepted boolean NOT NULL DEFAULT false,
+  disclaimer_accepted_at timestamp without time zone,
+  CONSTRAINT uq_event_registrations_id_event UNIQUE (id, event_id),
+  CONSTRAINT ck_registration_status CHECK (status IN ('confirmed','pending_verification','pending_payment','cancelled','rejected')),
   CONSTRAINT ck_participant_mode CHECK (participant_mode IN ('individual','team')),
   CONSTRAINT ck_payment_amount_nonnegative CHECK (payment_amount IS NULL OR payment_amount >= 0)
 );
 CREATE INDEX idx_reg_event ON event_registrations(event_id, status);
-CREATE INDEX ix_event_registrations_transaction_id ON event_registrations(transaction_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_event_registrations_transaction_id ON event_registrations(transaction_id) WHERE transaction_id IS NOT NULL AND transaction_id != '';
 CREATE INDEX ix_event_registrations_razorpay_payment_id ON event_registrations(razorpay_payment_id);
 
 CREATE TABLE registration_members (
   id varchar(36) PRIMARY KEY,
   registration_id varchar(36) NOT NULL REFERENCES event_registrations(id) ON DELETE CASCADE,
+  event_id varchar(36) NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   user_id varchar(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   is_leader boolean NOT NULL DEFAULT false,
+  active_registration boolean NOT NULL DEFAULT true,
   joined_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT uq_member_once_per_event UNIQUE (registration_id, user_id)
+  CONSTRAINT uq_member_once_per_event UNIQUE (registration_id, user_id),
+  CONSTRAINT fk_registration_members_registration_event FOREIGN KEY (registration_id, event_id) REFERENCES event_registrations(id, event_id) ON DELETE CASCADE
 );
 CREATE INDEX idx_registration_members_user ON registration_members(user_id);
+CREATE UNIQUE INDEX uq_active_user_per_event ON registration_members (event_id, user_id) WHERE (active_registration = true);
 
 CREATE TABLE coordinator_events (
   id varchar(36) PRIMARY KEY,

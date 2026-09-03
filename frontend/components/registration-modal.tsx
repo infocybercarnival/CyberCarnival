@@ -2,9 +2,10 @@
 
 import { useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
-  fetchMe, fetchEvent, fetchPaymentInfo, fetchRegistrationWarnings, fetchMemberPreview, paymentQrUrl,
-  submitRegistration, ApiValidationError, type PublicUser, type ApiEvent, type PaymentInfo, type MemberPreview,
+  fetchMe, fetchEvent, fetchRegistrationWarnings, fetchMemberPreview,
+  submitRegistration, ApiValidationError, type PublicUser, type ApiEvent, type MemberPreview,
 } from '@/lib/api'
 
 type Props = { eventId: string | null; eventName: string; onClose: () => void }
@@ -12,17 +13,16 @@ type Props = { eventId: string | null; eventName: string; onClose: () => void }
 type Status = 'idle' | 'submitting' | 'done' | 'error'
 
 export function RegistrationModal({ eventId, eventName, onClose }: Props) {
+  const router = useRouter()
   const [me, setMe] = useState<PublicUser | null | 'loading'>('loading')
   const [event, setEvent] = useState<ApiEvent | null>(null)
-  const [payment, setPayment] = useState<PaymentInfo | null>(null)
   const [mode, setMode] = useState<'individual' | 'team'>('individual')
   const [teamName, setTeamName] = useState('')
   const [memberTokens, setMemberTokens] = useState<string[]>([])
   const [memberPreviews, setMemberPreviews] = useState<Record<number, MemberPreview | 'loading' | 'not_found'>>({})
-  const [transactionId, setTransactionId] = useState('')
   const [warnings, setWarnings] = useState<string[]>([])
   const [status, setStatus] = useState<Status>('idle')
-  const [resultStatus, setResultStatus] = useState<'confirmed' | 'pending_verification' | null>(null)
+  const [resultStatus, setResultStatus] = useState<'confirmed' | 'pending_verification' | 'pending_payment' | null>(null)
   const [errorMsg, setErrorMsg] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
@@ -33,9 +33,9 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
       setEvent(e)
       if (e.max_team_size === 1) setMode('individual')
       else if ((e.min_team_size || 1) > 1) setMode('team')
-      if (e.fee_amount) fetchPaymentInfo(eventId).then(setPayment).catch(() => setPayment(null))
     }).catch(() => setEvent(null))
   }, [eventId])
+
   useEffect(() => {
     if (!eventId || !me || me === 'loading') return
     fetchRegistrationWarnings(eventId).then((w) => {
@@ -44,11 +44,19 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
   }, [eventId, me])
 
   if (!eventId) return null
-  const paid = Boolean(event?.fee_amount)
+  const paid = Boolean((event?.fee_amount && event.fee_amount > 0) || (event?.fee && !event.fee.toUpperCase().includes('FREE') && /\d+/.test(event.fee)))
   const individualOnly = event?.max_team_size === 1
   const teamOnly = (event?.min_team_size || 1) > 1
 
-  function addMember() { if (memberTokens.length < Math.max(0, (event?.max_team_size || 11) - 1)) setMemberTokens([...memberTokens, '']) }
+  function addMember() {
+    const maxTeammates = Math.max(0, (event?.max_team_size || 11) - 1)
+    if (memberTokens.length < maxTeammates) {
+      setMemberTokens([...memberTokens, ''])
+      setFieldErrors((prev) => { const copy = { ...prev }; delete copy.member_tokens; return copy })
+    } else {
+      setFieldErrors((prev) => ({ ...prev, member_tokens: `Maximum team size for this event is ${event?.max_team_size || 11} participants (1 leader + ${maxTeammates} teammates).` }))
+    }
+  }
   function updateMember(i: number, value: string) {
     const next=[...memberTokens]; next[i]=value.toUpperCase(); setMemberTokens(next)
     setMemberPreviews((prev) => { const copy={...prev}; delete copy[i]; return copy })
@@ -77,10 +85,18 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
         participant_mode: mode,
         team_name: mode === 'team' ? teamName || undefined : undefined,
         member_tokens: mode === 'team' ? memberTokens.filter((t) => t.trim()) : [],
-        transaction_id: paid ? transactionId.trim() : undefined,
       })
+
+      if (result.status === 'pending_payment' || (result.payment_url && result.status !== 'confirmed')) {
+        onClose()
+        const targetUrl = result.payment_url || `/payment?eventId=${eventId}&registrationId=${result.id}`
+        router.push(targetUrl)
+        return
+      }
+
       setWarnings((prev) => [...prev, ...(result.warnings || [])])
-      setResultStatus(result.status); setStatus('done')
+      setResultStatus(result.status)
+      setStatus('done')
     } catch (err) {
       setStatus('error')
       if (err instanceof ApiValidationError) { setErrorMsg(err.message); setFieldErrors(err.fields || {}) }
@@ -103,9 +119,9 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
         {me && me !== 'loading' && !me.profile_completed && <div className="py-10 text-center"><h3 className="text-2xl font-bold">Finish your profile</h3><p className="mt-3 text-sm text-muted-foreground">We use your saved profile details in event registrations.</p><Link href="/dashboard" className="mt-7 inline-flex bg-primary px-5 py-2 text-sm text-primary-foreground">COMPLETE PROFILE</Link></div>}
 
         {me && me !== 'loading' && me.profile_completed && status === 'done' && <div className="py-10 text-center">
-          <p className="font-mono text-xs tracking-[.3em] text-primary">REGISTRATION RECEIVED</p>
-          <h3 className="mt-4 text-2xl font-bold">{resultStatus === 'pending_verification' ? 'Payment verification pending' : "You're registered"}</h3>
-          <p className="mt-3 text-sm text-muted-foreground">{resultStatus === 'pending_verification' ? 'Your transaction ID was submitted. The coordinator/admin will verify the payment before the registration becomes confirmed.' : 'Your registration is confirmed.'}</p>
+          <p className="font-mono text-xs tracking-[.3em] text-primary">REGISTRATION CONFIRMED</p>
+          <h3 className="mt-4 text-2xl font-bold">You're registered</h3>
+          <p className="mt-3 text-sm text-muted-foreground">Your registration for {eventName} is confirmed.</p>
           {warnings.length > 0 && <WarningBox warnings={warnings} />}
           <button type="button" onClick={onClose} className="mt-7 border border-primary/60 px-6 py-2 text-sm">CLOSE</button>
         </div>}
@@ -140,17 +156,9 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
             {fieldErrors.member_tokens && <p className="text-xs text-destructive">{fieldErrors.member_tokens}</p>}
           </section>}
 
-          {paid && <section className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-            <div className="text-center"><p className="font-mono text-[10px] uppercase tracking-[.2em] text-primary">Pay exact event amount</p><p className="mt-2 text-3xl font-bold">₹{((event?.fee_amount || 0)/100).toFixed(2)}</p></div>
-            <div className="mt-4 flex flex-col items-center gap-3 md:flex-row md:items-start">
-              <img src={paymentQrUrl(eventId)} alt={`UPI QR for ${eventName}`} className="h-44 w-44 rounded-lg bg-white p-2" />
-              <div className="flex-1 text-sm text-muted-foreground"><p>Scan this QR in any UPI app. The exact event amount is encoded server-side.</p>{payment?.is_dummy && <p className="mt-2 font-semibold text-amber-500">DEV QR: replace UPI_ID before going live.</p>}<p className="mt-3 text-xs">After payment, enter the UPI/UTR reference below. Opening this modal or loading the QR does not create a registration.</p></div>
-            </div>
-            <div className="mt-4"><Field label="UPI transaction / reference ID *" error={fieldErrors.transaction_id}><input required value={transactionId} onChange={(e)=>setTransactionId(e.target.value.toUpperCase())} maxLength={80} placeholder="Enter UTR / UPI reference after payment" /></Field></div>
-            <p className="mt-2 text-xs text-muted-foreground">Do not mark the registration confirmed just from this ID; your coordinator/admin should verify it against the receiving account.</p>
-          </section>}
-
-          <button type="submit" disabled={status==='submitting'} className="w-full rounded-lg bg-primary px-6 py-3 font-mono text-xs tracking-[.15em] text-primary-foreground disabled:opacity-50">{status==='submitting'?'SUBMITTING…':paid?'SUBMIT PAYMENT + REGISTRATION':'CONFIRM REGISTRATION'}</button>
+          <button type="submit" disabled={status==='submitting'} className="w-full rounded-lg bg-primary px-6 py-3 font-mono text-xs tracking-[.15em] text-primary-foreground disabled:opacity-50">
+            {status==='submitting' ? 'PROCEEDING…' : 'PROCEED TO PAYMENT'}
+          </button>
         </form>}
       </div>
     </div>

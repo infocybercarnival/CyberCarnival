@@ -200,6 +200,7 @@ class CoordinatorEvent(db.Model):
 
 class EventRegistration(db.Model):
     __tablename__ = "event_registrations"
+    __table_args__ = (db.UniqueConstraint("id", "event_id", name="uq_event_registrations_id_event"),)
 
     id = db.Column(db.String(36), primary_key=True, default=new_uuid)
     event_id = db.Column(db.String(36), db.ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -217,6 +218,12 @@ class EventRegistration(db.Model):
     payment_verified_at = db.Column(db.DateTime, nullable=True)
     payment_verified_by = db.Column(db.String(120), nullable=True)
 
+    payment_proof_filename = db.Column(db.String(255), nullable=True)
+    payment_proof_mime_type = db.Column(db.String(64), nullable=True)
+    payment_proof_size = db.Column(db.Integer, nullable=True)
+    disclaimer_accepted = db.Column(db.Boolean, nullable=False, default=False)
+    disclaimer_accepted_at = db.Column(db.DateTime, nullable=True)
+
     # Legacy Razorpay columns kept nullable so existing databases can migrate
     # without losing historical records. New registrations do not use them.
     razorpay_order_id = db.Column(db.String(64), nullable=True)
@@ -226,20 +233,31 @@ class EventRegistration(db.Model):
 
     event = db.relationship("Event")
     leader = db.relationship("User", foreign_keys=[leader_user_id])
-    members = db.relationship("RegistrationMember", backref="registration", cascade="all, delete-orphan")
+    members = db.relationship("RegistrationMember", backref="registration", cascade="all, delete-orphan", foreign_keys="[RegistrationMember.registration_id]")
 
 
 class RegistrationMember(db.Model):
     __tablename__ = "registration_members"
-    __table_args__ = (db.UniqueConstraint("registration_id", "user_id", name="uq_member_once_per_event"),)
+    __table_args__ = (
+        db.UniqueConstraint("registration_id", "user_id", name="uq_member_once_per_event"),
+        db.ForeignKeyConstraint(
+            ["registration_id", "event_id"],
+            ["event_registrations.id", "event_registrations.event_id"],
+            name="fk_registration_members_registration_event",
+            ondelete="CASCADE",
+        ),
+    )
 
     id = db.Column(db.String(36), primary_key=True, default=new_uuid)
     registration_id = db.Column(db.String(36), db.ForeignKey("event_registrations.id", ondelete="CASCADE"), nullable=False)
+    event_id = db.Column(db.String(36), db.ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
     user_id = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     is_leader = db.Column(db.Boolean, nullable=False, default=False)
+    active_registration = db.Column(db.Boolean, nullable=False, default=True)
     joined_at = db.Column(db.DateTime, default=db.func.now())
 
     user = db.relationship("User")
+
 
 
 class WebhookEvent(db.Model):
