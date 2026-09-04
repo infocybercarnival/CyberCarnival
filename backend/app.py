@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, jsonify, send_from_directory, abort
+from flask import Flask, jsonify, send_from_directory, abort, request
 from flask_cors import CORS
 
 import config
@@ -82,6 +82,19 @@ def create_app() -> Flask:
     # Frontend is hosted separately on Vercel.
     # Do NOT register frontend_bp here.
 
+    # Temporary route debugging
+    @app.before_request
+    def debug_request_route():
+        print(
+            f"[ROUTE DEBUG] "
+            f"method={request.method} "
+            f"path={request.path} "
+            f"endpoint={request.endpoint} "
+            f"host={request.host} "
+            f"url={request.url}",
+            flush=True
+        )
+
     csrf.exempt(registration_bp)
     csrf.exempt(auth_bp)
 
@@ -113,6 +126,23 @@ def create_app() -> Flask:
 
     @app.errorhandler(404)
     def not_found(e):
+        print(
+            f"[404 DEBUG] "
+            f"path={request.path} "
+            f"endpoint={request.endpoint} "
+            f"url={request.url}",
+            flush=True
+        )
+
+        print("[REGISTERED ADMIN ROUTES]", flush=True)
+
+        for rule in app.url_map.iter_rules():
+            if "admin" in str(rule).lower():
+                print(
+                    f"  {rule} -> {rule.endpoint}",
+                    flush=True
+                )
+
         return jsonify({
             "error": "not found"
         }), 404
