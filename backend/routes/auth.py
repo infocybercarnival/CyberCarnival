@@ -181,6 +181,7 @@ def google_callback():
         return redirect(f"{error_redirect_base}?error=token_exchange_failed")
 
     if token_resp.status_code != 200 or "id_token" not in token_json:
+        print("GOOGLE TOKEN EXCHANGE ERROR:", token_json, flush=True)
         logger.error("Token exchange failed with Google: %s", token_json)
         return redirect(f"{error_redirect_base}?error=token_exchange_failed")
 
