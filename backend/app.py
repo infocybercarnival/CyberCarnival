@@ -1,5 +1,5 @@
 import os
-import subprocess
+
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, send_from_directory, abort
@@ -162,6 +162,9 @@ def create_app() -> Flask:
 app = create_app()
 
 if __name__ == "__main__":
-    ensure_frontend_build()
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=not config.IS_PRODUCTION)
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=not config.IS_PRODUCTION
+    )
