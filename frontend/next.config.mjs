@@ -12,36 +12,6 @@ const nextConfig = {
   trailingSlash: true,
 
   ...(basePath ? { basePath } : {}),
-
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'https://cybercarnival.onrender.com/api/:path*',
-      },
-      {
-        source: '/uploads/:path*',
-        destination: 'https://cybercarnival.onrender.com/uploads/:path*',
-      },
-      {
-        source: '/admin',
-        destination: 'https://cybercarnival.onrender.com/admin/',
-      },
-      {
-        source: '/admin/:path*',
-        destination: 'https://cybercarnival.onrender.com/admin/:path*',
-      },
-      {
-        source: '/coordinator',
-        destination: 'https://cybercarnival.onrender.com/coordinator/',
-      },
-      {
-        source: '/coordinator/:path*',
-        destination: 'https://cybercarnival.onrender.com/coordinator/:path*',
-      },
-    ]
-  },
-
   typescript: {
     ignoreBuildErrors: true,
   },
