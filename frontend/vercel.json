@@ -10,6 +10,10 @@
     {
       "source": "/uploads/:path*",
       "destination": "https://cybercarnival.onrender.com/uploads/:path*"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "https://cybercarnival.onrender.com/admin/:path*"
     }
   ]
 }
