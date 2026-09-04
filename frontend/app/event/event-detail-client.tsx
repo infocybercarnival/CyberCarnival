@@ -215,8 +215,12 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   const duration = matchingStatic?.duration
   const rounds = matchingStatic?.rounds
   const expectedRegistrations = matchingStatic?.expectedRegistrations
-  const facultyCoordinators = matchingStatic?.facultyCoordinators
-  const studentCoordinators = matchingStatic?.studentCoordinators
+  const facultyCoordinators = (event?.coordinators?.faculty && event.coordinators.faculty.length > 0)
+    ? event.coordinators.faculty.map(c => ({ name: c.name, role: c.email || 'FACULTY COORDINATOR', phone: c.phone }))
+    : matchingStatic?.facultyCoordinators
+  const studentCoordinators = (event?.coordinators?.student && event.coordinators.student.length > 0)
+    ? event.coordinators.student.map(c => ({ name: c.name, role: c.email || 'STUDENT COORDINATOR', phone: c.phone }))
+    : matchingStatic?.studentCoordinators
   const customRules = matchingStatic?.rules
   const prerequisites = matchingStatic?.prerequisites
   const prizesList = matchingStatic?.prizesList

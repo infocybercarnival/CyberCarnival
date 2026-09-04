@@ -54,6 +54,14 @@ export async function fetchSpeakers(): Promise<ApiSpeaker[]> {
 
 // --- Events ---------------------------------------------------------------------------
 
+export type ApiCoordinator = {
+  id: string
+  name: string
+  email: string
+  phone: string
+  is_active: boolean
+}
+
 export type ApiEvent = {
   id: string
   name: string
@@ -73,6 +81,10 @@ export type ApiEvent = {
   seats_available: number | null
   prize: string | null
   registration_open: boolean
+  coordinators?: {
+    faculty: ApiCoordinator[]
+    student: ApiCoordinator[]
+  }
 }
 
 let eventsPromiseCache: Promise<ApiEvent[]> | null = null
@@ -105,23 +117,38 @@ export async function fetchEvent(eventId: string): Promise<ApiEvent> {
   return res.json()
 }
 
-export async function initiateGoogleLogin(turnstileToken: string): Promise<string> {
+export async function initiateGoogleLogin(
+  turnstileToken: string,
+  source: 'login' | 'register' = 'login'
+): Promise<string> {
   const res = await apiFetch('/api/auth/google/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ turnstile_token: turnstileToken }),
+    body: JSON.stringify({ turnstile_token: turnstileToken, source }),
   })
   const data = await parseOrThrow(res)
   return data.auth_url
 }
 
-export async function requestOtp(email: string, turnstileToken: string): Promise<void> {
+export type RequestOtpResponse = {
+  ok?: boolean
+  cooldown_active?: boolean
+  error?: string
+}
+
+export async function requestOtp(email: string, turnstileToken: string): Promise<RequestOtpResponse> {
   const res = await apiFetch('/api/auth/request-otp', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, turnstile_token: turnstileToken }),
   })
-  await parseOrThrow(res)
+  if (res.status === 429) {
+    const data = await res.json().catch(() => ({}))
+    if (data.cooldown_active || (data.error && data.error.includes('wait a minute'))) {
+      return { cooldown_active: true, error: data.error }
+    }
+  }
+  return parseOrThrow(res)
 }
 
 export async function verifyOtp(email: string, otp: string): Promise<void> {
@@ -151,7 +178,13 @@ export async function logout(): Promise<void> {
   await apiFetch('/api/auth/logout', { method: 'POST' })
 }
 
-export async function loginWithPassword(credentials: { username: string; password: string; turnstileToken: string }): Promise<PublicUser> {
+export type LoginResponse = {
+  otp_required?: boolean
+  masked_email?: string
+  message?: string
+}
+
+export async function loginWithPassword(credentials: { username: string; password: string; turnstileToken: string }): Promise<LoginResponse> {
   const res = await apiFetch('/api/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -164,6 +197,22 @@ export async function loginWithPassword(credentials: { username: string; passwor
   return parseOrThrow(res)
 }
 
+export async function verifyLoginOtp(otp: string): Promise<PublicUser> {
+  const res = await apiFetch('/api/auth/verify-login-otp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ otp }),
+  })
+  return parseOrThrow(res)
+}
+
+export async function resendLoginOtp(): Promise<void> {
+  const res = await apiFetch('/api/auth/resend-login-otp', {
+    method: 'POST',
+  })
+  await parseOrThrow(res)
+}
+
 export async function fetchMe(): Promise<PublicUser | null> {
   const res = await apiFetch('/api/auth/me')
   if (res.status === 401) return null
@@ -171,9 +220,13 @@ export async function fetchMe(): Promise<PublicUser | null> {
 }
 
 export async function completeProfile(data: {
-  full_name: string
-  phone: string
+  full_name?: string
+  phone?: string
   college?: string
+  participant_name?: string
+  participant_email?: string
+  college_name?: string
+  details_confirmed?: boolean | any
   is_srm_ramapuram?: boolean
   register_number?: string
 }): Promise<PublicUser> {
@@ -192,7 +245,8 @@ export type MyEvent = {
   event_name: string
   team_name: string | null
   is_leader: boolean
-  status: 'confirmed' | 'pending_verification'
+  status: 'confirmed' | 'pending_verification' | 'rejected' | 'pending_payment'
+  rejection_reason?: string | null
   members: { name: string; token: string }[]
   venue: string | null
   date: string | null
@@ -206,12 +260,33 @@ export async function fetchMyEvents(): Promise<MyEvent[]> {
 
 // --- Event registration ---------------------------------------------------------------
 
+export type ParticipantDetail = {
+  participant_name: string
+  participant_email: string
+  college_name: string
+  participant_phone: string
+  is_leader?: boolean
+  member_id?: string
+  user_id?: string
+}
+
+export type ParticipantDetailsResponse = {
+  registration_id: string
+  event_id: string
+  event_name: string
+  participant_mode: string
+  team_name: string | null
+  status: string
+  participants: ParticipantDetail[]
+}
+
 export type RegistrationPayload = {
   event_id: string
   participant_mode: 'individual' | 'team'
   team_name?: string
   member_tokens?: string[]
   transaction_id?: string
+  participants?: ParticipantDetail[]
 }
 
 export type RegistrationResult = {
@@ -242,7 +317,7 @@ export type PaymentPageData = {
   upi_payee_name: string
   upi_dummy_mode: boolean
   qr_url: string
-  members: { name: string; is_leader: boolean }[]
+  members: { name: string; email?: string; college?: string; phone?: string; is_leader: boolean }[]
 }
 
 export async function fetchPaymentDetails(eventId: string, registrationId: string): Promise<PaymentPageData> {
@@ -297,6 +372,23 @@ export async function submitRegistration(payload: RegistrationPayload): Promise<
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+  })
+  return parseOrThrow(res)
+}
+
+export async function fetchParticipantDetails(registrationId: string): Promise<ParticipantDetailsResponse> {
+  const res = await apiFetch(`/api/registrations/${encodeURIComponent(registrationId)}/participant-details`)
+  return parseOrThrow(res)
+}
+
+export async function submitParticipantDetails(
+  registrationId: string,
+  participants: ParticipantDetail[]
+): Promise<{ id: string; status: string; message: string }> {
+  const res = await apiFetch(`/api/registrations/${encodeURIComponent(registrationId)}/participant-details`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ participants }),
   })
   return parseOrThrow(res)
 }

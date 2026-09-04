@@ -6,12 +6,12 @@ __v0_jsx-dev-runtime.ts
 .v0-trash/
 .vercel/
 
-# Environment variables
-.env*.local
-# Environment files
-.env
-.env.*
-!.env.example
+# # Environment variables
+# .env*.local
+# # Environment files
+# .env
+# .env.*
+# !.env.example
 
 # Python
 __pycache__/

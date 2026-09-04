@@ -17,6 +17,7 @@ class UnknownMemberTokenError(Exception):
     def __init__(self, token): self.token = token; super().__init__(token)
 class TeamSizeError(Exception): pass
 class DuplicateTransactionError(Exception): pass
+class DuplicateEmailError(Exception): pass
 
 
 def _dates_overlap(a_start, a_end, b_start, b_end) -> bool:
@@ -188,9 +189,37 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
     db.session.flush()
 
     is_active = (registration.status in ["confirmed", "pending_verification"])
-    db.session.add(RegistrationMember(registration_id=registration.id, event_id=event.id, user_id=leader.id, is_leader=True, active_registration=is_active))
-    for member in member_users:
-        db.session.add(RegistrationMember(registration_id=registration.id, event_id=event.id, user_id=member.id, is_leader=False, active_registration=is_active))
+    participants_input = clean_data.get("participants", [])
+
+    leader_p = participants_input[0] if len(participants_input) > 0 else {}
+    leader_member = RegistrationMember(
+        registration_id=registration.id,
+        event_id=event.id,
+        user_id=leader.id,
+        is_leader=True,
+        active_registration=is_active,
+        participant_name=leader_p.get("participant_name") or leader.full_name or leader.username,
+        participant_email=leader_p.get("participant_email") or leader.email,
+        college_name=leader_p.get("college_name") or leader.college,
+        participant_phone=leader_p.get("participant_phone") or leader.phone,
+    )
+    db.session.add(leader_member)
+
+    for idx, member in enumerate(member_users):
+        m_p = participants_input[idx + 1] if len(participants_input) > (idx + 1) else {}
+        db.session.add(
+            RegistrationMember(
+                registration_id=registration.id,
+                event_id=event.id,
+                user_id=member.id,
+                is_leader=False,
+                active_registration=is_active,
+                participant_name=m_p.get("participant_name") or member.full_name or member.username,
+                participant_email=m_p.get("participant_email") or member.email,
+                college_name=m_p.get("college_name") or member.college,
+                participant_phone=m_p.get("participant_phone") or member.phone,
+            )
+        )
     
     try:
         db.session.commit()
@@ -240,8 +269,16 @@ def get_payment_page_details(event_id: str, registration_id: str, user_id: str) 
         "upi_id": config.UPI_ID,
         "upi_payee_name": config.UPI_PAYEE_NAME,
         "upi_dummy_mode": config.UPI_DUMMY_MODE,
-        "qr_url": f"/api/events/{event.id}/payment-qr",
-        "members": [{"name": m.user.full_name or m.user.username, "is_leader": m.is_leader} for m in reg.members]
+        "members": [
+            {
+                "name": m.participant_name or (m.user.full_name if m.user else None) or (m.user.username if m.user else ""),
+                "email": m.participant_email or (m.user.email if m.user else ""),
+                "college": m.college_name or (m.user.college if m.user else ""),
+                "phone": m.participant_phone or (m.user.phone if m.user else ""),
+                "is_leader": m.is_leader
+            }
+            for m in sorted(reg.members, key=lambda x: (not x.is_leader, x.joined_at))
+        ]
     }
 
 
@@ -324,9 +361,10 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
     reg.payment_proof_size = file_size
     reg.disclaimer_accepted = True
     reg.disclaimer_accepted_at = datetime.datetime.utcnow()
-    reg.status = "confirmed"
-    reg.payment_verified_at = datetime.datetime.utcnow()
-    reg.payment_verified_by = "auto_payment_submission"
+    reg.status = "pending_verification"
+    reg.payment_verified_at = None
+    reg.payment_verified_by = None
+    reg.rejection_reason = None
     for m in reg.members:
         m.active_registration = True
 
@@ -339,34 +377,69 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
             raise DuplicateTransactionError(txn_clean)
         raise
 
-    # Trigger ticket availability & send confirmation email immediately
-    member_users = [m.user for m in reg.members if not m.is_leader]
-    _send_confirmation_emails(reg, reg.event, reg.leader, member_users)
-
     return reg
 
 
-def verify_manual_payment(registration_id: str, actor: str, approved: bool) -> bool:
+class RegistrationAlreadyVerifiedError(Exception): pass
+class MissingRejectionReasonError(Exception): pass
+
+
+import secrets
+
+def verify_manual_payment(registration_id: str, actor: str, approved: bool, rejection_reason: str = None) -> bool:
     reg = db.session.get(EventRegistration, registration_id)
     if not reg:
         return False
+    if reg.status != "pending_verification":
+        raise InvalidPaymentStateError(f"Registration status '{reg.status}' cannot be modified by admin verification.")
+
+    now = datetime.datetime.utcnow()
     if approved:
         reg.status = "confirmed"
-        reg.payment_verified_at = datetime.datetime.utcnow()
+        if not reg.ticket_token:
+            reg.ticket_token = secrets.token_hex(16)
+        reg.payment_reviewed_at = now
+        reg.payment_reviewed_by = actor
+        reg.payment_verified_at = now
         reg.payment_verified_by = actor
+        reg.rejection_reason = None
         for m in reg.members:
             m.active_registration = True
         db.session.commit()
         member_users = [m.user for m in reg.members if not m.is_leader]
         _send_confirmation_emails(reg, reg.event, reg.leader, member_users)
     else:
-        reg.status = "cancelled"
-        reg.payment_verified_at = datetime.datetime.utcnow()
-        reg.payment_verified_by = actor
+        reason_clean = (rejection_reason or "").strip()
+        if not reason_clean:
+            raise MissingRejectionReasonError("A rejection reason is required when rejecting a payment.")
+        reg.status = "rejected"
+        reg.payment_reviewed_at = now
+        reg.payment_reviewed_by = actor
+        reg.payment_verified_at = None
+        reg.payment_verified_by = None
+        reg.rejection_reason = reason_clean
         for m in reg.members:
             m.active_registration = False
         db.session.commit()
+        member_users = [m.user for m in reg.members if not m.is_leader]
+        _send_rejection_emails(reg, reg.event, reg.leader, member_users, reason_clean)
     return True
+
+
+def _send_rejection_emails(registration, event, leader, member_users, rejection_reason: str) -> None:
+    from utils.email import send_registration_rejection_email
+    all_members = [leader, *member_users]
+    for member in all_members:
+        try:
+            send_registration_rejection_email(
+                member.email,
+                recipient_name=member.full_name or member.username,
+                event_name=event.name,
+                registration_id=registration.id,
+                rejection_reason=rejection_reason,
+            )
+        except Exception:
+            logger.exception("failed to send registration rejection email to=%s registration=%s", member.email, registration.id)
 
 
 def _send_confirmation_emails(registration, event, leader, member_users) -> None:
@@ -377,6 +450,8 @@ def _send_confirmation_emails(registration, event, leader, member_users) -> None
             send_registration_confirmation_email(
                 member.email,
                 recipient_name=member.full_name or member.username,
+                recipient_email=member.email,
+                college_name=member.college or "SRM Institute of Science and Technology",
                 event_name=event.name,
                 registration_id=registration.id,
                 team_name=registration.team_name,
@@ -385,9 +460,64 @@ def _send_confirmation_emails(registration, event, leader, member_users) -> None
                 venue=event.venue,
                 fee=event.fee,
                 members=roster,
+                ticket_token=registration.ticket_token,
             )
         except Exception:
             logger.exception("failed to send registration confirmation email to=%s registration=%s", member.email, registration.id)
+
+
+def check_in_ticket(registration_id: str, token: str | None, actor: str) -> dict:
+    reg = db.session.get(EventRegistration, registration_id)
+    if not reg:
+        return {"success": False, "status": "NOT_FOUND", "message": "Ticket registration not found."}
+    if reg.status != "confirmed":
+        return {"success": False, "status": "INVALID_STATUS", "message": f"Registration status is '{reg.status}'. Ticket is only valid when confirmed."}
+    
+    if token and reg.ticket_token:
+        if not secrets.compare_digest(reg.ticket_token.strip(), token.strip()):
+            return {"success": False, "status": "INVALID_TOKEN", "message": "Invalid ticket token."}
+
+    if reg.checked_in:
+        checked_in_at_str = reg.checked_in_at.strftime("%Y-%m-%d %H:%M:%S UTC") if reg.checked_in_at else "Earlier"
+        return {
+            "success": False,
+            "status": "ALREADY_CHECKED_IN",
+            "message": "⚠️ ALREADY CHECKED IN",
+            "checked_in_at": checked_in_at_str,
+            "checked_in_by": reg.checked_in_by,
+            "registration_id": reg.id,
+            "event_name": reg.event.name if reg.event else None,
+            "participant_name": reg.leader.full_name or reg.leader.username if reg.leader else None,
+            "team_name": reg.team_name,
+        }
+
+    now = datetime.datetime.utcnow()
+    reg.checked_in = True
+    reg.checked_in_at = now
+    reg.checked_in_by = actor
+    db.session.commit()
+
+    roster = []
+    for m in reg.members:
+        roster.append({
+            "name": m.participant_name or (m.user.full_name if m.user else None) or (m.user.username if m.user else ""),
+            "email": m.participant_email or (m.user.email if m.user else ""),
+            "college": m.college_name or (m.user.college if m.user else ""),
+            "is_leader": m.is_leader
+        })
+
+    return {
+        "success": True,
+        "status": "VALID",
+        "message": "✅ VALID TICKET — CHECKED IN SUCCESSFUL",
+        "checked_in_at": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "checked_in_by": actor,
+        "registration_id": reg.id,
+        "event_name": reg.event.name if reg.event else None,
+        "participant_name": reg.leader.full_name or reg.leader.username if reg.leader else None,
+        "team_name": reg.team_name,
+        "members": roster,
+    }
 
 
 def member_preview(token: str):
@@ -422,39 +552,29 @@ def get_registration(registration_id: str):
     return db.session.get(EventRegistration, registration_id)
 
 
-def set_status(registration_id: str, status: str) -> bool:
-    allowed = {"confirmed", "cancelled", "pending_verification"}
-    if status not in allowed:
-        raise ValueError("invalid status")
-    reg = get_registration(registration_id)
-    if not reg: return False
-
-    active = status in {"confirmed", "pending_verification"}
-    if active and reg.status == "cancelled":
-        # Check if any member is in another active registration for this event
-        for m in reg.members:
-            if _already_registered(reg.event_id, m.user_id):
-                raise DuplicateRegistrationError(m.user_id)
-
-    reg.status = status
-    for m in reg.members:
-        m.active_registration = active
-    
-    try:
-        db.session.commit()
-    except IntegrityError as e:
-        db.session.rollback()
-        err_str = str(e).lower()
-        if "uq_active_user_per_event" in err_str or "uq_member_once_per_event" in err_str:
-            raise DuplicateRegistrationError(reg.leader_user_id)
-        raise
-    return True
-
-
 def delete_registration(registration_id: str) -> bool:
     reg = get_registration(registration_id)
-    if not reg: return False
-    db.session.delete(reg); db.session.commit(); return True
+    if not reg:
+        return False
+
+    proof_filename = reg.payment_proof_filename
+
+    # 1. Delete database records transactionally first
+    db.session.delete(reg)
+    db.session.commit()
+
+    # 2. Only AFTER database commit succeeds, clean up physical proof file on disk
+    if proof_filename:
+        try:
+            import os
+            import config
+            proof_path = os.path.join(config.PAYMENT_PROOF_DIR, proof_filename)
+            if os.path.exists(proof_path):
+                os.remove(proof_path)
+        except Exception as e:
+            logger.warning(f"Post-commit cleanup warning: could not delete proof file '{proof_filename}' for registration {registration_id}: {e}")
+
+    return True
 
 
 def counts_by_event() -> dict:
@@ -470,3 +590,114 @@ def registered_user_ids() -> set:
             .filter(EventRegistration.status.in_(["confirmed", "pending_verification"]))
             .distinct().all())
     return {r[0] for r in rows}
+
+
+def get_participant_details(registration_id: str, user_id: str) -> dict:
+    reg = db.session.get(EventRegistration, registration_id)
+    if not reg:
+        raise EventNotFoundError(registration_id)
+
+    is_leader = (reg.leader_user_id == user_id)
+    is_member = any(m.user_id == user_id for m in reg.members)
+    if not (is_leader or is_member):
+        raise UnauthorizedRegistrationAccessError()
+
+    event = reg.event
+    if not event:
+        raise EventNotFoundError(reg.event_id)
+
+    members_list = []
+    # Sort members so leader comes first, then teammates
+    sorted_members = sorted(reg.members, key=lambda m: (not m.is_leader, m.joined_at))
+    for m in sorted_members:
+        u = m.user
+        members_list.append({
+            "member_id": m.id,
+            "user_id": m.user_id,
+            "is_leader": m.is_leader,
+            "participant_name": m.participant_name or (u.full_name if u else None) or (u.username if u else ""),
+            "participant_email": m.participant_email or (u.email if u else ""),
+            "college_name": m.college_name or (u.college if u else ""),
+            "participant_phone": m.participant_phone or (u.phone if u else ""),
+        })
+
+    return {
+        "registration_id": reg.id,
+        "event_id": event.id,
+        "event_name": event.name,
+        "participant_mode": reg.participant_mode,
+        "team_name": reg.team_name,
+        "status": reg.status,
+        "participants": members_list,
+    }
+
+
+def save_participant_details(registration_id: str, user_id: str, clean_participants: list[dict]) -> EventRegistration:
+    reg = db.session.get(EventRegistration, registration_id)
+    if not reg:
+        raise EventNotFoundError(registration_id)
+
+    is_leader = (reg.leader_user_id == user_id)
+    is_member = any(m.user_id == user_id for m in reg.members)
+    if not (is_leader or is_member):
+        raise UnauthorizedRegistrationAccessError()
+
+    event = reg.event
+    if not event:
+        raise EventNotFoundError(reg.event_id)
+
+    # 1. Validate internal duplicates within the submission
+    seen_in_request = set()
+    for p in clean_participants:
+        e = p["participant_email"].strip().lower()
+        if e in seen_in_request:
+            raise DuplicateEmailError("This email ID is already registered for another participant.")
+        seen_in_request.add(e)
+
+    # 2. Validate uniqueness across PostgreSQL database for each email for this event
+    for p in clean_participants:
+        e = p["participant_email"].strip().lower()
+        dup = (
+            RegistrationMember.query
+            .filter(
+                RegistrationMember.event_id == reg.event_id,
+                db.func.lower(RegistrationMember.participant_email) == e,
+                RegistrationMember.registration_id != reg.id,
+                RegistrationMember.active_registration == True,
+            )
+            .first()
+        )
+        if dup:
+            raise DuplicateEmailError("This email ID is already registered for another participant.")
+
+    # 3. Update existing RegistrationMember records or append missing ones
+    members = sorted(reg.members, key=lambda m: (not m.is_leader, m.joined_at))
+
+    for idx, p in enumerate(clean_participants):
+        if idx < len(members):
+            target_m = members[idx]
+        else:
+            target_m = RegistrationMember(
+                registration_id=reg.id,
+                event_id=event.id,
+                user_id=reg.leader_user_id,
+                is_leader=False,
+                active_registration=(reg.status in ["confirmed", "pending_verification"]),
+            )
+            db.session.add(target_m)
+
+        target_m.participant_name = p["participant_name"].strip()
+        target_m.participant_email = p["participant_email"].strip().lower()
+        target_m.college_name = p["college_name"].strip()
+        target_m.participant_phone = p["participant_phone"].strip()
+
+    try:
+        db.session.commit()
+    except IntegrityError as ie:
+        db.session.rollback()
+        err_msg = str(ie).lower()
+        if "uq_reg_member_participant_email" in err_msg or "unique" in err_msg:
+            raise DuplicateEmailError("This email ID is already registered for another participant.")
+        raise
+
+    return reg

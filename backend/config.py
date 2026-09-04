@@ -77,11 +77,19 @@ if DATABASE_URL_ENV:
     elif SQLALCHEMY_DATABASE_URI.startswith("postgres://"):
         SQLALCHEMY_DATABASE_URI = "postgresql+psycopg://" + SQLALCHEMY_DATABASE_URI[len("postgres://"):]
 else:
-    # Local-only fallback. Render must always provide DATABASE_URL.
+    if IS_PRODUCTION:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is missing. Refusing to start in production without PostgreSQL. "
+            "Set DATABASE_URL in your deployment environment (e.g., Render/Supabase)."
+        )
+    # Local-only development fallback
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{DATA_DIR / 'cybercarnival.db'}"
 
 SQLALCHEMY_TRACK_MODIFICATIONS = False
-SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+SQLALCHEMY_ENGINE_OPTIONS = {
+    "pool_pre_ping": True,
+    "pool_recycle": 280,
+}
 
 
 EMAIL_DEV_MODE = os.environ.get("EMAIL_DEV_MODE", "true").strip().lower() == "true"

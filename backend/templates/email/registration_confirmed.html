@@ -1,101 +1,205 @@
 {% extends "email/_layout.html" %}
-{% block title %}Registration confirmed — {{ event_name }}{% endblock %}
+{% block title %}🎉 Registration Confirmed — CyberCarnival 2026 | {{ event_name }}{% endblock %}
 
 {% block badge %}
-<div style="width:40px; height:40px; border-radius:50%; background-color:#1a1625; margin:0 auto; line-height:40px; font-size:18px;">✓</div>
+<div style="display:inline-block; padding:6px 16px; border-radius:20px; background-color:#052e16; border:1px solid #10b981; color:#10b981; font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold; letter-spacing:0.1em; text-transform:uppercase;">
+  ✓ CONFIRMED &amp; VERIFIED
+</div>
 {% endblock %}
 
-{% block heading %}REGISTRATION CONFIRMED!{% endblock %}
+{% block heading %}🎉 Registration Confirmed!{% endblock %}
 
 {% block content %}
-<tr>
-  <td style="padding:8px 24px 16px;">
-    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.6; color:#a8a8b3; text-align:center;">
-      Hey {{ recipient_name }},<br>
-      your registration for <strong style="color:#f5f5f7;">{{ event_name }}</strong> has been successfully confirmed.
-    </p>
-  </td>
-</tr>
-
-<tr>
-  <td style="padding:0 24px 16px;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#161320; border:1px solid #2a2438; border-radius:10px;">
-      <tr>
-        <td style="padding:14px 18px;">
-          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Event</p>
-          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:15px; font-weight:bold; color:#f5f5f7;">{{ event_name }}</p>
-        </td>
-      </tr>
-      <tr><td style="border-top:1px solid #2a2438;"></td></tr>
-      {% if team_name %}
-      <tr>
-        <td style="padding:14px 18px;">
-          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Team</p>
-          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#f5f5f7;">{{ team_name }}</p>
-        </td>
-      </tr>
-      <tr><td style="border-top:1px solid #2a2438;"></td></tr>
-      {% endif %}
-      {% if event_date %}
-      <tr>
-        <td style="padding:14px 18px;">
-          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Date</p>
-          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#f5f5f7;">{{ event_date }}{% if event_time %} &middot; {{ event_time }}{% endif %}</p>
-        </td>
-      </tr>
-      <tr><td style="border-top:1px solid #2a2438;"></td></tr>
-      {% endif %}
-      {% if venue %}
-      <tr>
-        <td style="padding:14px 18px;">
-          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Venue</p>
-          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#f5f5f7;">{{ venue }}</p>
-        </td>
-      </tr>
-      <tr><td style="border-top:1px solid #2a2438;"></td></tr>
-      {% endif %}
-      {% if fee %}
-      <tr>
-        <td style="padding:14px 18px;">
-          <p style="margin:0 0 4px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase;">Fee</p>
-          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#f5f5f7;">{{ fee }}</p>
-        </td>
-      </tr>
-      {% endif %}
-    </table>
-  </td>
-</tr>
-
-<!-- QR ticket -->
+<!-- Tagline -->
 <tr>
   <td align="center" style="padding:4px 24px 16px;">
-    <table role="presentation" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:10px;">
-      <tr>
-        <td style="padding:12px;">
-          <img src="cid:qr" width="150" height="150" alt="Ticket QR code" style="display:block; width:150px; height:150px;">
-        </td>
-      </tr>
-    </table>
-    <p style="margin:10px 0 0; font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#77777f;">
-      Scan at the venue, or tap the button below.
+    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:11px; letter-spacing:0.15em; color:#00f0ff; text-transform:uppercase; font-weight:bold;">
+      CyberCarnival 2026 &middot; Where Cyber Minds Meet Innovation
     </p>
   </td>
 </tr>
 
+<!-- Greeting & Intro -->
+<tr>
+  <td style="padding:8px 28px 16px;">
+    <p style="margin:0 0 12px; font-family:Arial, Helvetica, sans-serif; font-size:15px; font-weight:bold; color:#f5f5f7;">
+      Dear {{ recipient_name }},
+    </p>
+    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.6; color:#a8a8b3;">
+      We are excited to inform you that your registration and payment for <strong style="color:#f5f5f7;">{{ event_name }}</strong> have been successfully verified and approved by the CyberCarnival team!
+    </p>
+  </td>
+</tr>
+
+<!-- Registration Details Card -->
+<tr>
+  <td style="padding:0 28px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#12101a; border:1px solid #2a2438; border-radius:12px; overflow:hidden;">
+      <tr>
+        <td style="background-color:#1a1625; padding:12px 18px; border-bottom:1px solid #2a2438;">
+          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:11px; font-weight:bold; letter-spacing:0.15em; color:#00f0ff; text-transform:uppercase;">
+            📋 REGISTRATION DETAILS
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:14px 18px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f; width:40%;">Participant Name:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold; color:#f5f5f7; width:60%;">{{ recipient_name }}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Email ID:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#f5f5f7;">{{ recipient_email }}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">College:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#f5f5f7;">{{ college_name }}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Event:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold; color:#f5f5f7;">{{ event_name }}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Registration ID:</td>
+              <td style="padding:6px 0; font-family:Courier New, monospace; font-size:12px; font-weight:bold; color:#00f0ff;">{{ registration_id }}</td>
+            </tr>
+            {% if team_name %}
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Team Name:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold; color:#f5f5f7;">{{ team_name }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Payment Status:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold; color:#10b981;">VERIFIED</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Registration Status:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold; color:#10b981;">CONFIRMED</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+
+<!-- Event Schedule & Venue Card -->
+<tr>
+  <td style="padding:0 28px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#12101a; border:1px solid #2a2438; border-radius:12px; overflow:hidden;">
+      <tr>
+        <td style="background-color:#1a1625; padding:12px 18px; border-bottom:1px solid #2a2438;">
+          <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:11px; font-weight:bold; letter-spacing:0.15em; color:#8f2aff; text-transform:uppercase;">
+            📍 EVENT DETAILS
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:14px 18px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f; width:40%;">Event:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold; color:#f5f5f7; width:60%;">{{ event_name }}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Venue:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#f5f5f7;">{{ venue }}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Date:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#f5f5f7;">{{ event_date }}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#77777f;">Time:</td>
+              <td style="padding:6px 0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#f5f5f7;">{{ event_time }}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+
+<!-- Ticket & QR Section -->
+<tr>
+  <td style="padding:0 28px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#161320; border:1px solid #3b2d54; border-radius:12px; padding:20px; text-align:center;">
+      <tr>
+        <td align="center">
+          <p style="margin:0 0 8px; font-family:Arial, Helvetica, sans-serif; font-size:16px; font-weight:bold; color:#f5f5f7;">
+            🎫 Your Ticket Is Ready
+          </p>
+          <p style="margin:0 0 16px; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.5; color:#a8a8b3;">
+            Your registration is fully confirmed. You can access and view your official ticket directly from your CyberCarnival dashboard.
+          </p>
+
+          <!-- Inline QR code image -->
+          <table role="presentation" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:10px; margin:0 auto 18px;">
+            <tr>
+              <td style="padding:12px;">
+                <img src="cid:qr" width="160" height="160" alt="Ticket QR code" style="display:block; width:160px; height:160px;">
+              </td>
+            </tr>
+          </table>
+
+          <!-- Button -->
+          <a href="{{ ticket_url }}" style="display:inline-block; background-color:#8f2aff; color:#ffffff; font-family:Arial, Helvetica, sans-serif; font-size:13px; font-weight:bold; letter-spacing:0.08em; text-decoration:none; padding:14px 32px; border-radius:8px;">
+            VIEW / DOWNLOAD TICKET →
+          </a>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+
+<!-- Team Roster if applicable -->
 {% if members and members|length > 1 %}
 <tr>
-  <td style="padding:0 24px 16px;">
-    <p style="margin:0 0 6px; font-family:Arial, Helvetica, sans-serif; font-size:10px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase; text-align:center;">Team Roster</p>
-    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#a8a8b3; text-align:center; line-height:1.7;">
+  <td style="padding:0 28px 16px;">
+    <p style="margin:0 0 6px; font-family:Arial, Helvetica, sans-serif; font-size:11px; letter-spacing:0.12em; color:#77777f; text-transform:uppercase; text-align:center;">Team Roster</p>
+    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#a8a8b3; text-align:center; line-height:1.7;">
       {% for m in members %}{{ m }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
     </p>
   </td>
 </tr>
 {% endif %}
 
+<!-- Important Information -->
 <tr>
-  <td align="center" style="padding:8px 24px 8px;">
-    <a href="{{ ticket_url }}" style="display:inline-block; background-color:#8f2aff; color:#ffffff; font-family:Arial, Helvetica, sans-serif; font-size:13px; font-weight:bold; letter-spacing:0.05em; text-decoration:none; padding:12px 28px; border-radius:8px;">VIEW EVENT DETAILS →</a>
+  <td style="padding:0 28px 20px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0d0c14; border:1px solid #231f30; border-radius:10px; padding:16px;">
+      <tr>
+        <td>
+          <p style="margin:0 0 10px; font-family:Arial, Helvetica, sans-serif; font-size:12px; font-weight:bold; color:#00f0ff; letter-spacing:0.05em; text-transform:uppercase;">
+            📌 IMPORTANT INFORMATION
+          </p>
+          <ul style="margin:0; padding-left:18px; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.6; color:#a8a8b3;">
+            <li style="margin-bottom:6px;">Please verify your participant details in your CyberCarnival dashboard.</li>
+            <li style="margin-bottom:6px;">Carry a valid college / student ID card when attending the event.</li>
+            <li style="margin-bottom:6px;">For team events, all registered members must adhere to event rules and schedules.</li>
+            <li>This registration confirmation applies specifically to <strong>{{ event_name }}</strong>.</li>
+          </ul>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+
+<!-- Sign-off & Footer -->
+<tr>
+  <td align="center" style="padding:0 28px 24px;">
+    <p style="margin:0 0 16px; font-family:Arial, Helvetica, sans-serif; font-size:14px; font-weight:bold; color:#00f0ff;">
+      See you at CyberCarnival 2026! 🚀
+    </p>
+    <p style="margin:0; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:1.6; color:#a8a8b3;">
+      <strong>CyberCarnival Team</strong><br>
+      SRM Institute of Science and Technology<br>
+      Ramapuram Campus
+    </p>
   </td>
 </tr>
 {% endblock %}
+

@@ -124,6 +124,30 @@ class Event(db.Model):
     def teams_registered(self):
         return EventRegistration.query.filter_by(event_id=self.id, status="confirmed").count()
 
+    def get_coordinators_dict(self):
+        faculty = []
+        student = []
+        ces = CoordinatorEvent.query.filter_by(event_id=self.id).all()
+        for ce in ces:
+            coord = db.session.get(Coordinator, ce.coordinator_id)
+            if not coord:
+                continue
+            email_val = getattr(coord, "email", None) or (coord.username if "@" in coord.username else f"{coord.username}@srmist.edu.in")
+            info = {
+                "id": coord.id,
+                "name": coord.full_name or coord.username,
+                "username": coord.username,
+                "email": email_val,
+                "phone": coord.phone or "",
+                "is_active": coord.is_active,
+                "role": ce.role or "STUDENT",
+            }
+            if (ce.role or "STUDENT").upper() == "FACULTY":
+                faculty.append(info)
+            else:
+                student.append(info)
+        return {"faculty": faculty, "student": student}
+
     def to_public_dict(self):
         return {
             "id": self.id,
@@ -146,6 +170,7 @@ class Event(db.Model):
             "seats_available": self.seats_available(),
             "prize": self.prize,
             "registration_open": self.registration_open,
+            "coordinators": self.get_coordinators_dict(),
         }
 
     def to_admin_dict(self):
@@ -167,17 +192,20 @@ class Coordinator(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(120), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=db.func.now())
 
     events = db.relationship("Event", secondary="coordinator_events", backref="coordinators")
 
     def to_admin_dict(self):
+        email_val = self.email or (self.username if "@" in self.username else f"{self.username}@srmist.edu.in")
         return {
             "id": self.id,
             "username": self.username,
-            "full_name": self.full_name,
-            "phone": self.phone,
+            "full_name": self.full_name or self.username,
+            "email": email_val,
+            "phone": self.phone or "",
             "is_active": self.is_active,
             "created_at": self.created_at.timestamp() if self.created_at else None,
             "event_ids": [e.id for e in self.events],
@@ -195,6 +223,7 @@ class CoordinatorEvent(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=new_uuid)
     coordinator_id = db.Column(db.String(36), db.ForeignKey("coordinators.id", ondelete="CASCADE"), nullable=False)
     event_id = db.Column(db.String(36), db.ForeignKey("events.id", ondelete="CASCADE"), nullable=False)
+    role = db.Column(db.String(32), nullable=False, default="STUDENT")
     created_at = db.Column(db.DateTime, default=db.func.now())
 
 
@@ -210,19 +239,28 @@ class EventRegistration(db.Model):
     # UPI transaction/reference ID. They remain pending_verification until an
     # admin/coordinator verifies the payment and confirms them. Free events
     # are confirmed immediately.
-    status = db.Column(db.String(24), nullable=False, default="confirmed")
+    status = db.Column(db.String(24), nullable=False, default="pending_payment")
     participant_mode = db.Column(db.String(16), nullable=False, default="individual")
     transaction_id = db.Column(db.String(80), nullable=True, unique=True, index=True)
     payment_amount = db.Column(db.Integer, nullable=True)  # paise snapshot at registration time
     payment_submitted_at = db.Column(db.DateTime, nullable=True)
+    payment_reviewed_at = db.Column(db.DateTime, nullable=True)
+    payment_reviewed_by = db.Column(db.String(120), nullable=True)
     payment_verified_at = db.Column(db.DateTime, nullable=True)
     payment_verified_by = db.Column(db.String(120), nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)
 
     payment_proof_filename = db.Column(db.String(255), nullable=True)
     payment_proof_mime_type = db.Column(db.String(64), nullable=True)
     payment_proof_size = db.Column(db.Integer, nullable=True)
     disclaimer_accepted = db.Column(db.Boolean, nullable=False, default=False)
     disclaimer_accepted_at = db.Column(db.DateTime, nullable=True)
+
+    # Canonical Ticket & Attendance Check-in fields
+    ticket_token = db.Column(db.String(64), nullable=True, unique=True, index=True)
+    checked_in = db.Column(db.Boolean, nullable=False, default=False)
+    checked_in_at = db.Column(db.DateTime, nullable=True)
+    checked_in_by = db.Column(db.String(120), nullable=True)
 
     # Legacy Razorpay columns kept nullable so existing databases can migrate
     # without losing historical records. New registrations do not use them.
@@ -254,9 +292,17 @@ class RegistrationMember(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     is_leader = db.Column(db.Boolean, nullable=False, default=False)
     active_registration = db.Column(db.Boolean, nullable=False, default=True)
+
+    # Participant details for certificate generation & Digital Wallet creation
+    participant_name = db.Column(db.String(120), nullable=True)
+    participant_email = db.Column(db.String(255), nullable=True, index=True)
+    college_name = db.Column(db.String(150), nullable=True)
+    participant_phone = db.Column(db.String(20), nullable=True)
+
     joined_at = db.Column(db.DateTime, default=db.func.now())
 
     user = db.relationship("User")
+    event = db.relationship("Event")
 
 
 
