@@ -161,7 +161,7 @@ def submit_payment(registration_id):
         return jsonify({
             "id": record.id,
             "status": record.status,
-            "message": "Payment submitted successfully! Your registration for this event is now confirmed."
+            "message": "Payment submitted successfully! Your registration is now pending admin verification."
         }), 200
     except ValidationError as e:
         return jsonify({"error": "validation failed", "fields": e.errors}), 422
@@ -212,19 +212,101 @@ def view_payment_proof(registration_id):
     return send_from_directory(config.PAYMENT_PROOF_DIR, reg.payment_proof_filename)
 
 
+@bp.get("/api/registrations/<registration_id>/participant-details")
+@user_login_required
+@limiter.limit("30 per minute")
+def view_participant_details(registration_id):
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "authentication required"}), 401
+    try:
+        from services.registration_service import get_participant_details, UnauthorizedRegistrationAccessError
+        details = get_participant_details(registration_id, user_id)
+        return jsonify(details)
+    except EventNotFoundError:
+        return jsonify({"error": "registration or event not found"}), 404
+    except UnauthorizedRegistrationAccessError:
+        return jsonify({"error": "unauthorized access to participant details"}), 403
+
+
+@bp.post("/api/registrations/<registration_id>/participant-details")
+@user_login_required
+@limiter.limit("15 per minute")
+def submit_participant_details(registration_id):
+    if not validate_csrf_origin(request):
+        return jsonify({"error": "invalid origin"}), 403
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "authentication required"}), 401
+
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"error": "request body must be valid JSON"}), 400
+
+    try:
+        from utils.validators import validate_participant_details_submission
+        from services.registration_service import save_participant_details, DuplicateEmailError, UnauthorizedRegistrationAccessError
+
+        clean_data = validate_participant_details_submission(payload)
+        reg = save_participant_details(registration_id, user_id, clean_data["participants"])
+        log_action(user_id, "PARTICIPANT_DETAILS_SUBMITTED", f"reg_id={reg.id}", request.remote_addr or "")
+
+        return jsonify({
+            "id": reg.id,
+            "status": reg.status,
+            "message": "Participant details saved successfully!"
+        }), 200
+    except ValidationError as e:
+        return jsonify({"error": "validation failed", "fields": e.errors}), 422
+    except DuplicateEmailError as e:
+        return jsonify({"error": str(e)}), 409
+    except EventNotFoundError:
+        return jsonify({"error": "registration or event not found"}), 404
+    except UnauthorizedRegistrationAccessError:
+        return jsonify({"error": "unauthorized access to update participant details"}), 403
+
+
+import secrets
+
 @bp.get("/api/registrations/<registration_id>/ticket")
 @limiter.limit("30 per minute")
 def view_ticket(registration_id):
     reg = get_registration(registration_id)
     if not reg or reg.status != "confirmed":
-        return jsonify({"error": "ticket not found"}), 404
+        return jsonify({"error": "ticket not found or registration not confirmed"}), 404
+
+    # Security check: verify ticket token or authenticated user session
+    provided_token = request.args.get("token", "").strip()
+    user_id = session.get("user_id")
+    is_staff = bool(session.get("is_admin")) or bool(session.get("is_coordinator"))
+    is_member = bool(user_id) and ((reg.leader_user_id == user_id) or any(m.user_id == user_id for m in reg.members))
+
+    valid_token = bool(provided_token) and bool(reg.ticket_token) and secrets.compare_digest(reg.ticket_token, provided_token)
+
+    if not (valid_token or is_staff or is_member):
+        return jsonify({"error": "unauthorized ticket access"}), 403
+
     event = reg.event
+    sorted_members = sorted(reg.members, key=lambda m: (not m.is_leader, m.joined_at))
     return jsonify({
         "status": reg.status,
+        "registration_id": reg.id,
+        "ticket_token": reg.ticket_token,
+        "checked_in": reg.checked_in or False,
+        "checked_in_at": reg.checked_in_at.isoformat() if reg.checked_in_at else None,
         "event_name": event.name if event else "Unknown event",
         "team_name": reg.team_name,
         "venue": event.venue if event else None,
         "date": event.event_date if event else None,
         "time": event.event_time if event else None,
-        "members": [{"name": m.user.full_name or m.user.username, "is_leader": m.is_leader} for m in reg.members],
+        "members": [
+            {
+                "name": m.participant_name or (m.user.full_name if m.user else None) or (m.user.username if m.user else ""),
+                "email": m.participant_email or (m.user.email if m.user else ""),
+                "college": m.college_name or (m.user.college if m.user else ""),
+                "phone": m.participant_phone or (m.user.phone if m.user else ""),
+                "is_leader": m.is_leader
+            }
+            for m in sorted_members
+        ],
     })

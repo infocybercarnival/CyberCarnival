@@ -217,9 +217,18 @@
     if (payBtn) {
       var registrationId = payBtn.dataset.payApprove || payBtn.dataset.payReject;
       var approved = !!payBtn.dataset.payApprove;
-      if (!confirm(approved ? "Confirm this payment after checking the UPI/bank statement?" : "Reject this payment submission?")) return;
+      var rejectionReason = null;
+      if (!approved) {
+        rejectionReason = prompt("Enter the rejection reason for this payment submission:");
+        if (!rejectionReason || !rejectionReason.trim()) {
+          toast("Rejection cancelled: a valid reason is required.", true);
+          return;
+        }
+      } else {
+        if (!confirm("Confirm this payment after checking the UPI/bank statement?")) return;
+      }
       api("/coordinator/api/registrations/" + registrationId + "/payment-verification", {
-        method: "POST", body: JSON.stringify({ approved: approved })
+        method: "POST", body: JSON.stringify({ approved: approved, rejection_reason: rejectionReason })
       }).then(function () { toast(approved ? "Payment verified." : "Payment rejected."); loadAll(); }).catch(showError);
       return;
     }

@@ -154,54 +154,73 @@ def validate_otp_payload(data: dict) -> dict:
     return {"email": email, "otp": otp}
 
 
+INDIAN_PHONE_RE = re.compile(r"^(?:\+?91[\-\s]?)?[6-9]\d{9}$")
+
+
 def validate_profile_payload(data: dict) -> dict:
     if not isinstance(data, dict):
         raise ValidationError({"_": "request body must be a JSON object"})
     errors = {}
     clean = {}
 
+    # 1. Participant Name *
+    raw_name = data.get("participant_name") or data.get("full_name") or ""
     try:
-        name = _strip(data.get("full_name", ""))
-        if not NAME_RE.match(name):
-            errors["full_name"] = "must be 2-80 letters, spaces, hyphens, apostrophes, or dots"
+        name = _strip(raw_name)
+        if not name:
+            errors["participant_name"] = "Participant Name is required"
+        elif not NAME_RE.match(name):
+            errors["participant_name"] = "must be 2-80 letters, spaces, hyphens, apostrophes, or dots"
         clean["full_name"] = name
+        clean["participant_name"] = name
     except ValueError:
-        errors["full_name"] = "invalid"
+        errors["participant_name"] = "invalid name"
 
-    try:
-        phone = _strip(data.get("phone", ""))
-        if not PHONE_RE.match(phone):
-            errors["phone"] = "invalid phone number"
-        clean["phone"] = phone
-    except ValueError:
-        errors["phone"] = "invalid"
+    # 2. Participant Email ID (Read-only field derived from authenticated account)
+    raw_email = data.get("participant_email") or data.get("email") or ""
+    if raw_email:
+        try:
+            email = _strip(raw_email).lower()
+            if email and not EMAIL_RE.match(email):
+                errors["participant_email"] = "must be a valid email address"
+            clean["email"] = email
+            clean["participant_email"] = email
+        except ValueError:
+            pass
 
+    # 3. College Name * (Mandatory)
+    raw_college = data.get("college_name") or data.get("college") or ""
     try:
-        college = _strip(data.get("college", ""))
-        if college and not SAFE_TEXT_RE.match(college):
-            errors["college"] = "contains unsupported characters"
+        college = _strip(raw_college)
+        if not college:
+            errors["college_name"] = "College Name is required"
+        elif not SAFE_TEXT_RE.match(college):
+            errors["college_name"] = "contains unsupported characters"
         clean["college"] = college
+        clean["college_name"] = college
     except ValueError:
-        errors["college"] = "invalid"
+        errors["college_name"] = "invalid college name"
 
-    is_srm_ramapuram = data.get("is_srm_ramapuram", False)
-    if not isinstance(is_srm_ramapuram, bool):
-        errors["is_srm_ramapuram"] = "must be true or false"
-        is_srm_ramapuram = False
-    clean["is_srm_ramapuram"] = is_srm_ramapuram
+    # 4. Phone Number * (Mandatory - exactly 10 numeric digits)
+    raw_phone = data.get("phone") or data.get("participant_phone") or ""
+    if not isinstance(raw_phone, str):
+        errors["phone"] = "Phone number must be exactly 10 digits."
+    else:
+        phone = raw_phone.strip()
+        if not phone:
+            errors["phone"] = "Phone number must be exactly 10 digits."
+        elif not re.match(r"^[0-9]{10}$", phone):
+            errors["phone"] = "Phone number must be exactly 10 digits."
+        else:
+            clean["phone"] = phone
+            clean["participant_phone"] = phone
 
-    try:
-        register_number = _strip(data.get("register_number", "")).upper()
-        if is_srm_ramapuram and not register_number:
-            errors["register_number"] = "register number is required"
-        elif register_number and (len(register_number) > 40 or not SAFE_TEXT_RE.match(register_number)):
-            errors["register_number"] = "invalid register number"
-        clean["register_number"] = register_number if is_srm_ramapuram else ""
-    except ValueError:
-        errors["register_number"] = "invalid"
-
-    if is_srm_ramapuram:
-        clean["college"] = "SRM IST Ramapuram"
+    # 5. Confirmation Checkbox * (Mandatory boolean True)
+    confirmed = data.get("details_confirmed")
+    if not (isinstance(confirmed, bool) and confirmed is True):
+        errors["details_confirmed"] = "Please confirm that the above details are correct before continuing."
+    else:
+        clean["details_confirmed"] = True
 
     if errors:
         raise ValidationError(errors)
@@ -269,8 +288,139 @@ def validate_event_registration_payload(data: dict) -> dict:
     else:
         clean["member_tokens"] = []
 
+    # Optional inline participant details roster
+    participants = data.get("participants", [])
+    if participants:
+        if not isinstance(participants, list) or len(participants) > 11:
+            errors["participants"] = "Participants must be a list of at most 11 member details"
+        else:
+            cleaned_participants = []
+            seen_emails = set()
+            for idx, p_data in enumerate(participants):
+                try:
+                    p_clean = validate_single_participant_detail(p_data, idx)
+                    p_email = p_clean["participant_email"]
+                    if p_email in seen_emails:
+                        errors["participants"] = "This email ID is already registered for another participant."
+                        break
+                    seen_emails.add(p_email)
+                    cleaned_participants.append(p_clean)
+                except ValidationError as ve:
+                    for k, v in ve.errors.items():
+                        errors[f"participants[{idx}].{k}"] = v
+                    break
+            else:
+                clean["participants"] = cleaned_participants
+    else:
+        clean["participants"] = []
+
     if errors:
         raise ValidationError(errors)
+    return clean
+
+
+def validate_single_participant_detail(data: dict, index: int = 0) -> dict:
+    if not isinstance(data, dict):
+        raise ValidationError({"_": "Participant detail must be a JSON object"})
+
+    errors = {}
+    clean = {}
+
+    # 1. Participant Name
+    raw_name = data.get("participant_name") or data.get("name") or ""
+    try:
+        name = _strip(str(raw_name))
+        if not name or len(name) < 2 or len(name) > 120 or not NAME_RE.match(name):
+            errors["participant_name"] = "Full name is required (2-120 letters, spaces, hyphens)"
+        else:
+            clean["participant_name"] = name
+    except ValueError:
+        errors["participant_name"] = "Full name is required"
+
+    # 2. Participant Email
+    raw_email = data.get("participant_email") or data.get("email") or ""
+    try:
+        email = _strip(str(raw_email)).lower()
+        if not email or not EMAIL_RE.match(email):
+            errors["participant_email"] = "Valid email address is required"
+        else:
+            clean["participant_email"] = email
+    except ValueError:
+        errors["participant_email"] = "Valid email address is required"
+
+    # 3. College Name
+    raw_college = data.get("college_name") or data.get("college") or ""
+    try:
+        college = _strip(str(raw_college))
+        if not college or len(college) < 2 or len(college) > 150:
+            errors["college_name"] = "College name is required"
+        else:
+            clean["college_name"] = college
+    except ValueError:
+        errors["college_name"] = "College name is required"
+
+    # 4. Contact Number (Phone)
+    raw_phone = data.get("participant_phone") or data.get("phone") or ""
+    try:
+        phone = _strip(str(raw_phone))
+        digits = re.sub(r"\D", "", phone)
+        if digits.startswith("91") and len(digits) == 12:
+            digits = digits[2:]
+        elif digits.startswith("0") and len(digits) == 11:
+            digits = digits[1:]
+
+        if len(digits) != 10 or digits[0] not in "6789":
+            errors["participant_phone"] = "Valid 10-digit Indian contact number is required"
+        else:
+            clean["participant_phone"] = digits
+    except ValueError:
+        errors["participant_phone"] = "Valid contact number is required"
+
+    if errors:
+        raise ValidationError(errors)
+    return clean
+
+
+def validate_participant_details_submission(data: dict) -> dict:
+    if not isinstance(data, dict):
+        raise ValidationError({"_": "Request body must be a JSON object"})
+
+    errors = {}
+    clean = {}
+
+    participants = data.get("participants", [])
+    if not isinstance(participants, list) or not participants:
+        if "participant_name" in data or "name" in data:
+            participants = [data]
+        else:
+            errors["participants"] = "At least one participant details entry is required"
+            raise ValidationError(errors)
+
+    if len(participants) > 11:
+        errors["participants"] = "Maximum 11 participant entries allowed"
+        raise ValidationError(errors)
+
+    cleaned_participants = []
+    seen_emails = set()
+
+    for idx, p_data in enumerate(participants):
+        try:
+            p_clean = validate_single_participant_detail(p_data, idx)
+            p_email = p_clean["participant_email"]
+            if p_email in seen_emails:
+                errors["participants"] = "This email ID is already registered for another participant."
+                break
+            seen_emails.add(p_email)
+            cleaned_participants.append(p_clean)
+        except ValidationError as ve:
+            for k, v in ve.errors.items():
+                errors[f"participants[{idx}].{k}"] = v
+            break
+
+    if errors:
+        raise ValidationError(errors)
+
+    clean["participants"] = cleaned_participants
     return clean
 
 

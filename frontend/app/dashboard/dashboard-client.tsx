@@ -194,6 +194,7 @@ export function DashboardClient() {
 
         {!user.profile_completed ? (
           <ProfileForm
+            user={user}
             onDone={(u) => {
               setUser(u)
               fetchMyEvents()
@@ -225,7 +226,7 @@ export function DashboardClient() {
 
             {/* Registered Events Grid or Professional Empty State */}
             <div className="mt-8">
-              {chromaItems.length === 0 ? (
+              {events.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-[14px] border border-primary/30 bg-card/40 p-10 sm:p-16 text-center font-mono backdrop-blur-md shadow-[0_0_30px_rgba(168,85,247,0.1)]">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full border border-primary/40 bg-primary/10 text-primary shadow-[0_0_20px_rgba(168,85,247,0.3)]">
                     <span className="text-2xl">◈</span>
@@ -246,7 +247,117 @@ export function DashboardClient() {
                   </div>
                 </div>
               ) : (
-                <ChromaGrid items={chromaItems} radius={320} damping={0.45} fadeOut={0.6} ease="power3.out" />
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                  {events.map((ev) => (
+                    <div
+                      key={ev.registration_id}
+                      className="group relative flex flex-col justify-between rounded-[12px] border border-primary/40 bg-card/60 p-6 font-mono text-xs backdrop-blur-md shadow-[0_0_30px_rgba(168,85,247,0.1)] transition-all hover:border-primary hover:shadow-[0_0_40px_rgba(168,85,247,0.2)]"
+                    >
+                      <div>
+                        {/* Event Title & Team */}
+                        <div className="flex items-start justify-between gap-2 border-b border-border/60 pb-3">
+                          <div>
+                            <h3 className="font-display text-lg font-bold tracking-tight text-foreground">
+                              {ev.event_name}
+                            </h3>
+                            {ev.team_name && (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                TEAM: <strong className="text-foreground">{ev.team_name}</strong>
+                              </p>
+                            )}
+                          </div>
+                          <span className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary">
+                            {ev.is_leader ? 'LEADER' : 'MEMBER'}
+                          </span>
+                        </div>
+
+                        {/* Event Venue & Date */}
+                        <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
+                          {ev.venue && <p>VENUE: <span className="text-foreground">{ev.venue}</span></p>}
+                          {ev.date && <p>DATE: <span className="text-foreground">{ev.date}</span></p>}
+                        </div>
+
+                        {/* Status Card Main Body */}
+                        <div className="mt-5 rounded-[8px] border p-4">
+                          {ev.status === 'pending_verification' && (
+                            <div className="border-amber-500/40 bg-amber-500/10 text-amber-300">
+                              <p className="font-bold tracking-wider uppercase text-[11px]">
+                                REGISTRATION: PENDING VERIFICATION
+                              </p>
+                              <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
+                                Payment submitted successfully. Waiting for admin verification.
+                              </p>
+                            </div>
+                          )}
+
+                          {ev.status === 'confirmed' && (
+                            <div className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300">
+                              <p className="font-bold tracking-wider uppercase text-[11px]">
+                                REGISTRATION: APPROVED
+                              </p>
+                              <p className="text-[10px] text-emerald-400 font-bold mt-0.5">
+                                PAYMENT: VERIFIED
+                              </p>
+                              <p className="mt-2 text-[11px] text-emerald-200 font-semibold flex items-center gap-1.5">
+                                ✓ Event registration approved
+                              </p>
+                            </div>
+                          )}
+
+                          {ev.status === 'rejected' && (
+                            <div className="border-destructive/40 bg-destructive/10 text-destructive">
+                              <p className="font-bold tracking-wider uppercase text-[11px]">
+                                REGISTRATION: REJECTED
+                              </p>
+                              <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
+                                {ev.rejection_reason ? `Rejection Reason: ${ev.rejection_reason}` : 'Payment details could not be verified by admin.'}
+                              </p>
+                            </div>
+                          )}
+
+                          {ev.status === 'pending_payment' && (
+                            <div className="border-primary/40 bg-primary/10 text-primary">
+                              <p className="font-bold tracking-wider uppercase text-[11px]">
+                                PAYMENT REQUIRED
+                              </p>
+                              <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
+                                Complete your payment to submit your registration for review.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Action Links */}
+                      <div className="mt-6 flex flex-wrap gap-2 pt-3 border-t border-border/40">
+                        {ev.status === 'confirmed' && (
+                          <Link
+                            href={`/ticket?id=${ev.registration_id}`}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-[3px] border border-emerald-500/60 bg-emerald-500/20 px-4 py-2.5 font-mono text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/30"
+                          >
+                            VIEW TICKET →
+                          </Link>
+                        )}
+                        {ev.status === 'pending_payment' && (
+                          <Link
+                            href={`/payment?eventId=${ev.event_id}&registrationId=${ev.registration_id}`}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-[3px] border border-primary bg-primary px-4 py-2.5 font-mono text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+                          >
+                            COMPLETE PAYMENT →
+                          </Link>
+                        )}
+                        {ev.status === 'pending_verification' && (
+                          <Link
+                            href={`/payment?eventId=${ev.event_id}&registrationId=${ev.registration_id}`}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-[3px] border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-[11px] font-bold text-primary transition-colors hover:bg-primary/20"
+                          >
+                            VIEW SUBMITTED PAYMENT →
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -256,28 +367,63 @@ export function DashboardClient() {
   )
 }
 
-function ProfileForm({ onDone }: { onDone: (u: PublicUser) => void }) {
-  const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [college, setCollege] = useState('')
-  const [isSrmRamapuram, setIsSrmRamapuram] = useState(false)
-  const [registerNumber, setRegisterNumber] = useState('')
+function ProfileForm({ user, onDone }: { user: PublicUser; onDone: (u: PublicUser) => void }) {
+  const [participantName, setParticipantName] = useState(user.full_name || '')
+  const [collegeName, setCollegeName] = useState(user.college || '')
+  const [phone, setPhone] = useState(user.phone || '')
+  const [detailsConfirmed, setDetailsConfirmed] = useState(false)
   const [status, setStatus] = useState<'idle' | 'submitting'>('idle')
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
+  // Reset confirmation checkbox whenever any of the editable participant details changes
+  const handleNameChange = (val: string) => {
+    setParticipantName(val)
+    setDetailsConfirmed(false)
+  }
+  const handleCollegeChange = (val: string) => {
+    setCollegeName(val)
+    setDetailsConfirmed(false)
+  }
+  const handlePhoneChange = (val: string) => {
+    const digitsOnly = val.replace(/\D/g, '').slice(0, 10)
+    setPhone(digitsOnly)
+    setDetailsConfirmed(false)
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setStatus('submitting')
     setError('')
     setFieldErrors({})
+
+    const errors: Record<string, string> = {}
+    if (!participantName.trim()) {
+      errors.participant_name = 'Participant Name is required'
+    }
+    if (!collegeName.trim()) {
+      errors.college_name = 'College Name is required'
+    }
+    if (!phone || !/^[0-9]{10}$/.test(phone)) {
+      errors.phone = 'Phone number must be exactly 10 digits.'
+    }
+    if (!detailsConfirmed) {
+      errors.details_confirmed = 'Please confirm that the above details are correct before continuing.'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+
+    setStatus('submitting')
     try {
       const u = await completeProfile({
-        full_name: fullName,
+        participant_name: participantName.trim(),
+        college_name: collegeName.trim(),
         phone,
-        college: isSrmRamapuram ? 'SRM IST Ramapuram' : college,
-        is_srm_ramapuram: isSrmRamapuram,
-        register_number: isSrmRamapuram ? registerNumber : undefined,
+        details_confirmed: true,
+        full_name: participantName.trim(),
+        college: collegeName.trim(),
       })
       onDone(u)
     } catch (err) {
@@ -285,7 +431,7 @@ function ProfileForm({ onDone }: { onDone: (u: PublicUser) => void }) {
         setError(err.message)
         setFieldErrors(err.fields || {})
       } else {
-        setError('Something went wrong. Try again.')
+        setError('Something went wrong while saving your profile. Please try again.')
       }
     } finally {
       setStatus('idle')
@@ -293,53 +439,124 @@ function ProfileForm({ onDone }: { onDone: (u: PublicUser) => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-10 flex max-w-md flex-col gap-4 border border-border bg-card/60 p-6 rounded-[10px]">
-      <p className="text-xs font-mono text-muted-foreground">
-        Complete your profile once — after this you can register for events and join teams.
-      </p>
+    <form onSubmit={handleSubmit} className="mt-10 flex max-w-xl flex-col gap-6 border border-primary/40 bg-card/60 p-6 sm:p-8 rounded-[12px] backdrop-blur-md shadow-[0_0_30px_rgba(168,85,247,0.12)]">
+      <div>
+        <h2 className="font-display text-xl font-bold tracking-[0.1em] text-foreground">
+          PARTICIPANT DETAILS
+        </h2>
+        <p className="mt-1 text-xs font-mono text-muted-foreground">
+          Complete your participant details carefully. These details will be used for your certificate and Digital Wallet.
+        </p>
+      </div>
+
       {error && (
-        <p className="border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-mono text-destructive">{error}</p>
+        <div className="border border-destructive/50 bg-destructive/10 px-4 py-3 text-xs font-mono text-destructive rounded-[6px]">
+          {error}
+        </div>
       )}
-      <Field label="Full name" error={fieldErrors.full_name}>
-        <input required maxLength={80} value={fullName} onChange={(e) => setFullName(e.target.value)} />
-      </Field>
-      <Field label="Phone" error={fieldErrors.phone}>
-        <input required maxLength={20} value={phone} onChange={(e) => setPhone(e.target.value)} />
-      </Field>
-      <Field label="College (optional)" error={fieldErrors.college}>
+
+      {/* Field 1: Participant Name */}
+      <Field
+        label="Participant Name *"
+        helperText="Full name as it should appear on the certificate."
+        error={fieldErrors.participant_name || fieldErrors.full_name}
+      >
         <input
+          required
+          maxLength={80}
+          placeholder="e.g. Rahul Sharma"
+          value={participantName}
+          onChange={(e) => handleNameChange(e.target.value)}
+        />
+      </Field>
+
+      {/* Field 2: Participant Email ID (READ ONLY / LOCKED) */}
+      <div>
+        <label className="font-mono text-[11px] font-bold uppercase tracking-[0.15em] text-foreground">
+          PARTICIPANT EMAIL ID
+        </label>
+        <div className="mt-1.5 flex items-center justify-between border border-primary/30 bg-background/40 px-3.5 py-2.5 font-mono text-xs text-foreground/80 rounded-sm select-none">
+          <span className="truncate">{user.email}</span>
+          <span className="ml-2 font-bold text-primary" title="Verified account email">✓</span>
+        </div>
+        <p className="mt-1 text-[11px] font-mono text-muted-foreground leading-normal">
+          Verified email address — cannot be changed here.
+        </p>
+      </div>
+
+      {/* Field 3: College Name */}
+      <Field
+        label="College Name *"
+        helperText="Enter your college/institution name. This information may be used on the certificate for inter-college participants."
+        error={fieldErrors.college_name || fieldErrors.college}
+      >
+        <input
+          required
           maxLength={200}
-          value={isSrmRamapuram ? 'SRM IST Ramapuram' : college}
-          onChange={(e) => setCollege(e.target.value)}
-          disabled={isSrmRamapuram}
+          placeholder="e.g. SRM Institute of Science and Technology"
+          value={collegeName}
+          onChange={(e) => handleCollegeChange(e.target.value)}
         />
       </Field>
-      <label className="flex items-center gap-3 border border-border/80 bg-background/40 px-3 py-3 font-mono text-[11px] text-foreground rounded-sm">
+
+      {/* Field 4: Phone Number */}
+      <Field
+        label="Phone Number *"
+        helperText="Enter your contact number for any clarification regarding the details provided."
+        error={fieldErrors.phone || fieldErrors.participant_phone}
+      >
         <input
-          type="checkbox"
-          checked={isSrmRamapuram}
-          onChange={(e) => {
-            setIsSrmRamapuram(e.target.checked)
-            if (!e.target.checked) setRegisterNumber('')
-          }}
-          className="h-4 w-4 accent-primary"
+          type="tel"
+          inputMode="numeric"
+          pattern="[0-9]{10}"
+          required
+          maxLength={10}
+          placeholder="e.g. 9876543210"
+          value={phone}
+          onChange={(e) => handlePhoneChange(e.target.value)}
         />
-        <span>I am from SRM IST Ramapuram</span>
-      </label>
-      {isSrmRamapuram && (
-        <Field label="Register number" error={fieldErrors.register_number}>
+      </Field>
+
+      {/* Disclaimer Box */}
+      <div className="border border-primary/40 bg-primary/10 p-4 sm:p-5 rounded-[8px] backdrop-blur-sm shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+        <div className="flex items-center gap-2 font-mono text-xs font-bold text-primary tracking-[0.1em]">
+          <span>⚠ CERTIFICATE INFORMATION</span>
+        </div>
+        <div className="mt-2 space-y-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+          <p>
+            Please verify these details carefully before submitting.
+          </p>
+          <p>
+            The information provided above will be used to generate your CyberCarnival certificate and related Digital Wallet records.
+          </p>
+          <p>
+            Your name, college name, email ID, and contact number will be stored and used for the relevant certificate and participant records.
+          </p>
+        </div>
+      </div>
+
+      {/* Confirmation Checkbox */}
+      <div>
+        <label className="flex items-start gap-3 cursor-pointer border border-primary/30 bg-primary/5 p-4 rounded-[8px] hover:border-primary/60 transition-all font-mono text-xs text-foreground">
           <input
-            required
-            maxLength={40}
-            value={registerNumber}
-            onChange={(e) => setRegisterNumber(e.target.value.toUpperCase())}
+            type="checkbox"
+            checked={detailsConfirmed}
+            onChange={(e) => setDetailsConfirmed(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-primary/50 bg-background text-primary accent-primary focus:ring-primary/50 cursor-pointer"
           />
-        </Field>
-      )}
+          <span className="leading-relaxed">
+            I confirm that the above details are correct and should be used for my CyberCarnival certificate and Digital Wallet records.
+          </span>
+        </label>
+        {fieldErrors.details_confirmed && (
+          <p className="mt-1.5 text-xs font-mono text-destructive">{fieldErrors.details_confirmed}</p>
+        )}
+      </div>
+
       <button
         type="submit"
         disabled={status === 'submitting'}
-        className="mt-2 bg-primary px-6 py-3 font-mono text-[11px] font-bold tracking-[0.2em] text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 rounded-[3px]"
+        className="mt-2 border border-primary bg-primary px-8 py-3.5 font-mono text-xs font-bold tracking-[0.2em] text-primary-foreground hover:bg-primary/90 transition-all shadow-[0_0_25px_rgba(168,85,247,0.35)] disabled:opacity-50 rounded-[3px]"
       >
         {status === 'submitting' ? 'SAVING…' : 'SAVE & CONTINUE →'}
       </button>
@@ -347,13 +564,28 @@ function ProfileForm({ onDone }: { onDone: (u: PublicUser) => void }) {
   )
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  helperText,
+  error,
+  children,
+}: {
+  label: string
+  helperText?: string
+  error?: string
+  children: React.ReactNode
+}) {
   return (
     <div>
-      <label className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{label}</label>
-      <div className="mt-1 [&>input]:w-full [&>input]:border [&>input]:border-border/80 [&>input]:bg-background/60 [&>input]:px-3 [&>input]:py-2 [&>input]:font-mono [&>input]:text-xs [&>input]:text-foreground [&>input]:outline-none [&>input]:focus:border-primary [&>input]:rounded-sm">
+      <label className="font-mono text-[11px] font-bold uppercase tracking-[0.15em] text-foreground">
+        {label}
+      </label>
+      <div className="mt-1.5 [&>input]:w-full [&>input]:border [&>input]:border-border/80 [&>input]:bg-background/60 [&>input]:px-3.5 [&>input]:py-2.5 [&>input]:font-mono [&>input]:text-xs [&>input]:text-foreground [&>input]:outline-none [&>input]:focus:border-primary [&>input]:focus:ring-1 [&>input]:focus:ring-primary/50 [&>input]:rounded-sm">
         {children}
       </div>
+      {helperText && (
+        <p className="mt-1 text-[11px] font-mono text-muted-foreground leading-normal">{helperText}</p>
+      )}
       {error && <p className="mt-1 text-xs font-mono text-destructive">{error}</p>}
     </div>
   )

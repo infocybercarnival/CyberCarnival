@@ -27,13 +27,32 @@ def verify_user_credentials(username: str, password: str):
     return user
 
 
+class DuplicateProfileEmailError(Exception):
+    pass
+
+
 def complete_profile(user: User, clean_data: dict) -> User:
-    user.full_name = clean_data["full_name"]
-    user.phone = clean_data["phone"]
-    user.college = clean_data.get("college", "")
-    user.is_srm_ramapuram = clean_data.get("is_srm_ramapuram", False)
-    user.register_number = clean_data.get("register_number") or None
+    # Enforce authenticated user's verified email as immutable source of truth
+    verified_email = user.email.strip().lower()
+
+    user.full_name = clean_data.get("full_name") or clean_data.get("participant_name") or user.full_name
+    user.email = verified_email
+    user.phone = clean_data.get("phone") or clean_data.get("participant_phone") or user.phone
+    user.college = clean_data.get("college") or clean_data.get("college_name") or user.college
     user.profile_completed = True
+
+    # Synchronize RegistrationMember records for this user
+    from models import RegistrationMember
+    members = RegistrationMember.query.filter_by(user_id=user.id).all()
+    for m in members:
+        if user.full_name:
+            m.participant_name = user.full_name
+        m.participant_email = verified_email
+        if user.college:
+            m.college_name = user.college
+        if user.phone:
+            m.participant_phone = user.phone
+
     db.session.commit()
     return user
 

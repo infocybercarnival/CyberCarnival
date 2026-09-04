@@ -43,65 +43,100 @@
       <h2>Registrations</h2>
       <div class="toolbar">
         <select id="reg-event-filter"><option value="">All events</option></select>
+        <select id="reg-status-filter">
+          <option value="">All registrations</option>
+          <option value="verified">Verified</option>
+          <option value="unverified">Unverified</option>
+          <option value="declined">Declined</option>
+        </select>
         <a id="export-link" class="btn-ghost" href="/admin/api/registrations/export.csv">Export CSV</a>
+        <span id="reg-count-badge" class="reg-count-badge"></span>
       </div>
-      <table class="table" id="reg-table">
-        <thead>
-          <tr><th class="th-registrant">REGISTRANT</th><th class="th-event">EVENT</th><th class="th-team">TEAM / MEMBERS</th><th class="th-payment">PAYMENT</th><th class="th-status">STATUS</th><th class="th-date">DATE</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <div class="registration-table-wrapper">
+        <table class="table" id="reg-table">
+          <thead>
+            <tr><th class="th-registrant">REGISTRANT</th><th class="th-event">EVENT</th><th class="th-team">TEAM / MEMBERS</th><th class="th-payment">PAYMENT</th><th class="th-status">STATUS</th><th class="th-date">DATE</th><th class="th-actions">ACTIONS</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pagination-wrapper" id="reg-pagination"></div>
     </section>
 
     <section id="tab-participants" class="panel">
-      <h2>Participants</h2>
-      <p class="hint">Accounts that verified OTP and signed up, split by whether they've registered for an event yet.</p>
+      <h2>Participants & Attendance</h2>
+      <p class="hint">Real-time attendance tracking and verified event check-ins for all registered accounts.</p>
 
-      <h3>Registered for at least one event</h3>
-      <table class="table" id="participants-registered-table">
-        <thead><tr><th>Token</th><th>Name</th><th>Username</th><th>Email</th><th>Phone</th><th>College</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="cards" id="participant-cards"></div>
 
-      <h3>Signed up, not registered for any event</h3>
-      <table class="table" id="participants-unregistered-table">
-        <thead><tr><th>Token</th><th>Name</th><th>Username</th><th>Email</th><th>Phone</th><th>Profile complete</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="toolbar filter-toolbar" style="margin-top: 16px; margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">
+        <div class="filter-group" style="display: flex; flex-direction: column; gap: 4px;">
+          <label for="part-attendance-filter" class="filter-label" style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted);">Attendance</label>
+          <select id="part-attendance-filter" style="min-width: 180px;">
+            <option value="">ALL</option>
+            <option value="present">🟢 PRESENT</option>
+            <option value="not_attended">⚪ NOT ATTENDED</option>
+          </select>
+        </div>
+        <div class="filter-group" style="display: flex; flex-direction: column; gap: 4px;">
+          <label for="part-event-filter" class="filter-label" style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted);">Event</label>
+          <select id="part-event-filter" style="min-width: 240px;">
+            <option value="">ALL EVENTS</option>
+          </select>
+        </div>
+        <span id="part-count-badge" class="reg-count-badge" style="margin-left: auto;"></span>
+      </div>
+
+      <div class="registration-table-wrapper">
+        <table class="table" id="participants-table">
+          <thead>
+            <tr>
+              <th>TOKEN</th>
+              <th>PARTICIPANT</th>
+              <th>EMAIL / PHONE</th>
+              <th>COLLEGE</th>
+              <th>ATTENDANCE</th>
+              <th>ATTENDED EVENTS</th>
+              <th>ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pagination-wrapper" id="part-pagination"></div>
+
+      <h3 style="margin-top: 28px; color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Signed up, not registered for any event</h3>
+      <div class="registration-table-wrapper">
+        <table class="table" id="participants-unregistered-table">
+          <thead><tr><th>Token</th><th>Name</th><th>Username</th><th>Email</th><th>Phone</th><th>Profile complete</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
     <section id="tab-events" class="panel">
-      <h2>Events</h2>
-      <form id="event-form" class="inline-form" enctype="multipart/form-data">
-        <input type="hidden" name="event_id" id="event-id" />
-        <input name="name" placeholder="Event name" required maxlength="150" />
-        <select name="category">
-          <option value="TECHNICAL">TECHNICAL</option>
-          <option value="NON-TECHNICAL">NON-TECHNICAL</option>
-        </select>
-        <input name="tag" placeholder="Tag (e.g. COMPETITION)" maxlength="40" />
-        <input name="fee" placeholder="Fee (e.g. ₹250 PER TEAM)" maxlength="60" />
-        <label class="file-label">Actual fee, in ₹ (blank = free, no payment step) <input name="fee_rupees" type="number" min="0" step="0.01" placeholder="250" /></label>
-        <input name="min_team_size" type="number" min="1" placeholder="Min team size" />
-        <input name="max_team_size" type="number" min="1" placeholder="Max team size" />
-        <input name="max_teams" type="number" min="0" placeholder="Max teams (capacity)" />
-        <input name="venue" placeholder="Venue" maxlength="200" />
-        <input name="date" placeholder="Date (display text, e.g. 7 &amp; 8 OCTOBER)" maxlength="60" />
-        <label class="file-label">Actual start date <input name="start_date" type="date" /></label>
-        <label class="file-label">Actual end date (if multi-day) <input name="end_date" type="date" /></label>
-        <input name="time" placeholder="Time" maxlength="60" />
-        <input name="prize" placeholder="Prize" maxlength="120" />
-        <textarea name="description" placeholder="Description" maxlength="2000" rows="2"></textarea>
-        <label class="file-label">Poster <input name="poster" type="file" accept=".png,.jpg,.jpeg,.webp" /></label>
-        <div class="form-actions">
-          <button type="submit" id="event-submit-btn">Add event</button>
-          <button type="button" id="event-cancel-edit" class="btn-ghost" hidden>Cancel edit</button>
-        </div>
-      </form>
-      <table class="table" id="events-table">
-        <thead><tr><th>Poster</th><th>Name</th><th>Fee</th><th>Team size</th><th>Seats</th><th>Venue</th><th>Date</th><th>Active</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <div class="panel-header-toolbar">
+        <h2>Events</h2>
+        <button type="button" id="btn-open-add-event" class="btn-primary">+ ADD EVENT</button>
+      </div>
+      <div class="registration-table-wrapper">
+        <table class="table" id="events-table">
+          <thead>
+            <tr>
+              <th class="th-poster">POSTER</th>
+              <th class="th-event">EVENT NAME</th>
+              <th class="th-category">CATEGORY</th>
+              <th class="th-fee">FEE (₹)</th>
+              <th class="th-team">TEAM SIZE</th>
+              <th class="th-seats">SEATS</th>
+              <th class="th-venue">VENUE</th>
+              <th class="th-status">ACTIVE</th>
+              <th class="th-actions">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
 
 
@@ -112,9 +147,10 @@
         <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead>
         <tbody></tbody>
       </table>
+      <div class="pagination-wrapper" id="audit-pagination"></div>
     </section>
   </main>
 </div>
 
-<script src="/static/admin/js/admin.js"></script>
+<script src="/static/admin/js/admin.js?v=1.1.0"></script>
 {% endblock %}

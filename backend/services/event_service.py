@@ -54,6 +54,10 @@ def _apply_fields(event: Event, data: dict) -> None:
         event.prize = data["prize"]
     if "poster_url" in data:
         event.poster_url = data["poster_url"]
+    if "active" in data:
+        event.active = bool(data["active"])
+    if "registration_open" in data:
+        event.registration_open = bool(data["registration_open"])
 
 
 def create_event(data: dict) -> Event:
@@ -98,14 +102,28 @@ def delete_event(event_id: str) -> bool:
     event = get_event(event_id)
     if not event:
         return False
+
+    old_poster_url = event.poster_url
+
     db.session.delete(event)
     db.session.commit()
+
+    # Clean up physical poster file after DB commit succeeds
+    if old_poster_url and old_poster_url.startswith("/uploads/posters/"):
+        old_path = config.UPLOAD_DIR / old_poster_url.rsplit("/", 1)[-1]
+        if old_path.exists():
+            try:
+                old_path.unlink()
+            except OSError:
+                pass
+
     return True
 
 
 def save_poster(event: Event, file_storage) -> str:
     """Validates and saves an uploaded poster, returns its public URL.
-    Raises ValueError on anything that fails validation."""
+    Raises ValueError on anything that fails validation.
+    Performs atomic file retention on failure."""
     filename = file_storage.filename or ""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in config.ALLOWED_POSTER_EXTENSIONS:
@@ -117,12 +135,6 @@ def save_poster(event: Event, file_storage) -> str:
     if size > config.MAX_POSTER_SIZE_BYTES:
         raise ValueError("file too large (max 5 MB)")
 
-    # Extension allow-listing alone only checks the filename, not the bytes —
-    # a same-request-content-type-spoofed file with a fake .jpg extension
-    # would sail through the checks above. Actually decode it as an image
-    # (Pillow) and re-encode a fresh copy from the decoded pixel data, so
-    # whatever gets saved to disk is provably a real image and nothing else
-    # embedded/appended in the original upload survives.
     try:
         with Image.open(file_storage.stream) as img:
             img.verify()
@@ -138,17 +150,30 @@ def save_poster(event: Event, file_storage) -> str:
     save_format = "JPEG" if ext in ("jpg", "jpeg") else ext.upper()
     if save_format == "JPEG" and normalized.mode == "RGBA":
         normalized = normalized.convert("RGB")
+
     normalized.save(dest, format=save_format)
 
-    # Remove the previous poster file (if any) now that it's been replaced.
-    if event.poster_url and event.poster_url.startswith("/uploads/posters/"):
-        old_path = config.UPLOAD_DIR / event.poster_url.rsplit("/", 1)[-1]
+    old_poster_url = event.poster_url
+    try:
+        event.poster_url = f"/uploads/posters/{safe_name}"
+        db.session.commit()
+    except Exception:
+        # If DB commit fails, delete newly uploaded poster and revert/raise
+        if dest.exists():
+            try:
+                dest.unlink()
+            except OSError:
+                pass
+        db.session.rollback()
+        raise
+
+    # Remove the previous poster file only AFTER DB commit succeeds
+    if old_poster_url and old_poster_url.startswith("/uploads/posters/") and old_poster_url != event.poster_url:
+        old_path = config.UPLOAD_DIR / old_poster_url.rsplit("/", 1)[-1]
         if old_path.exists():
             try:
                 old_path.unlink()
             except OSError:
                 pass
 
-    event.poster_url = f"/uploads/posters/{safe_name}"
-    db.session.commit()
-    return event.poster_url
+    return event.poster_url

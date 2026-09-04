@@ -114,3 +114,56 @@ def verify_otp_and_create_user(email: str, otp: str) -> User:
 
     send_credentials_email(email, token, username, temp_password)
     return user
+
+
+def request_login_otp(user: User) -> None:
+    recent = (
+        OtpVerification.query.filter_by(email=user.email, purpose="login")
+        .order_by(OtpVerification.created_at.desc())
+        .first()
+    )
+    now = datetime.datetime.utcnow()
+    if recent and (now - recent.created_at).total_seconds() < config.OTP_RESEND_COOLDOWN_SECONDS:
+        raise CooldownError(user.email)
+
+    OtpVerification.query.filter_by(email=user.email, purpose="login", consumed_at=None).update({"consumed_at": now})
+
+    code = new_otp_code(config.OTP_LENGTH)
+    entry = OtpVerification(
+        email=user.email,
+        otp_hash=hash_password(code),
+        purpose="login",
+        max_attempts=config.OTP_MAX_ATTEMPTS,
+        expires_at=now + datetime.timedelta(seconds=config.OTP_TTL_SECONDS),
+    )
+    db.session.add(entry)
+    db.session.commit()
+
+    send_otp_email(user.email, code, purpose="login")
+
+
+def verify_login_otp(user: User, otp: str) -> bool:
+    entry = (
+        OtpVerification.query.filter_by(email=user.email, purpose="login", consumed_at=None)
+        .order_by(OtpVerification.created_at.desc())
+        .first()
+    )
+    if not entry:
+        raise InvalidOtpError(user.email)
+
+    now = datetime.datetime.utcnow()
+    if now > entry.expires_at:
+        raise ExpiredOtpError(user.email)
+
+    if entry.attempts >= entry.max_attempts:
+        raise TooManyAttemptsError(user.email)
+
+    if not verify_password(otp, entry.otp_hash):
+        entry.attempts += 1
+        db.session.commit()
+        raise InvalidOtpError(user.email)
+
+    entry.consumed_at = now
+    db.session.commit()
+    return True
+

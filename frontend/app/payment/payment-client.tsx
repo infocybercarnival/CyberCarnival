@@ -47,8 +47,10 @@ export function PaymentClient(props: Props) {
         setData(res)
         setTransactionId(res.transaction_id || '')
         setDisclaimerAccepted(res.disclaimer_accepted || false)
-        if (res.status === 'confirmed') {
-          setSubmitSuccess('Payment details submitted successfully! Your registration is confirmed.')
+        if (res.status === 'pending_verification') {
+          setSubmitSuccess('Payment details submitted successfully! Your registration is currently pending admin verification.')
+        } else if (res.status === 'confirmed') {
+          setSubmitSuccess('Payment details verified! Your registration is confirmed.')
         }
       })
       .catch((err) => {
@@ -119,11 +121,11 @@ export function PaymentClient(props: Props) {
 
     try {
       const res = await submitPaymentProof(registrationId, formData)
-      setSubmitSuccess(res.message || 'Payment submitted successfully! Your registration is confirmed.')
+      setSubmitSuccess(res.message || 'Payment submitted successfully! Your registration is now pending admin verification.')
       if (data) {
         setData({
           ...data,
-          status: 'confirmed',
+          status: 'pending_verification',
           transaction_id: transactionId.trim(),
           disclaimer_accepted: true,
           has_proof: true,
@@ -246,6 +248,39 @@ export function PaymentClient(props: Props) {
                 </div>
               </div>
 
+              {/* Participant Details Summary (Certificate & Wallet Data) */}
+              <div className="rounded-[10px] border border-primary/40 bg-card/60 p-6 backdrop-blur-md shadow-[0_0_25px_rgba(168,85,247,0.1)]">
+                <div className="flex items-center justify-between mb-4 border-b border-border/60 pb-3">
+                  <div>
+                    <h2 className="font-mono text-xs font-bold tracking-[0.25em] text-primary uppercase">
+                      VERIFIED PARTICIPANT DETAILS
+                    </h2>
+                    <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                      Certificate & Digital Wallet credentials for this registration.
+                    </p>
+                  </div>
+                  <span className="rounded bg-primary/20 px-2.5 py-1 font-mono text-[10px] font-bold text-primary uppercase">
+                    {data.members.length} {data.members.length === 1 ? 'PARTICIPANT' : 'PARTICIPANTS'}
+                  </span>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {data.members.map((m, i) => (
+                    <div key={i} className="rounded-lg border border-border/80 bg-background/40 p-4 space-y-1.5 font-mono text-xs">
+                      <div className="flex items-center justify-between text-muted-foreground mb-2">
+                        <span className="text-[10px] uppercase font-bold text-primary">PARTICIPANT {i + 1}</span>
+                        {m.is_leader && <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[9px] text-primary font-bold">LEADER</span>}
+                      </div>
+                      <p><span className="text-muted-foreground">NAME:</span> <strong className="text-foreground font-sans">{m.name}</strong></p>
+                      <p><span className="text-muted-foreground">EMAIL:</span> <span className="text-primary font-medium">{m.email || '—'}</span></p>
+                      <p><span className="text-muted-foreground">COLLEGE:</span> <span className="text-foreground">{m.college || '—'}</span></p>
+                      <p><span className="text-muted-foreground">CONTACT:</span> <span className="text-foreground">{m.phone || '—'}</span></p>
+                      <p><span className="text-muted-foreground">EVENT:</span> <span className="text-primary">{data.event_name}</span></p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Step 01 — UPI Payment Terminal */}
               <div className="rounded-[10px] border border-border/80 bg-card/60 p-6 md:p-8 backdrop-blur-md">
                 <div className="flex items-center gap-3 mb-6">
@@ -328,18 +363,22 @@ export function PaymentClient(props: Props) {
                 </div>
 
                 {submitSuccess && (
-                  <div className="mb-6 rounded-[6px] border border-emerald-500/40 bg-emerald-500/10 p-5 text-emerald-400 font-mono text-xs">
+                  <div className="mb-6 rounded-[6px] border border-primary/40 bg-primary/10 p-5 text-primary font-mono text-xs">
                     <p className="font-bold flex items-center gap-2 text-sm">✓ {submitSuccess}</p>
                     <p className="mt-1 text-muted-foreground text-[11px]">
-                      Your payment proof has been accepted and your event registration is officially confirmed.
+                      {data.status === 'confirmed'
+                        ? 'Your payment proof has been verified and your event registration is officially confirmed.'
+                        : 'Your payment proof has been submitted and is currently awaiting admin verification.'}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-3">
-                      <Link
-                        href={`/ticket?id=${data.registration_id}`}
-                        className="inline-flex items-center gap-2 rounded-[3px] border border-emerald-500/60 bg-emerald-500/20 px-4 py-2.5 font-mono text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/30"
-                      >
-                        VIEW TICKET →
-                      </Link>
+                      {data.status === 'confirmed' && (
+                        <Link
+                          href={`/ticket?id=${data.registration_id}`}
+                          className="inline-flex items-center gap-2 rounded-[3px] border border-emerald-500/60 bg-emerald-500/20 px-4 py-2.5 font-mono text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/30"
+                        >
+                          VIEW TICKET →
+                        </Link>
+                      )}
                       <Link
                         href="/dashboard"
                         className="inline-flex items-center gap-2 rounded-[3px] border border-border bg-background/60 px-4 py-2.5 font-mono text-xs font-bold text-foreground transition-colors hover:border-primary"
@@ -442,16 +481,18 @@ export function PaymentClient(props: Props) {
                   {/* Submit Button */}
                   <button
                     type="submit"
-                    disabled={submitting || data.status === 'confirmed'}
+                    disabled={submitting || data.status === 'confirmed' || data.status === 'pending_verification'}
                     className="group relative w-full overflow-hidden rounded-[3px] border border-primary bg-primary px-8 py-4 font-mono text-xs font-bold tracking-[0.25em] text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
                     <span>
                       {data.status === 'confirmed'
                         ? 'REGISTRATION CONFIRMED'
+                        : data.status === 'pending_verification'
+                        ? 'PAYMENT VERIFICATION PENDING'
                         : submitting
                         ? 'SUBMITTING PROOF…'
-                        : 'SUBMIT PAYMENT & CONFIRM REGISTRATION →'}
+                        : 'SUBMIT PAYMENT DETAILS →'}
                     </span>
                   </button>
                 </form>

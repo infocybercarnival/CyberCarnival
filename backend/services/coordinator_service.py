@@ -1,5 +1,5 @@
 from extensions import db
-from models import Coordinator, Event, EventRegistration, RegistrationMember
+from models import Coordinator, CoordinatorEvent, Event, EventRegistration, RegistrationMember
 from utils.security import hash_password, verify_password
 
 
@@ -9,6 +9,43 @@ def get_coordinator_by_username(username: str):
 
 def get_coordinator(coordinator_id: str):
     return db.session.get(Coordinator, coordinator_id)
+
+
+def sync_event_coordinators(event_id: str, faculty_ids: list, student_ids: list) -> None:
+    """Synchronize Event <-> Coordinator relationships in coordinator_events junction table.
+    Performs transactional assignment without altering master Coordinator records."""
+    CoordinatorEvent.query.filter_by(event_id=event_id).delete()
+
+    seen = set()
+    for cid in (faculty_ids or []):
+        cid_clean = str(cid).strip()
+        if not cid_clean or cid_clean in seen:
+            continue
+        coord = get_coordinator(cid_clean)
+        if not coord:
+            continue
+        seen.add(cid_clean)
+        db.session.add(CoordinatorEvent(
+            coordinator_id=coord.id,
+            event_id=event_id,
+            role="FACULTY"
+        ))
+
+    for cid in (student_ids or []):
+        cid_clean = str(cid).strip()
+        if not cid_clean or cid_clean in seen:
+            continue
+        coord = get_coordinator(cid_clean)
+        if not coord:
+            continue
+        seen.add(cid_clean)
+        db.session.add(CoordinatorEvent(
+            coordinator_id=coord.id,
+            event_id=event_id,
+            role="STUDENT"
+        ))
+
+    db.session.commit()
 
 
 def verify_coordinator_credentials(username: str, password: str):

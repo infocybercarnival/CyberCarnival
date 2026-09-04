@@ -6,7 +6,10 @@ from extensions import limiter
 from services.coordinator_service import get_coordinator, coordinator_owns_event, event_registrations_detail
 from services.event_service import get_event, set_registration_open
 from services.audit_service import log_action
-from services.registration_service import get_registration, verify_manual_payment
+from services.registration_service import (
+    get_registration, verify_manual_payment, check_in_ticket,
+    InvalidPaymentStateError, MissingRejectionReasonError, DuplicateRegistrationError
+)
 from utils.auth import coordinator_login_required
 
 bp = Blueprint("coordinator_api", __name__, url_prefix="/coordinator/api")
@@ -39,11 +42,6 @@ def event_registrations(event_id):
         session.clear()
         return jsonify({"error": "authentication required"}), 401
 
-    # This is the actual access-control check — not just "logged in", but
-    # "logged in AND assigned to this specific event". Every route below
-    # that takes an event_id repeats this same check for the same reason:
-    # a coordinator for Event A must never be able to view/edit Event B's
-    # data just by changing the ID in the URL (IDOR).
     if not coordinator_owns_event(coord, event_id):
         return jsonify({"error": "not authorized for this event"}), 403
 
@@ -146,7 +144,54 @@ def payment_verification(registration_id):
     if not coordinator_owns_event(coord, reg.event_id):
         return jsonify({"error": "not authorized for this event"}), 403
     body = request.get_json(silent=True) or {}
-    approved = body.get("approved") is True
-    verify_manual_payment(registration_id, _actor(), approved)
-    log_action(_actor(), "payment_verified" if approved else "payment_rejected", f"registration {registration_id}", "")
-    return jsonify({"ok": True, "status": "confirmed" if approved else "cancelled"})
+    approved = bool(body.get("approved"))
+    rejection_reason = body.get("rejection_reason")
+
+    try:
+        ok = verify_manual_payment(
+            registration_id=registration_id,
+            actor=_actor(),
+            approved=approved,
+            rejection_reason=rejection_reason
+        )
+    except InvalidPaymentStateError as e:
+        return jsonify({"error": str(e)}), 409
+    except MissingRejectionReasonError as e:
+        return jsonify({"error": str(e)}), 422
+    except DuplicateRegistrationError:
+        return jsonify({"error": "cannot approve: a team member is already registered for this event"}), 409
+
+    if not ok:
+        return jsonify({"error": "registration not found"}), 404
+
+    status_str = "confirmed" if approved else "rejected"
+    log_action(_actor(), "payment_verified" if approved else "payment_rejected", f"registration {registration_id} -> {status_str}", "")
+    return jsonify({"ok": True, "status": status_str})
+
+
+@bp.post("/tickets/check-in")
+@coordinator_login_required
+@limiter.limit("60 per minute")
+def coordinator_check_in_ticket():
+    coord = _coordinator()
+    if not coord:
+        return jsonify({"error": "authentication required"}), 401
+    body = request.get_json(silent=True) or {}
+    registration_id = (body.get("registration_id") or body.get("ticket_id") or "").strip()
+    token = (body.get("token") or "").strip() or None
+    if not registration_id:
+        return jsonify({"error": "registration_id or ticket_id is required"}), 422
+
+    reg = get_registration(registration_id)
+    if not reg:
+        return jsonify({"error": "registration not found"}), 404
+    if not coordinator_owns_event(coord, reg.event_id):
+        return jsonify({"error": "not authorized for this event"}), 403
+
+    actor = _actor()
+    res = check_in_ticket(registration_id=registration_id, token=token, actor=actor)
+    status_code = 200 if res["success"] or res["status"] == "ALREADY_CHECKED_IN" else 400
+    if res["status"] == "NOT_FOUND":
+        status_code = 404
+    log_action(actor, "TICKET_CHECK_IN", f"reg_id={registration_id} status={res['status']}", "")
+    return jsonify(res), status_code
