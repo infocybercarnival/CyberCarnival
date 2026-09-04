@@ -49,11 +49,7 @@ ADMIN_GOOGLE_EMAIL = os.environ.get("ADMIN_GOOGLE_EMAIL", "info.cybercarnival@gm
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
-RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 
-
-RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
-RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
 
 PAYMENT_SESSION_MINUTES = int(os.environ.get("PAYMENT_SESSION_MINUTES", "10"))
 
