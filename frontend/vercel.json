@@ -1,0 +1,15 @@
+{
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
+  "outputDirectory": "out",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://cybercarnival.onrender.com/api/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://cybercarnival.onrender.com/uploads/:path*"
+    }
+  ]
+}
