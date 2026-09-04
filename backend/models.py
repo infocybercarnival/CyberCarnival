@@ -264,9 +264,7 @@ class EventRegistration(db.Model):
 
     # Legacy Razorpay columns kept nullable so existing databases can migrate
     # without losing historical records. New registrations do not use them.
-    razorpay_order_id = db.Column(db.String(64), nullable=True)
-    razorpay_payment_id = db.Column(db.String(64), nullable=True, unique=True, index=True)
-    payment_expires_at = db.Column(db.DateTime, nullable=True)
+    
     created_at = db.Column(db.DateTime, default=db.func.now())
 
     event = db.relationship("Event")
