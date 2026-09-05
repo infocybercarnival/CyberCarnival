@@ -116,6 +116,14 @@ def google_login():
     session["oauth_state"] = state
     session["code_verifier"] = code_verifier
     session["oauth_source"] = source
+    session.modified = True
+
+    logger.warning(
+        "OAUTH DEBUG LOGIN: session_keys=%s state_saved=%s verifier_saved=%s",
+        list(session.keys()),
+        bool(session.get("oauth_state")),
+        bool(session.get("code_verifier")),
+    )
 
     params = {
         "client_id": config.GOOGLE_CLIENT_ID,
@@ -155,6 +163,22 @@ def google_callback():
         return redirect(f"{error_redirect_base}?error=invalid_callback")
 
     # 2. Validate state and PKCE verifier
+    from flask import current_app
+
+    cookie_name = current_app.config.get("SESSION_COOKIE_NAME", "session")
+
+    logger.warning(
+        "OAUTH DEBUG CALLBACK BEFORE POP: "
+        "cookie_name=%s cookie_present=%s session_keys=%s "
+        "state_arg_present=%s session_state_present=%s verifier_present=%s",
+        cookie_name,
+        cookie_name in request.cookies,
+        list(session.keys()),
+        bool(state),
+        bool(session.get("oauth_state")),
+        bool(session.get("code_verifier")),
+    )
+
     session_state = session.pop("oauth_state", None)
     code_verifier = session.pop("code_verifier", None)
 
