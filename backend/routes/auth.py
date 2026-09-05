@@ -1,9 +1,9 @@
-from flask import Blueprint, request, jsonify, session, redirect
+
 import base64
 import hashlib
 import secrets
 from urllib.parse import urlencode
-from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from datetime import datetime, timedelta
 
 import requests
 from google.oauth2 import id_token as google_id_token
@@ -28,17 +28,6 @@ from utils.logger import get_logger
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = get_logger("auth")
-
-OAUTH_COOKIE_NAME = "cybercarnival_oauth"
-OAUTH_COOKIE_MAX_AGE = 10 * 60  # 10 minutes
-
-
-def oauth_serializer():
-    return URLSafeTimedSerializer(
-        config.SECRET_KEY,
-        salt="cybercarnival-google-oauth-v1",
-    )
-
 
 def generate_pkce():
     verifier = secrets.token_urlsafe(64)
@@ -104,10 +93,13 @@ def google_login():
     source = str(
         request.args.get("source") or payload.get("source") or "login"
     ).strip().lower()
+
     if source not in ("login", "register"):
         source = "login"
 
-    is_valid_captcha, captcha_error = verify_turnstile_token(turnstile_token, request.remote_addr)
+    is_valid_captcha, captcha_error = verify_turnstile_token(
+        turnstile_token, request.remote_addr
+    )
     if not is_valid_captcha:
         if request.method == "POST" or request.args.get("format") == "json":
             return jsonify({"error": captcha_error}), 400
@@ -115,19 +107,51 @@ def google_login():
         return redirect(f"{frontend_base}/{source}?error=captcha_failed")
 
     if not config.GOOGLE_CLIENT_ID or not config.GOOGLE_CLIENT_SECRET:
-        logger.error("Google OAuth is missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET configuration")
+        logger.error(
+            "Google OAuth is missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET configuration"
+        )
         if request.method == "POST" or request.args.get("format") == "json":
-            return jsonify({"error": "Google OAuth is not configured on the server"}), 500
+            return jsonify(
+                {"error": "Google OAuth is not configured on the server"}
+            ), 500
         frontend_base = get_frontend_base()
         return redirect(f"{frontend_base}/{source}?error=config_missing")
+
+    # Generate OAuth state + PKCE verifier.
     state = secrets.token_urlsafe(32)
     code_verifier, code_challenge = generate_pkce()
 
-    oauth_data = oauth_serializer().dumps({
-        "state": state,
-        "code_verifier": code_verifier,
-        "source": source,
-    })
+    # Store OAuth state server-side in Supabase/PostgreSQL instead of relying
+    # on a browser cookie across Vercel -> Render -> Google -> Render.
+    from models import OAuthFlow
+
+    # Opportunistically remove expired OAuth flows.
+    try:
+        OAuthFlow.query.filter(OAuthFlow.expires_at < datetime.utcnow()).delete(
+            synchronize_session=False
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception("Failed to clean expired OAuth flows")
+
+    flow = OAuthFlow(
+        state=state,
+        code_verifier=code_verifier,
+        source=source,
+        expires_at=datetime.utcnow() + timedelta(minutes=10),
+    )
+
+    try:
+        db.session.add(flow)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception("Failed to persist Google OAuth flow")
+        frontend_base = get_frontend_base()
+        if request.method == "POST" or request.args.get("format") == "json":
+            return jsonify({"error": "Could not start Google authentication"}), 500
+        return redirect(f"{frontend_base}/{source}?error=oauth_start_failed")
 
     params = {
         "client_id": config.GOOGLE_CLIENT_ID,
@@ -139,26 +163,13 @@ def google_login():
         "code_challenge_method": "S256",
         "prompt": "select_account",
     }
+
     auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
     if request.method == "POST" or request.args.get("format") == "json":
-        response = jsonify({"auth_url": auth_url})
-    else:
-        response = redirect(auth_url)
+        return jsonify({"auth_url": auth_url})
 
-    # Temporary signed OAuth-flow cookie. We use SameSite=Lax intentionally:
-    # Google's callback is a top-level GET navigation, so the browser can return
-    # this cookie even though the normal application session uses SameSite=None.
-    response.set_cookie(
-        OAUTH_COOKIE_NAME,
-        oauth_data,
-        max_age=OAUTH_COOKIE_MAX_AGE,
-        secure=True,
-        httponly=True,
-        samesite="Lax",
-        path="/api/auth/google",
-    )
-    return response
+    return redirect(auth_url)
 
 
 @bp.get("/google/callback")
@@ -166,62 +177,63 @@ def google_login():
 def google_callback():
     frontend_base = get_frontend_base()
 
-    oauth_cookie = request.cookies.get(OAUTH_COOKIE_NAME)
-    if not oauth_cookie:
-        logger.warning("Google OAuth callback missing OAuth flow cookie")
+    oauth_error = request.args.get("error")
+    state = str(request.args.get("state") or "").strip()
+    code = str(request.args.get("code") or "").strip()
+
+    # If Google cancelled/failed before returning a usable state, send the user
+    # back to the login page.
+    if oauth_error:
+        logger.info("Google OAuth login cancelled or error: %s", oauth_error)
+        return redirect(f"{frontend_base}/login?error=oauth_cancelled")
+
+    if not state:
+        logger.warning("Google OAuth callback received without state")
         return redirect(f"{frontend_base}/login?error=invalid_state")
 
-    try:
-        oauth_data = oauth_serializer().loads(
-            oauth_cookie,
-            max_age=OAUTH_COOKIE_MAX_AGE,
-        )
-    except SignatureExpired:
-        logger.warning("Google OAuth flow cookie expired")
-        return redirect(f"{frontend_base}/login?error=invalid_state")
-    except BadSignature:
-        logger.warning("Google OAuth flow cookie has invalid signature")
+    from models import OAuthFlow
+
+    flow = OAuthFlow.query.filter_by(state=state).first()
+
+    if not flow:
+        logger.warning("Google OAuth state not found in server-side store")
         return redirect(f"{frontend_base}/login?error=invalid_state")
 
-    oauth_source = str(oauth_data.get("source") or "login").lower()
-    if oauth_source not in ("login", "register"):
-        oauth_source = "login"
-
+    oauth_source = flow.source if flow.source in ("login", "register") else "login"
     origin_page = "login" if oauth_source == "login" else "register"
     error_redirect_base = f"{frontend_base}/{origin_page}"
 
-    # 1. Check for OAuth error / cancellation
-    oauth_error = request.args.get("error")
-    if oauth_error:
-        logger.info("Google OAuth login cancelled or error: %s", oauth_error)
-        response = redirect(f"{error_redirect_base}?error=oauth_cancelled")
-        response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
-        return response
+    # Reject expired flows.
+    if flow.expires_at is None or flow.expires_at < datetime.utcnow():
+        try:
+            db.session.delete(flow)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        logger.warning("Google OAuth flow expired")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
 
-    code = request.args.get("code")
-    state = request.args.get("state")
     if not code:
+        try:
+            db.session.delete(flow)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
         logger.warning("Google OAuth callback received without code")
-        response = redirect(f"{error_redirect_base}?error=invalid_callback")
-        response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
-        return response
+        return redirect(f"{error_redirect_base}?error=invalid_callback")
 
-    # 2. Validate state and PKCE verifier from the signed short-lived OAuth cookie.
-    session_state = oauth_data.get("state")
-    code_verifier = oauth_data.get("code_verifier")
+    code_verifier = flow.code_verifier
 
-    if (
-        not state
-        or not session_state
-        or not secrets.compare_digest(state, session_state)
-        or not code_verifier
-    ):
-        logger.warning("Google OAuth state mismatch or missing verifier")
-        response = redirect(f"{error_redirect_base}?error=invalid_state")
-        response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
-        return response
+    # Make the OAuth state single-use before token exchange.
+    try:
+        db.session.delete(flow)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        logger.exception("Failed to consume Google OAuth flow")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
 
-    # 3. Exchange authorization code for tokens
+    # Exchange authorization code for tokens.
     token_url = "https://oauth2.googleapis.com/token"
     token_data = {
         "client_id": config.GOOGLE_CLIENT_ID,
@@ -246,7 +258,7 @@ def google_callback():
 
     raw_id_token = token_json["id_token"]
 
-    # 4. Verify ID Token (signature, issuer, audience, expiration)
+    # Verify ID Token (signature, issuer, audience, expiration).
     try:
         claims = google_id_token.verify_oauth2_token(
             raw_id_token,
@@ -257,14 +269,12 @@ def google_callback():
         logger.warning("Invalid Google ID Token verification failed: %s", exc)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
 
-    # Verify issuer
     iss = claims.get("iss")
     if iss not in ("accounts.google.com", "https://accounts.google.com"):
         logger.warning("Invalid issuer in Google ID Token: %s", iss)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
 
-    # Verify email
-    email = claims.get("email", "").lower().strip()
+    email = str(claims.get("email") or "").lower().strip()
     email_verified = claims.get("email_verified")
     google_sub = claims.get("sub")
     full_name = claims.get("name")
@@ -273,54 +283,75 @@ def google_callback():
         logger.warning("Google ID token missing email or unverified email")
         return redirect(f"{error_redirect_base}?error=unverified_email")
 
-    admin_email = (config.ADMIN_GOOGLE_EMAIL or "info.cybercarnival@gmail.com").strip().lower()
+    admin_email = (
+        config.ADMIN_GOOGLE_EMAIL or "info.cybercarnival@gmail.com"
+    ).strip().lower()
 
-    # If the verified Google identity matches ADMIN_GOOGLE_EMAIL, establish admin session
+    # Admin Google account -> Render-hosted Flask admin panel.
     if email == admin_email:
         from services import admin_service, audit_service
+
         admin = admin_service.get_or_create_admin_for_email(email)
+
         session.clear()
         session["admin_username"] = admin.username
         session["is_admin"] = True
         session.permanent = True
-        audit_service.log_action(admin.username, "google_oauth_admin_login", f"admin login via Google OAuth ({email})", request.remote_addr or "unknown")
-        logger.info("Successful Google OAuth admin login for email=%s admin_username=%s", email, admin.username)
-        response = redirect("/admin/")
-        response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
-        return response
 
-    # Check educational domain restriction if configured for normal users
+        audit_service.log_action(
+            admin.username,
+            "google_oauth_admin_login",
+            f"admin login via Google OAuth ({email})",
+            request.remote_addr or "unknown",
+        )
+
+        logger.info(
+            "Successful Google OAuth admin login for email=%s admin_username=%s",
+            email,
+            admin.username,
+        )
+        return redirect("/admin/")
+
+    # Optional educational-domain restriction for normal users.
     if config.ALLOWED_EMAIL_DOMAIN:
         domain = email.split("@")[-1] if "@" in email else ""
         if domain.lower() != config.ALLOWED_EMAIL_DOMAIN:
-            logger.warning("Google login attempt with unauthorized email domain: %s", email)
-            return redirect(f"{error_redirect_base}?error=authorized_email_required")
+            logger.warning(
+                "Google login attempt with unauthorized email domain: %s",
+                email,
+            )
+            return redirect(
+                f"{error_redirect_base}?error=authorized_email_required"
+            )
 
-    # 5. User Registration / Account Linking via existing user service for normal users
+    # Normal user account creation/linking.
     try:
         user = user_service.get_or_create_google_user(
             email=email,
             google_sub=google_sub,
             full_name=full_name,
         )
-
     except Exception as exc:
-        logger.exception("Failed to register/get user for Google identity: %s", exc)
+        logger.exception(
+            "Failed to register/get user for Google identity: %s",
+            exc,
+        )
         return redirect(f"{error_redirect_base}?error=user_creation_failed")
 
     if not user.is_active:
         logger.warning("Attempted login to inactive user account: %s", user.id)
         return redirect(f"{error_redirect_base}?error=account_disabled")
 
-    # 7. Establish application session for normal user
     session.clear()
     session["user_id"] = user.id
     session.permanent = True
 
-    logger.info("Successful Google OAuth registration/login for user=%s email=%s", user.id, user.email)
-    response = redirect(f"{frontend_base}/dashboard")
-    response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
-    return response
+    logger.info(
+        "Successful Google OAuth registration/login for user=%s email=%s",
+        user.id,
+        user.email,
+    )
+    return redirect(f"{frontend_base}/dashboard")
 
 
 # --- Email OTP Signup (alternative to Google) ----------------------------------------
