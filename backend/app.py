@@ -27,6 +27,7 @@ def create_app() -> Flask:
     app = Flask(__name__)
 
     app.config["SECRET_KEY"] = config.SECRET_KEY
+    app.config["SESSION_COOKIE_NAME"] = config.SESSION_COOKIE_NAME
     app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
     app.config["SESSION_COOKIE_SECURE"] = config.SESSION_COOKIE_SECURE
     app.config["SESSION_COOKIE_HTTPONLY"] = config.SESSION_COOKIE_HTTPONLY
