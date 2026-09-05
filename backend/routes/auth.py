@@ -188,22 +188,22 @@ def google_callback():
         bool(session.get("oauth_state")),
         bool(session.get("code_verifier")),
     )
-from flask import current_app
-
-cookie_name = current_app.config.get("SESSION_COOKIE_NAME", "session")
-
-print(
-    "OAUTH_CALLBACK_DEBUG",
-    {
-        "cookie_name": cookie_name,
-        "cookie_present": cookie_name in request.cookies,
-        "session_keys": list(session.keys()),
-        "state_from_google": bool(state),
-        "state_in_session": bool(session.get("oauth_state")),
-        "verifier_in_session": bool(session.get("code_verifier")),
-    },
-    flush=True,
-)
+    from flask import current_app
+    
+    cookie_name = current_app.config.get("SESSION_COOKIE_NAME", "session")
+    
+    print(
+        "OAUTH_CALLBACK_DEBUG",
+        {
+            "cookie_name": cookie_name,
+            "cookie_present": cookie_name in request.cookies,
+            "session_keys": list(session.keys()),
+            "state_from_google": bool(state),
+            "state_in_session": bool(session.get("oauth_state")),
+            "verifier_in_session": bool(session.get("code_verifier")),
+        },
+        flush=True,
+    )
     session_state = session.pop("oauth_state", None)
     code_verifier = session.pop("code_verifier", None)
 
