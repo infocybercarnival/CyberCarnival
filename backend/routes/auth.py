@@ -109,7 +109,7 @@ def google_login():
             return jsonify({"error": "Google OAuth is not configured on the server"}), 500
         frontend_base = get_frontend_base()
         return redirect(f"{frontend_base}/{source}?error=config_missing")
-
+    session.clear()
     state = secrets.token_urlsafe(32)
     code_verifier, code_challenge = generate_pkce()
 
