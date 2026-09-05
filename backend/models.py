@@ -6,6 +6,7 @@ but production schema/data should be imported explicitly.
 """
 import time
 import uuid
+from datetime import datetime, timedelta
 
 import config
 from extensions import db
@@ -36,6 +37,24 @@ class OtpVerification(db.Model):
     consumed_at = db.Column(db.DateTime, nullable=True)
     expires_at = db.Column(db.DateTime, nullable=False)
     created_at = db.Column(db.DateTime, default=db.func.now())
+
+
+class OAuthFlow(db.Model):
+    """
+    Short-lived server-side storage for Google OAuth state + PKCE verifier.
+
+    This avoids depending on a browser session cookie during the
+    Vercel -> Render -> Google -> Render redirect flow.
+    Each flow is single-use and expires quickly.
+    """
+    __tablename__ = "oauth_flows"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_uuid)
+    state = db.Column(db.String(128), nullable=False, unique=True, index=True)
+    code_verifier = db.Column(db.String(255), nullable=False)
+    source = db.Column(db.String(16), nullable=False, default="login")
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
 
 
 class User(db.Model):
