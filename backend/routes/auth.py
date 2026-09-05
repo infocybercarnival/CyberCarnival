@@ -3,6 +3,7 @@ import base64
 import hashlib
 import secrets
 from urllib.parse import urlencode
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 import requests
 from google.oauth2 import id_token as google_id_token
@@ -27,6 +28,16 @@ from utils.logger import get_logger
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = get_logger("auth")
+
+OAUTH_COOKIE_NAME = "cybercarnival_oauth"
+OAUTH_COOKIE_MAX_AGE = 10 * 60  # 10 minutes
+
+
+def oauth_serializer():
+    return URLSafeTimedSerializer(
+        config.SECRET_KEY,
+        salt="cybercarnival-google-oauth-v1",
+    )
 
 
 def generate_pkce():
@@ -109,31 +120,14 @@ def google_login():
             return jsonify({"error": "Google OAuth is not configured on the server"}), 500
         frontend_base = get_frontend_base()
         return redirect(f"{frontend_base}/{source}?error=config_missing")
-    session.clear()
     state = secrets.token_urlsafe(32)
     code_verifier, code_challenge = generate_pkce()
 
-    session["oauth_state"] = state
-    session["code_verifier"] = code_verifier
-    session["oauth_source"] = source
-    session.modified = True
-    print(
-    "OAUTH_LOGIN_DEBUG",
-    {
-        "session_keys": list(session.keys()),
-        "state_saved": bool(session.get("oauth_state")),
-        "verifier_saved": bool(session.get("code_verifier")),
-        "cookie_name": request.cookies.keys(),
-    },
-    flush=True,
-)
-
-    logger.warning(
-        "OAUTH DEBUG LOGIN: session_keys=%s state_saved=%s verifier_saved=%s",
-        list(session.keys()),
-        bool(session.get("oauth_state")),
-        bool(session.get("code_verifier")),
-    )
+    oauth_data = oauth_serializer().dumps({
+        "state": state,
+        "code_verifier": code_verifier,
+        "source": source,
+    })
 
     params = {
         "client_id": config.GOOGLE_CLIENT_ID,
@@ -148,15 +142,51 @@ def google_login():
     auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
     if request.method == "POST" or request.args.get("format") == "json":
-        return jsonify({"auth_url": auth_url})
-    return redirect(auth_url)
+        response = jsonify({"auth_url": auth_url})
+    else:
+        response = redirect(auth_url)
+
+    # Temporary signed OAuth-flow cookie. We use SameSite=Lax intentionally:
+    # Google's callback is a top-level GET navigation, so the browser can return
+    # this cookie even though the normal application session uses SameSite=None.
+    response.set_cookie(
+        OAUTH_COOKIE_NAME,
+        oauth_data,
+        max_age=OAUTH_COOKIE_MAX_AGE,
+        secure=True,
+        httponly=True,
+        samesite="Lax",
+        path="/api/auth/google",
+    )
+    return response
 
 
 @bp.get("/google/callback")
 @limiter.limit("15 per minute")
 def google_callback():
     frontend_base = get_frontend_base()
-    oauth_source = session.pop("oauth_source", "login")
+
+    oauth_cookie = request.cookies.get(OAUTH_COOKIE_NAME)
+    if not oauth_cookie:
+        logger.warning("Google OAuth callback missing OAuth flow cookie")
+        return redirect(f"{frontend_base}/login?error=invalid_state")
+
+    try:
+        oauth_data = oauth_serializer().loads(
+            oauth_cookie,
+            max_age=OAUTH_COOKIE_MAX_AGE,
+        )
+    except SignatureExpired:
+        logger.warning("Google OAuth flow cookie expired")
+        return redirect(f"{frontend_base}/login?error=invalid_state")
+    except BadSignature:
+        logger.warning("Google OAuth flow cookie has invalid signature")
+        return redirect(f"{frontend_base}/login?error=invalid_state")
+
+    oauth_source = str(oauth_data.get("source") or "login").lower()
+    if oauth_source not in ("login", "register"):
+        oauth_source = "login"
+
     origin_page = "login" if oauth_source == "login" else "register"
     error_redirect_base = f"{frontend_base}/{origin_page}"
 
@@ -164,52 +194,32 @@ def google_callback():
     oauth_error = request.args.get("error")
     if oauth_error:
         logger.info("Google OAuth login cancelled or error: %s", oauth_error)
-        return redirect(f"{error_redirect_base}?error=oauth_cancelled")
+        response = redirect(f"{error_redirect_base}?error=oauth_cancelled")
+        response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
+        return response
 
     code = request.args.get("code")
     state = request.args.get("state")
     if not code:
         logger.warning("Google OAuth callback received without code")
-        return redirect(f"{error_redirect_base}?error=invalid_callback")
+        response = redirect(f"{error_redirect_base}?error=invalid_callback")
+        response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
+        return response
 
-    # 2. Validate state and PKCE verifier
-    from flask import current_app
+    # 2. Validate state and PKCE verifier from the signed short-lived OAuth cookie.
+    session_state = oauth_data.get("state")
+    code_verifier = oauth_data.get("code_verifier")
 
-    cookie_name = current_app.config.get("SESSION_COOKIE_NAME", "session")
-
-    logger.warning(
-        "OAUTH DEBUG CALLBACK BEFORE POP: "
-        "cookie_name=%s cookie_present=%s session_keys=%s "
-        "state_arg_present=%s session_state_present=%s verifier_present=%s",
-        cookie_name,
-        cookie_name in request.cookies,
-        list(session.keys()),
-        bool(state),
-        bool(session.get("oauth_state")),
-        bool(session.get("code_verifier")),
-    )
-    from flask import current_app
-    
-    cookie_name = current_app.config.get("SESSION_COOKIE_NAME", "session")
-    
-    print(
-        "OAUTH_CALLBACK_DEBUG",
-        {
-            "cookie_name": cookie_name,
-            "cookie_present": cookie_name in request.cookies,
-            "session_keys": list(session.keys()),
-            "state_from_google": bool(state),
-            "state_in_session": bool(session.get("oauth_state")),
-            "verifier_in_session": bool(session.get("code_verifier")),
-        },
-        flush=True,
-    )
-    session_state = session.pop("oauth_state", None)
-    code_verifier = session.pop("code_verifier", None)
-
-    if not state or not session_state or not secrets.compare_digest(state, session_state) or not code_verifier:
+    if (
+        not state
+        or not session_state
+        or not secrets.compare_digest(state, session_state)
+        or not code_verifier
+    ):
         logger.warning("Google OAuth state mismatch or missing verifier")
-        return redirect(f"{error_redirect_base}?error=invalid_state")
+        response = redirect(f"{error_redirect_base}?error=invalid_state")
+        response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
+        return response
 
     # 3. Exchange authorization code for tokens
     token_url = "https://oauth2.googleapis.com/token"
@@ -275,7 +285,9 @@ def google_callback():
         session.permanent = True
         audit_service.log_action(admin.username, "google_oauth_admin_login", f"admin login via Google OAuth ({email})", request.remote_addr or "unknown")
         logger.info("Successful Google OAuth admin login for email=%s admin_username=%s", email, admin.username)
-        return redirect("/admin/")
+        response = redirect("/admin/")
+        response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
+        return response
 
     # Check educational domain restriction if configured for normal users
     if config.ALLOWED_EMAIL_DOMAIN:
@@ -306,7 +318,9 @@ def google_callback():
     session.permanent = True
 
     logger.info("Successful Google OAuth registration/login for user=%s email=%s", user.id, user.email)
-    return redirect(f"{frontend_base}/dashboard")
+    response = redirect(f"{frontend_base}/dashboard")
+    response.delete_cookie(OAUTH_COOKIE_NAME, path="/api/auth/google")
+    return response
 
 
 # --- Email OTP Signup (alternative to Google) ----------------------------------------
