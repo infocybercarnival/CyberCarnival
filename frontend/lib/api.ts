@@ -1,14 +1,24 @@
-// Talks to Flask backend. In dev (`pnpm dev`), NEXT_PUBLIC_API_URL from
-// .env.development points at the standalone backend on :5000. In production
-// this is unset on purpose — Flask serves the built frontend and the API
-// from the same origin, so relative paths ('') just work, no CORS needed.
-const API_URL = process.env.NEXT_PUBLIC_API_URL || ''
+export function getApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    const port = window.location.port
+    // When served directly by Flask (e.g. http://localhost:5000 or http://127.0.0.1:5000 or production origin with no port / standard port)
+    if (port === '5000' || (port !== '3000' && process.env.NODE_ENV === 'production')) {
+      return ''
+    }
+  }
+  return process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.trim() !== ''
+    ? process.env.NEXT_PUBLIC_API_URL.trim()
+    : 'http://127.0.0.1:5000'
+}
+
+export const API_URL = getApiUrl()
 
 // Every call that carries the participant session cookie needs
 // credentials: 'include' — otherwise the browser won't send/accept it
 // cross-origin (dev mode, frontend on :3000 / backend on :5000).
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  return fetch(`${API_URL}${path}`, { ...options, credentials: 'include' })
+  const baseUrl = getApiUrl()
+  return fetch(`${baseUrl}${path}`, { ...options, credentials: 'include' })
 }
 
 export class ApiValidationError extends Error {
@@ -48,7 +58,7 @@ export type ApiSpeaker = {
 }
 
 export async function fetchSpeakers(): Promise<ApiSpeaker[]> {
-  const res = await fetch(`${API_URL}/api/speakers`, { cache: 'no-store' })
+  const res = await apiFetch('/api/speakers', { cache: 'no-store' })
   return parseOrThrow(res)
 }
 
@@ -77,6 +87,12 @@ export type ApiEvent = {
   min_team_size: number | null
   max_team_size: number | null
   max_teams: number | null
+  capacity?: number | null
+  confirmed_count?: number
+  confirmation_pending_count?: number
+  occupied_count?: number
+  available_slots?: number | null
+  confirmation_queue_full?: boolean
   teams_registered: number
   seats_available: number | null
   prize: string | null
@@ -87,6 +103,7 @@ export type ApiEvent = {
   }
 }
 
+
 let eventsPromiseCache: Promise<ApiEvent[]> | null = null
 
 export async function fetchEvents(): Promise<ApiEvent[]> {
@@ -94,7 +111,7 @@ export async function fetchEvents(): Promise<ApiEvent[]> {
 
   eventsPromiseCache = (async () => {
     try {
-      const res = await fetch(`${API_URL}/api/events`, { cache: 'no-store' })
+      const res = await apiFetch('/api/events', { cache: 'no-store' })
       if (!res.ok) throw new Error('Could not load events from the server.')
       return await res.json()
     } catch (err) {
@@ -107,7 +124,7 @@ export async function fetchEvents(): Promise<ApiEvent[]> {
 }
 
 export async function fetchEvent(eventId: string): Promise<ApiEvent> {
-  const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(eventId)}`, { cache: 'no-store' })
+  const res = await apiFetch(`/api/events/${encodeURIComponent(eventId)}`, { cache: 'no-store' })
   if (res.status === 404) {
     throw new ApiValidationError('Event not found', undefined, 404)
   }
@@ -245,7 +262,7 @@ export type MyEvent = {
   event_name: string
   team_name: string | null
   is_leader: boolean
-  status: 'confirmed' | 'pending_verification' | 'rejected' | 'pending_payment'
+  status: 'confirmed' | 'pending_verification' | 'rejected'
   rejection_reason?: string | null
   members: { name: string; token: string }[]
   venue: string | null
@@ -291,7 +308,7 @@ export type RegistrationPayload = {
 
 export type RegistrationResult = {
   id: string
-  status: 'confirmed' | 'pending_verification' | 'pending_payment'
+  status: 'confirmed' | 'pending_verification'
   warnings: string[]
   payment_url?: string | null
   payment_message?: string | null
@@ -353,12 +370,12 @@ export async function fetchMemberPreview(token: string): Promise<MemberPreview> 
 }
 
 export async function fetchPaymentInfo(eventId: string): Promise<PaymentInfo> {
-  const res = await fetch(`${API_URL}/api/events/${encodeURIComponent(eventId)}/payment-info`, { cache: 'no-store' })
+  const res = await apiFetch(`/api/events/${encodeURIComponent(eventId)}/payment-info`, { cache: 'no-store' })
   return parseOrThrow(res)
 }
 
 export function paymentQrUrl(eventId: string): string {
-  return `${API_URL}/api/events/${encodeURIComponent(eventId)}/payment-qr`
+  return `${getApiUrl()}/api/events/${encodeURIComponent(eventId)}/payment-qr`
 }
 
 export async function fetchRegistrationWarnings(eventId: string): Promise<string[]> {
@@ -409,7 +426,7 @@ export async function fetchTicket(registrationId: string): Promise<Ticket> {
   // No credentials here on purpose — this is scanned at the door, possibly
   // by someone who isn't logged in as the registrant at all. The
   // registration_id itself (an unguessable UUID) is the access control.
-  const res = await fetch(`${API_URL}/api/registrations/${encodeURIComponent(registrationId)}/ticket`, {
+  const res = await fetch(`${getApiUrl()}/api/registrations/${encodeURIComponent(registrationId)}/ticket`, {
     cache: 'no-store',
   })
   return parseOrThrow(res)

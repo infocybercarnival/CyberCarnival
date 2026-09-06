@@ -123,7 +123,7 @@ export default function EventsPage() {
   return (
     <>
       <Navbar />
-      <main className="mx-auto max-w-[1440px] px-6 pb-32 pt-36 lg:px-12">
+      <main className="mx-auto max-w-[1440px] px-4 sm:px-6 pb-32 pt-28 sm:pt-36 lg:px-12">
         <p className="font-mono text-[11px] tracking-[0.3em] text-primary font-bold">EVENTS / {EVENT_DATES}</p>
 
         {/* Heading & Active Count Indicator */}
@@ -132,13 +132,15 @@ export default function EventsPage() {
             ALL EVENTS
           </h1>
           <div className="font-mono text-xs tracking-[0.25em] text-primary border border-primary/40 bg-primary/10 px-4 py-2.5 backdrop-blur-sm font-semibold">
-            {chromaItems.length} {chromaItems.length === 1 ? 'EVENT FOUND' : 'ACTIVE EVENTS'}
+            {backendError
+              ? `${chromaItems.length} OFFLINE FALLBACK EVENTS`
+              : `${chromaItems.length} ${chromaItems.length === 1 ? 'EVENT FOUND' : 'ACTIVE EVENTS'}`}
           </div>
         </div>
 
         {backendError && (
           <p className="mt-6 border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs font-mono tracking-[0.1em] text-destructive">
-            Registration is temporarily unavailable — backend unreachable. Showing cached event details.
+            Registration is temporarily unavailable — live backend unreachable. Showing cached offline fallback details.
           </p>
         )}
 

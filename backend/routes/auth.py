@@ -14,6 +14,8 @@ from services import otp_service
 from services import user_service
 from services import registration_service as regs
 from services.event_service import get_event
+from services.session_service import generate_sid, revoke_session
+
 from utils.validators import (
     validate_email_payload,
     validate_otp_payload,
@@ -37,9 +39,19 @@ def generate_pkce():
 
 
 def get_frontend_base():
-    if config.ALLOWED_ORIGINS:
-        return config.ALLOWED_ORIGINS[0].rstrip("/")
-    return ""
+    if request:
+        origin = request.headers.get("Origin") or request.headers.get("Referer")
+        if origin:
+            clean_origin = origin.rstrip("/").split("/login")[0].split("/register")[0]
+            if any(clean_origin == o.rstrip("/") for o in (config.ALLOWED_ORIGINS or [])):
+                return clean_origin
+            if request.host_url.rstrip("/") == clean_origin:
+                return clean_origin
+        if request.host_url:
+            host_base = request.host_url.rstrip("/")
+            if any(host_base == o.rstrip("/") for o in (config.ALLOWED_ORIGINS or [])):
+                return host_base
+    return config.SITE_URL.rstrip("/")
 
 
 def verify_turnstile_token(token: str, remote_ip: str | None = None) -> tuple[bool, str]:
@@ -116,7 +128,9 @@ def google_login():
     session["oauth_state"] = state
     session["code_verifier"] = code_verifier
     session["oauth_source"] = source
+    session["oauth_frontend_base"] = get_frontend_base()
 
+    logger.warning("[OAUTH_DEBUG] redirect_uri=%s client_id=%s", config.GOOGLE_REDIRECT_URI, config.GOOGLE_CLIENT_ID)
     params = {
         "client_id": config.GOOGLE_CLIENT_ID,
         "redirect_uri": config.GOOGLE_REDIRECT_URI,
@@ -137,7 +151,9 @@ def google_login():
 @bp.get("/google/callback")
 @limiter.limit("15 per minute")
 def google_callback():
-    frontend_base = get_frontend_base()
+    logger.warning("[OAUTH_TRACE] callback_started")
+    oauth_frontend_base = session.pop("oauth_frontend_base", None)
+    frontend_base = oauth_frontend_base or get_frontend_base()
     oauth_source = session.pop("oauth_source", "login")
     origin_page = "login" if oauth_source == "login" else "register"
     error_redirect_base = f"{frontend_base}/{origin_page}"
@@ -145,22 +161,34 @@ def google_callback():
     # 1. Check for OAuth error / cancellation
     oauth_error = request.args.get("error")
     if oauth_error:
-        logger.info("Google OAuth login cancelled or error: %s", oauth_error)
+        logger.warning("[OAUTH_TRACE_ERROR] oauth_error_param received: %s", oauth_error)
         return redirect(f"{error_redirect_base}?error=oauth_cancelled")
 
     code = request.args.get("code")
     state = request.args.get("state")
     if not code:
-        logger.warning("Google OAuth callback received without code")
+        logger.warning("[OAUTH_TRACE_ERROR] code_missing callback received without code")
         return redirect(f"{error_redirect_base}?error=invalid_callback")
 
     # 2. Validate state and PKCE verifier
     session_state = session.pop("oauth_state", None)
     code_verifier = session.pop("code_verifier", None)
 
-    if not state or not session_state or not secrets.compare_digest(state, session_state) or not code_verifier:
-        logger.warning("Google OAuth state mismatch or missing verifier")
+    if not session_state:
+        logger.warning("[OAUTH_TRACE_ERROR] state_missing Session state missing or session cookie expired")
         return redirect(f"{error_redirect_base}?error=invalid_state")
+    if not state:
+        logger.warning("[OAUTH_TRACE_ERROR] state_param_missing Query parameter 'state' missing from Google callback")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
+    if not code_verifier:
+        logger.warning("[OAUTH_TRACE_ERROR] code_verifier_missing PKCE code_verifier missing from session")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
+    if not secrets.compare_digest(state, session_state):
+        logger.warning("[OAUTH_TRACE_ERROR] state_mismatch State parameter does not match session state")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
+
+    logger.warning("[OAUTH_TRACE] state_validation_passed")
+    logger.warning("[OAUTH_TRACE] pkce_validation_passed")
 
     # 3. Exchange authorization code for tokens
     token_url = "https://oauth2.googleapis.com/token"
@@ -177,12 +205,15 @@ def google_callback():
         token_resp = requests.post(token_url, data=token_data, timeout=10)
         token_json = token_resp.json()
     except Exception as exc:
-        logger.exception("Error connecting to Google token endpoint: %s", exc)
+        logger.warning("[OAUTH_TRACE_ERROR] token_exchange_failed Error connecting to Google token endpoint: %s", exc)
         return redirect(f"{error_redirect_base}?error=token_exchange_failed")
 
     if token_resp.status_code != 200 or "id_token" not in token_json:
-        logger.error("Token exchange failed with Google: %s", token_json)
+        safe_error = {k: v for k, v in token_json.items() if k in ("error", "error_description")} if isinstance(token_json, dict) else str(token_json)
+        logger.warning("[OAUTH_TRACE_ERROR] token_exchange_failed status=%s error=%s", token_resp.status_code, safe_error)
         return redirect(f"{error_redirect_base}?error=token_exchange_failed")
+
+    logger.warning("[OAUTH_TRACE] token_exchange_passed")
 
     raw_id_token = token_json["id_token"]
 
@@ -194,14 +225,16 @@ def google_callback():
             audience=config.GOOGLE_CLIENT_ID,
         )
     except Exception as exc:
-        logger.warning("Invalid Google ID Token verification failed: %s", exc)
+        logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed Invalid Google ID Token: %s", exc)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
 
     # Verify issuer
     iss = claims.get("iss")
     if iss not in ("accounts.google.com", "https://accounts.google.com"):
-        logger.warning("Invalid issuer in Google ID Token: %s", iss)
+        logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed Invalid issuer: %s", iss)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
+
+    logger.warning("[OAUTH_TRACE] id_token_verification_passed")
 
     # Verify email
     email = claims.get("email", "").lower().strip()
@@ -210,19 +243,26 @@ def google_callback():
     full_name = claims.get("name")
 
     if not email or not email_verified or not google_sub:
-        logger.warning("Google ID token missing email or unverified email")
+        logger.warning("[OAUTH_TRACE_ERROR] google_profile_failed Missing or unverified email in ID token")
         return redirect(f"{error_redirect_base}?error=unverified_email")
+
+    logger.warning("[OAUTH_TRACE] google_profile_passed")
 
     admin_email = (config.ADMIN_GOOGLE_EMAIL or "info.cybercarnival@gmail.com").strip().lower()
 
     # If the verified Google identity matches ADMIN_GOOGLE_EMAIL, establish admin session
     if email == admin_email:
         from services import admin_service, audit_service
+        from flask_wtf.csrf import generate_csrf
         admin = admin_service.get_or_create_admin_for_email(email)
         session.clear()
         session["admin_username"] = admin.username
         session["is_admin"] = True
+        session["sid"] = generate_sid()
         session.permanent = True
+        generate_csrf()
+        logger.warning("[OAUTH_TRACE] session_creation_passed")
+        logger.warning("[OAUTH_TRACE] callback_redirect=/admin/")
         audit_service.log_action(admin.username, "google_oauth_admin_login", f"admin login via Google OAuth ({email})", request.remote_addr or "unknown")
         logger.info("Successful Google OAuth admin login for email=%s admin_username=%s", email, admin.username)
         return redirect("/admin/")
@@ -231,32 +271,44 @@ def google_callback():
     if config.ALLOWED_EMAIL_DOMAIN:
         domain = email.split("@")[-1] if "@" in email else ""
         if domain.lower() != config.ALLOWED_EMAIL_DOMAIN:
-            logger.warning("Google login attempt with unauthorized email domain: %s", email)
+            logger.warning("[OAUTH_TRACE_ERROR] google_profile_failed Unauthorized email domain: %s", email)
             return redirect(f"{error_redirect_base}?error=authorized_email_required")
 
     # 5. User Registration / Account Linking via existing user service for normal users
     try:
+        existing_sub = user_service.get_user_by_google_sub(google_sub)
+        existing_email = user_service.get_user_by_email(email)
+        if existing_sub or existing_email:
+            logger.warning("[OAUTH_TRACE] user_lookup_passed")
+
         user = user_service.get_or_create_google_user(
             email=email,
             google_sub=google_sub,
             full_name=full_name,
         )
+        if not existing_sub and not existing_email:
+            logger.warning("[OAUTH_TRACE] user_creation_passed")
 
     except Exception as exc:
-        logger.exception("Failed to register/get user for Google identity: %s", exc)
+        logger.warning("[OAUTH_TRACE_ERROR] user_creation_failed Failed to register/get user for Google identity: %s", exc)
         return redirect(f"{error_redirect_base}?error=user_creation_failed")
 
     if not user.is_active:
-        logger.warning("Attempted login to inactive user account: %s", user.id)
+        logger.warning("[OAUTH_TRACE_ERROR] callback_failed Attempted login to inactive user account: %s", user.id)
         return redirect(f"{error_redirect_base}?error=account_disabled")
 
     # 7. Establish application session for normal user
     session.clear()
     session["user_id"] = user.id
+    session["sid"] = generate_sid()
     session.permanent = True
+    logger.warning("[OAUTH_TRACE] session_creation_passed")
+    redirect_target = f"{frontend_base}/dashboard"
+    logger.warning("[OAUTH_TRACE] callback_redirect=%s", redirect_target)
 
     logger.info("Successful Google OAuth registration/login for user=%s email=%s", user.id, user.email)
-    return redirect(f"{frontend_base}/dashboard")
+    return redirect(redirect_target)
+
 
 
 # --- Email OTP Signup (alternative to Google) ----------------------------------------
@@ -392,6 +444,7 @@ def verify_login_otp():
     session.pop("pending_login_user_id", None)
     session.clear()
     session["user_id"] = user.id
+    session["sid"] = generate_sid()
     session.permanent = True
 
     logger.info("Successful username/password + OTP login for user=%s username=%s", user.id, user.username)
@@ -425,10 +478,17 @@ def change_password():
 
 
 
-@bp.post("/logout")
+@bp.route("/logout", methods=["GET", "POST"])
 def logout():
+    sid = session.get("sid")
+    if sid:
+        revoke_session(sid)
     session.clear()
-    return jsonify({"ok": True})
+    resp = jsonify({"success": True, "ok": True, "message": "Logged out successfully"})
+    resp.set_cookie("session", "", expires=0, path="/")
+    return resp
+
+
 
 
 @bp.get("/me")

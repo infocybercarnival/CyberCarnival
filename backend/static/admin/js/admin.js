@@ -161,6 +161,7 @@
     else if (activeTab === "registrations") p = loadRegistrations();
     else if (activeTab === "participants") p = loadParticipants();
     else if (activeTab === "events") p = loadEvents();
+    else if (activeTab === "coordinators") p = loadCoordinators();
     else if (activeTab === "audit") p = loadAudit();
 
     if (p && p.then) {
@@ -359,7 +360,7 @@
       if (statusFilter === "verified") {
         if (r.status !== "confirmed") return false;
       } else if (statusFilter === "unverified") {
-        if (r.status !== "pending_payment" && r.status !== "pending_verification") return false;
+        if (r.status !== "pending_verification") return false;
       } else if (statusFilter === "declined") {
         if (r.status !== "rejected") return false;
       }
@@ -414,7 +415,6 @@
         : '—';
 
       var statusMap = {
-        "pending_payment": "PENDING PAYMENT",
         "pending_verification": "PENDING VERIFY",
         "confirmed": "CONFIRMED",
         "cancelled": "CANCELLED",
@@ -494,7 +494,6 @@
       : '<div style="margin-top: 14px; color: #94a3b8; font-size: 12px;">Payment Proof File: <em>None uploaded</em></div>';
 
     var statusMap = {
-      "pending_payment": "PENDING PAYMENT",
       "pending_verification": "PENDING VERIFICATION",
       "confirmed": "CONFIRMED",
       "rejected": "REJECTED"
@@ -811,7 +810,7 @@
     var isPresent = p.overall_attendance === "PRESENT";
     var overallBadge = isPresent
       ? '<span class="status-pill status-confirmed" style="background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.4); font-weight: bold;">🟢 PRESENT</span>'
-      : '<span class="status-pill status-pending_payment" style="background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); font-weight: bold;">⚪ NOT ATTENDED</span>';
+      : '<span class="status-pill" style="background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); font-weight: bold;">⚪ NOT ATTENDED</span>';
 
     var attendedHTML = (p.attended_events || []).length > 0
       ? p.attended_events.map(function(ev) {
@@ -831,7 +830,7 @@
 
     var unattendedHTML = (p.unattended_events || []).length > 0
       ? p.unattended_events.map(function(ev) {
-          var statusMap = { "pending_payment": "PENDING PAYMENT", "pending_verification": "PENDING VERIFICATION", "confirmed": "CONFIRMED", "rejected": "REJECTED" };
+          var statusMap = { "pending_verification": "PENDING VERIFICATION", "confirmed": "CONFIRMED", "rejected": "REJECTED" };
           var stLabel = statusMap[ev.status] || (ev.status || "").toUpperCase();
           return '<div style="margin-bottom: 10px; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px;">' +
             '<div style="display: flex; justify-content: space-between; align-items: center;">' +
@@ -933,7 +932,7 @@
               var isPresent = u.overall_attendance === "PRESENT";
               var attBadge = isPresent
                 ? '<span class="status-pill status-confirmed" style="background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.4); font-weight: bold;">🟢 PRESENT</span>'
-                : '<span class="status-pill status-pending_payment" style="background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); font-weight: bold;">⚪ NOT ATTENDED</span>';
+                : '<span class="status-pill" style="background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); font-weight: bold;">⚪ NOT ATTENDED</span>';
 
               var attendedEventsTags = (u.attended_events && u.attended_events.length > 0)
                 ? u.attended_events.map(function (ev) {
@@ -1540,6 +1539,175 @@
         }).catch(showError);
       } else if (action === "delete") {
         showDeleteEventModal(ev);
+      }
+    });
+  }
+
+  // --- Coordinators -----------------------------------------------------------------
+  var currentCoordinators = [];
+
+  function loadCoordinators() {
+    return api("/admin/api/coordinators").then(function (data) {
+      currentCoordinators = data || [];
+      renderCoordinators();
+    });
+  }
+
+  function renderCoordinators() {
+    var tbody = document.querySelector("#coordinators-table tbody");
+    if (!tbody) return;
+    if (!currentCoordinators || !currentCoordinators.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state">No coordinators created yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = currentCoordinators.map(function (c) {
+      var eventName = c.event_name || (c.event_names && c.event_names.length ? c.event_names[0] : "Unassigned");
+      var statusBadge = c.is_active
+        ? '<span class="status-pill status-verified">ACTIVE</span>'
+        : '<span class="status-pill status-declined">INACTIVE</span>';
+      var roleBadge = '<span class="token-chip">' + escapeHtml(c.role || "STUDENT") + '</span>';
+
+      return '<tr>' +
+        '<td><strong style="color: var(--primary);">' + escapeHtml(eventName) + '</strong></td>' +
+        '<td><strong>' + escapeHtml(c.full_name || c.username) + '</strong></td>' +
+        '<td><code>' + escapeHtml(c.username) + '</code></td>' +
+        '<td>' + roleBadge + '</td>' +
+        '<td>' + statusBadge + '</td>' +
+        '<td>' +
+          '<button type="button" class="btn-ghost coord-edit-btn" data-id="' + escapeHtml(c.id) + '" style="margin-right: 6px;">Edit</button>' +
+          '<button type="button" class="btn-danger coord-delete-btn" data-id="' + escapeHtml(c.id) + '">Delete</button>' +
+        '</td>' +
+      '</tr>';
+    }).join("");
+  }
+
+  function openCoordinatorModal(coord) {
+    var modal = document.getElementById("coordinator-modal-backdrop");
+    if (!modal) return;
+    var title = document.getElementById("coordinator-modal-title");
+    var form = document.getElementById("coordinator-form");
+    var passwordLabel = document.getElementById("coord-password-label");
+
+    form.reset();
+    document.getElementById("coord-id").value = coord ? coord.id : "";
+    document.getElementById("coord-fullname").value = coord ? (coord.full_name || "") : "";
+    document.getElementById("coord-username").value = coord ? coord.username : "";
+    document.getElementById("coord-username").readOnly = !!coord;
+    document.getElementById("coord-password").value = "";
+    document.getElementById("coord-role").value = coord ? (coord.role || "STUDENT") : "STUDENT";
+    document.getElementById("coord-active").value = coord ? (coord.is_active ? "true" : "false") : "true";
+
+    title.textContent = coord ? "Edit Coordinator" : "Create Coordinator";
+    if (passwordLabel) {
+      passwordLabel.textContent = coord ? "CHANGE PASSWORD (OPTIONAL)" : "PASSWORD";
+    }
+
+    // Populate events dropdown
+    var select = document.getElementById("coord-event-select");
+    if (select) {
+      var assignedId = coord ? (coord.event_id || (coord.event_ids && coord.event_ids.length ? coord.event_ids[0] : "")) : "";
+      if (!currentEvents || !currentEvents.length) {
+        api("/admin/api/events").then(function(evs) {
+          currentEvents = evs || [];
+          renderEventDropdownOptions(select, currentEvents, assignedId);
+        });
+      } else {
+        renderEventDropdownOptions(select, currentEvents, assignedId);
+      }
+    }
+
+    modal.style.display = "flex";
+  }
+
+  function renderEventDropdownOptions(select, eventsList, selectedId) {
+    if (!eventsList || !eventsList.length) {
+      select.innerHTML = '<option value="">-- No events available --</option>';
+      return;
+    }
+    var opts = '<option value="">-- Select Event --</option>';
+    opts += eventsList.map(function(ev) {
+      var sel = (ev.id === selectedId) ? 'selected' : '';
+      return '<option value="' + escapeHtml(ev.id) + '" ' + sel + '>' + escapeHtml(ev.name) + ' (' + escapeHtml(ev.category) + ')</option>';
+    }).join("");
+    select.innerHTML = opts;
+  }
+
+  function closeCoordinatorModal() {
+    var modal = document.getElementById("coordinator-modal-backdrop");
+    if (modal) modal.style.display = "none";
+  }
+
+  var btnAddCoord = document.getElementById("btn-open-add-coordinator");
+  if (btnAddCoord) {
+    btnAddCoord.addEventListener("click", function() {
+      openCoordinatorModal(null);
+    });
+  }
+
+  var btnCloseCoord = document.getElementById("coordinator-modal-close");
+  if (btnCloseCoord) btnCloseCoord.addEventListener("click", closeCoordinatorModal);
+
+  var btnCancelCoord = document.getElementById("coordinator-modal-cancel");
+  if (btnCancelCoord) btnCancelCoord.addEventListener("click", closeCoordinatorModal);
+
+  var coordForm = document.getElementById("coordinator-form");
+  if (coordForm) {
+    coordForm.addEventListener("submit", function(e) {
+      e.preventDefault();
+      var id = document.getElementById("coord-id").value;
+      var eventId = document.getElementById("coord-event-select").value;
+      var fullName = document.getElementById("coord-fullname").value.trim();
+      var username = document.getElementById("coord-username").value.trim();
+      var password = document.getElementById("coord-password").value.trim();
+      var role = document.getElementById("coord-role").value;
+      var isActive = document.getElementById("coord-active").value === "true";
+
+      if (!eventId) {
+        showError(new Error("Please select an assigned event."));
+        return;
+      }
+
+      var payload = {
+        event_id: eventId,
+        full_name: fullName,
+        username: username,
+        role: role,
+        is_active: isActive,
+        event_ids: [eventId]
+      };
+      if (password) payload.password = password;
+
+      var method = id ? "PATCH" : "POST";
+      var url = id ? ("/admin/api/coordinators/" + encodeURIComponent(id)) : "/admin/api/coordinators";
+
+      api(url, {
+        method: method,
+        body: JSON.stringify(payload)
+      }).then(function() {
+        closeCoordinatorModal();
+        loadCoordinators();
+      }).catch(showError);
+    });
+  }
+
+  var coordsTbody = document.querySelector("#coordinators-table tbody");
+  if (coordsTbody) {
+    coordsTbody.addEventListener("click", function(e) {
+      var btn = e.target.closest("button");
+      if (!btn) return;
+      var id = btn.dataset.id;
+      var coord = currentCoordinators.filter(function(c) { return c.id === id; })[0];
+      if (!coord) return;
+
+      if (btn.classList.contains("coord-edit-btn")) {
+        openCoordinatorModal(coord);
+      } else if (btn.classList.contains("coord-delete-btn")) {
+        if (confirm("Deactivate/Delete coordinator '" + (coord.full_name || coord.username) + "'?")) {
+          api("/admin/api/coordinators/" + encodeURIComponent(id), { method: "DELETE" })
+            .then(function() { loadCoordinators(); })
+            .catch(showError);
+        }
       }
     });
   }

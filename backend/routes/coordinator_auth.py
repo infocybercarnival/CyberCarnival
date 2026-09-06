@@ -1,10 +1,12 @@
-from flask import Blueprint, render_template, request, redirect, url_for, session, flash
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify
 
 from extensions import limiter
 from services.coordinator_service import verify_coordinator_credentials
 from services.audit_service import log_action
+from services.session_service import generate_sid, revoke_session
 from utils.validators import validate_login_payload, ValidationError
 from utils.security import is_locked_out, record_failed_login, clear_failed_logins
+from utils.auth import get_frontend_login_url
 from utils.logger import get_logger
 
 bp = Blueprint("coordinator_auth", __name__, url_prefix="/coordinator")
@@ -29,9 +31,6 @@ def login_submit():
         return redirect(url_for("coordinator_auth.login_page"))
 
     username = creds["username"]
-    # Shares the same lockout keyspace pattern as admin login (keyed by
-    # username+IP) — a brute-force attempt against a coordinator account
-    # gets locked out the same way an admin one would.
     lockout_key = f"coordinator:{username}"
 
     if is_locked_out(lockout_key, ip):
@@ -45,6 +44,7 @@ def login_submit():
         session.clear()
         session["coordinator_id"] = coord.id
         session["coordinator_username"] = coord.username
+        session["sid"] = generate_sid()
         session.permanent = True
         log_action(f"coordinator:{username}", "login", "successful coordinator login", ip)
         logger.info("coordinator login success user=%s ip=%s", username, ip)
@@ -57,9 +57,20 @@ def login_submit():
     return redirect(url_for("coordinator_auth.login_page"))
 
 
-@bp.post("/logout")
+@bp.route("/logout", methods=["GET", "POST"])
 def logout():
     username = session.get("coordinator_username", "unknown")
-    log_action(f"coordinator:{username}", "logout", "coordinator logged out", request.remote_addr or "unknown")
+    if username != "unknown":
+        log_action(f"coordinator:{username}", "logout", "coordinator logged out", request.remote_addr or "unknown")
+    sid = session.get("sid")
+    if sid:
+        revoke_session(sid)
     session.clear()
-    return redirect(url_for("coordinator_auth.login_page"))
+    if request.is_json or request.headers.get("Accept") == "application/json" or request.args.get("format") == "json":
+        resp = jsonify({"success": True, "ok": True, "message": "Logged out successfully"})
+    else:
+        resp = redirect(get_frontend_login_url())
+    resp.set_cookie("session", "", expires=0, path="/")
+    return resp
+
+

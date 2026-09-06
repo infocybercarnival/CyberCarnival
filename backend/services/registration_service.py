@@ -112,12 +112,10 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
         raise EventNotFoundError(clean_data["event_id"])
     if not event.registration_open:
         raise RegistrationClosedError(event.id)
-
     if event.max_teams is not None:
-        # The event row above is already locked FOR UPDATE, which serializes
-        # registrations for this event. Do not apply FOR UPDATE to COUNT(*) —
-        # PostgreSQL rejects row locks on aggregate queries.
-        locked_count = (
+        # The event row above is locked FOR UPDATE, which serializes
+        # registrations for this event across concurrent transactions.
+        occupied_count = (
             db.session.query(EventRegistration)
             .filter(
                 EventRegistration.event_id == event.id,
@@ -125,7 +123,7 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
             )
             .count()
         )
-        if locked_count >= event.max_teams:
+        if occupied_count >= event.max_teams:
             raise EventFullError(event.id)
 
     if _already_registered(event.id, leader.id):
@@ -134,18 +132,6 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
     effective_fee = get_effective_fee_amount(event)
     if effective_fee <= 0:
         raise UnconfiguredFeeError("Registration for this event is currently unavailable because the event fee is pending configuration.")
-
-    # Check if leader has an abandoned pending_payment registration for this event
-    existing_pending = (
-        EventRegistration.query.filter_by(
-            event_id=event.id,
-            leader_user_id=leader.id,
-            status="pending_payment"
-        ).order_by(EventRegistration.created_at.desc()).first()
-    )
-    if existing_pending:
-        warnings = [f"Resuming your pending payment for {event.name}."]
-        return existing_pending, warnings
 
     raw_tokens = clean_data.get("member_tokens", [])
     mode = clean_data.get("participant_mode", "individual")
@@ -183,7 +169,7 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
         transaction_id=None,
         payment_amount=effective_fee,
         payment_submitted_at=None,
-        status="pending_payment",
+        status="pending_verification",
     )
     db.session.add(registration)
     db.session.flush()
@@ -230,9 +216,48 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
             raise DuplicateRegistrationError(leader.id)
         raise
 
+    # -------------------------------------------------------------------------
+    # NEW REGISTRATION -> ADMIN EMAIL NOTIFICATION
+    # Send notification email to Admin only AFTER successful database commit.
+    # Email failure MUST NOT roll back or disrupt the saved registration.
+    # -------------------------------------------------------------------------
+    try:
+        from utils.email import send_admin_new_registration_notification
+        roster = [
+            {
+                "name": m.participant_name or (m.user.full_name if m.user else None) or (m.user.username if m.user else ""),
+                "email": m.participant_email or (m.user.email if m.user else ""),
+                "username": m.user.username if m.user else "",
+            }
+            for m in registration.members
+        ]
+        fee_display = f"₹{registration.payment_amount / 100:.2f}" if registration.payment_amount else (event.fee or "Free")
+        send_admin_new_registration_notification(
+            registration.id,
+            event_name=event.name,
+            participant_name=leader.full_name or leader.username,
+            participant_email=leader.email,
+            username=leader.username,
+            participant_mode=registration.participant_mode,
+            team_name=registration.team_name,
+            team_size=len(registration.members),
+            members=roster,
+            payment_status=registration.status.upper().replace("_", " "),
+            fee=fee_display,
+            transaction_id=registration.transaction_id,
+        )
+    except Exception as exc:
+        logger.error(
+            "Safely caught admin notification email exception for registration %s (registration remains saved): %s",
+            registration.id,
+            exc,
+            exc_info=True,
+        )
+
     if registration.status == "confirmed":
         _send_confirmation_emails(registration, event, leader, member_users)
     return registration, warnings
+
 
 
 def get_payment_page_details(event_id: str, registration_id: str, user_id: str) -> dict:
@@ -254,7 +279,7 @@ def get_payment_page_details(event_id: str, registration_id: str, user_id: str) 
         "registration_id": reg.id,
         "event_id": event.id,
         "event_name": event.name,
-        "event_description": event.description or event.short_description or "",
+        "event_description": event.description or "",
         "event_date": event.event_date,
         "event_time": event.event_time,
         "venue": event.venue,
@@ -293,15 +318,16 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
         raise EventNotFoundError(registration_id)
     if reg.leader_user_id != user_id:
         raise UnauthorizedRegistrationAccessError()
-    if reg.event_id != event_id:
+    if event_id and reg.event_id != event_id:
         raise EventNotFoundError(event_id)
 
     event = reg.event
     if not event or not event.fee_amount:
         raise InvalidPaymentStateError("This event does not require payment")
 
-    if reg.status != "pending_payment":
+    if reg.status not in ("pending_verification", "confirmed"):
         raise InvalidPaymentStateError(f"Registration status '{reg.status}' is not eligible for payment submission")
+
 
     if not disclaimer_accepted:
         raise DisclaimerNotAcceptedError("You must read and agree to the no-refund disclaimer")
@@ -390,8 +416,15 @@ def verify_manual_payment(registration_id: str, actor: str, approved: bool, reje
     reg = db.session.get(EventRegistration, registration_id)
     if not reg:
         return False
-    if reg.status != "pending_verification":
-        raise InvalidPaymentStateError(f"Registration status '{reg.status}' cannot be modified by admin verification.")
+
+    # Email Delivery Safety & Duplicate Protection:
+    # If the registration is already in the target state, return True without re-sending emails
+    if approved and reg.status == "confirmed":
+        logger.info("Registration %s is already confirmed — skipping duplicate confirmation email", registration_id)
+        return True
+    if not approved and reg.status == "rejected":
+        logger.info("Registration %s is already rejected/removed — skipping duplicate decline email", registration_id)
+        return True
 
     now = datetime.datetime.utcnow()
     if approved:
@@ -409,9 +442,7 @@ def verify_manual_payment(registration_id: str, actor: str, approved: bool, reje
         member_users = [m.user for m in reg.members if not m.is_leader]
         _send_confirmation_emails(reg, reg.event, reg.leader, member_users)
     else:
-        reason_clean = (rejection_reason or "").strip()
-        if not reason_clean:
-            raise MissingRejectionReasonError("A rejection reason is required when rejecting a payment.")
+        reason_clean = (rejection_reason or "").strip() or "Registration declined by administrator."
         reg.status = "rejected"
         reg.payment_reviewed_at = now
         reg.payment_reviewed_by = actor
@@ -469,25 +500,37 @@ def _send_confirmation_emails(registration, event, leader, member_users) -> None
 def check_in_ticket(registration_id: str, token: str | None, actor: str) -> dict:
     reg = db.session.get(EventRegistration, registration_id)
     if not reg:
-        return {"success": False, "status": "NOT_FOUND", "message": "Ticket registration not found."}
+        return {"success": False, "status": "INVALID_TICKET", "message": "QR token does not exist"}
+    if reg.status == "pending_verification":
+        return {"success": False, "status": "PAYMENT_NOT_VERIFIED", "message": "Registration is pending admin verification"}
+
+    if reg.status == "rejected":
+        return {"success": False, "status": "REGISTRATION_REJECTED", "message": "Registration is rejected"}
     if reg.status != "confirmed":
-        return {"success": False, "status": "INVALID_STATUS", "message": f"Registration status is '{reg.status}'. Ticket is only valid when confirmed."}
+        return {"success": False, "status": "INVALID_STATUS", "message": f"Registration status is '{reg.status}'. Ticket valid only when confirmed."}
     
     if token and reg.ticket_token:
         if not secrets.compare_digest(reg.ticket_token.strip(), token.strip()):
-            return {"success": False, "status": "INVALID_TOKEN", "message": "Invalid ticket token."}
+            return {"success": False, "status": "INVALID_TICKET", "message": "Invalid ticket token"}
+
+    participant_name = reg.leader.full_name or reg.leader.username if reg.leader else "Participant"
+    participant_email = reg.leader.email if reg.leader else ""
+    event_name = reg.event.name if reg.event else "Event"
 
     if reg.checked_in:
         checked_in_at_str = reg.checked_in_at.strftime("%Y-%m-%d %H:%M:%S UTC") if reg.checked_in_at else "Earlier"
         return {
             "success": False,
-            "status": "ALREADY_CHECKED_IN",
-            "message": "⚠️ ALREADY CHECKED IN",
+            "status": "ALREADY_PRESENT",
+            "message": "Already marked as present",
+            "participant": {
+                "name": participant_name,
+                "email": participant_email
+            },
+            "event": event_name,
             "checked_in_at": checked_in_at_str,
-            "checked_in_by": reg.checked_in_by,
+            "checked_in_by": reg.checked_in_by or actor,
             "registration_id": reg.id,
-            "event_name": reg.event.name if reg.event else None,
-            "participant_name": reg.leader.full_name or reg.leader.username if reg.leader else None,
             "team_name": reg.team_name,
         }
 
@@ -496,6 +539,8 @@ def check_in_ticket(registration_id: str, token: str | None, actor: str) -> dict
     reg.checked_in_at = now
     reg.checked_in_by = actor
     db.session.commit()
+
+    checked_in_at_str = now.strftime("%Y-%m-%d %H:%M:%S UTC")
 
     roster = []
     for m in reg.members:
@@ -508,13 +553,16 @@ def check_in_ticket(registration_id: str, token: str | None, actor: str) -> dict
 
     return {
         "success": True,
-        "status": "VALID",
-        "message": "✅ VALID TICKET — CHECKED IN SUCCESSFUL",
-        "checked_in_at": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "status": "PRESENT",
+        "message": "Attendance marked successfully",
+        "participant": {
+            "name": participant_name,
+            "email": participant_email
+        },
+        "event": event_name,
+        "checked_in_at": checked_in_at_str,
         "checked_in_by": actor,
         "registration_id": reg.id,
-        "event_name": reg.event.name if reg.event else None,
-        "participant_name": reg.leader.full_name or reg.leader.username if reg.leader else None,
         "team_name": reg.team_name,
         "members": roster,
     }

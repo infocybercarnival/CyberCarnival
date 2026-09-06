@@ -161,14 +161,14 @@ CREATE TABLE IF NOT EXISTS speakers (
 -- ----------------------------------------------------------------------------
 -- 8. EVENT_REGISTRATIONS TABLE
 -- Team and individual event registration records.
--- Status values: pending_payment, pending_verification, confirmed, rejected
+-- Status values: pending_verification, confirmed, rejected, cancelled
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS event_registrations (
     id VARCHAR(36) PRIMARY KEY,
     event_id VARCHAR(36) NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     team_name VARCHAR(120),
     leader_user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    status VARCHAR(24) NOT NULL DEFAULT 'pending_payment',
+    status VARCHAR(24) NOT NULL DEFAULT 'pending_verification',
     ticket_token VARCHAR(64),
     checked_in BOOLEAN NOT NULL DEFAULT FALSE,
     checked_in_at TIMESTAMP WITH TIME ZONE,
@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     payment_expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_event_registrations_id_event UNIQUE (id, event_id),
-    CONSTRAINT ck_registration_status CHECK (status IN ('confirmed', 'pending_verification', 'pending_payment', 'rejected')),
+    CONSTRAINT ck_registration_status CHECK (status IN ('confirmed', 'pending_verification', 'rejected', 'cancelled')),
     CONSTRAINT ck_participant_mode CHECK (participant_mode IN ('individual', 'team')),
     CONSTRAINT ck_payment_amount_nonnegative CHECK (payment_amount IS NULL OR payment_amount >= 0)
 );
@@ -269,10 +269,10 @@ SELECT
     e.max_teams,
     COUNT(r.id) FILTER (WHERE r.status = 'confirmed') AS confirmed_teams,
     COUNT(r.id) FILTER (WHERE r.status = 'pending_verification') AS pending_verification_teams,
-    COUNT(r.id) FILTER (WHERE r.status = 'pending_payment') AS pending_payment_teams,
+    (COUNT(r.id) FILTER (WHERE r.status = 'confirmed') + COUNT(r.id) FILTER (WHERE r.status = 'pending_verification')) AS occupied_count,
     CASE 
         WHEN e.max_teams IS NULL THEN NULL
-        ELSE GREATEST(e.max_teams - COUNT(r.id) FILTER (WHERE r.status = 'confirmed'), 0)
+        ELSE GREATEST(e.max_teams - (COUNT(r.id) FILTER (WHERE r.status = 'confirmed') + COUNT(r.id) FILTER (WHERE r.status = 'pending_verification')), 0)
     END AS seats_available
 FROM events e
 LEFT JOIN event_registrations r ON e.id = r.event_id

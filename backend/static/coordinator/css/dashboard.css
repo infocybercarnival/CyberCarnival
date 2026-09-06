@@ -83,10 +83,14 @@
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);
-  padding: 8px 14px;
+  padding: 10px 16px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 6px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.1s ease, opacity 0.15s ease;

@@ -2,7 +2,7 @@ import os
 
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, send_from_directory, abort
+from flask import Flask, jsonify, render_template, send_from_directory, abort, request, redirect, session
 from flask_cors import CORS
 
 import config
@@ -124,6 +124,9 @@ def create_app() -> Flask:
     # carry the session cookie, and per-route rate limiting.
     csrf.exempt(registration_bp)
     csrf.exempt(auth_bp)
+    csrf.exempt(coordinator_auth_bp)
+    csrf.exempt(coordinator_api_bp)
+    csrf.exempt(admin_api_bp)
 
     @app.get("/uploads/posters/<path:filename>")
     def uploaded_poster(filename):
@@ -138,6 +141,15 @@ def create_app() -> Flask:
         return send_from_directory(config.UPLOAD_DIR, filename)
 
     app.after_request(add_security_headers)
+
+    from flask_wtf.csrf import CSRFError
+    from utils.auth import get_frontend_login_url
+
+    @app.errorhandler(CSRFError)
+    def handle_csrf_error(e):
+        if request.path == "/admin/logout" and not session.get("admin_username"):
+            return redirect(get_frontend_login_url())
+        return f"<!doctype html><html lang=en><title>400 Bad Request</title><h1>Bad Request</h1><p>{e.description}</p>", 400
 
     @app.errorhandler(404)
     def not_found(e):

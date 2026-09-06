@@ -35,6 +35,13 @@ LOGIN_ATTEMPTS_FILE = DATA_DIR / "login_attempts.json"
 ALLOWED_ORIGINS = [
     o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
 ]
+if not ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5000",
+        "http://127.0.0.1:5000",
+    ]
 
 
 SITE_URL = os.environ.get("SITE_URL", "http://127.0.0.1:5000").rstrip("/")
@@ -44,6 +51,7 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "") or f"{SITE_URL}/api/auth/google/callback"
 ALLOWED_EMAIL_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "").strip().lower()
 ADMIN_GOOGLE_EMAIL = os.environ.get("ADMIN_GOOGLE_EMAIL", "info.cybercarnival@gmail.com").strip().lower()
+ADMIN_NOTIFICATION_EMAIL = os.environ.get("ADMIN_NOTIFICATION_EMAIL", os.environ.get("ADMIN_GOOGLE_EMAIL", "info.cybercarnival@gmail.com")).strip()
 
 # --- CAPTCHA (Cloudflare Turnstile) -----------------------------------------
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")

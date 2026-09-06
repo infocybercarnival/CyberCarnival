@@ -33,7 +33,6 @@ export function PaymentClient(props: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
-  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
 
   useEffect(() => {
     if (!eventId || !registrationId) {
@@ -47,10 +46,9 @@ export function PaymentClient(props: Props) {
         setData(res)
         setTransactionId(res.transaction_id || '')
         setDisclaimerAccepted(res.disclaimer_accepted || false)
-        if (res.status === 'pending_verification') {
-          setSubmitSuccess('Payment details submitted successfully! Your registration is currently pending admin verification.')
-        } else if (res.status === 'confirmed') {
-          setSubmitSuccess('Payment details verified! Your registration is confirmed.')
+        if (res.status === 'pending_verification' || res.status === 'confirmed') {
+          router.push('/dashboard')
+          return
         }
       })
       .catch((err) => {
@@ -115,31 +113,26 @@ export function PaymentClient(props: Props) {
     const formData = new FormData()
     formData.append('transaction_id', transactionId.trim())
     formData.append('disclaimer_accepted', 'true')
+    if (eventId) {
+      formData.append('event_id', eventId)
+    } else if (data?.event_id) {
+      formData.append('event_id', data.event_id)
+    }
     if (proofFile) {
       formData.append('payment_proof', proofFile)
     }
 
     try {
-      const res = await submitPaymentProof(registrationId, formData)
-      setSubmitSuccess(res.message || 'Payment submitted successfully! Your registration is now pending admin verification.')
-      if (data) {
-        setData({
-          ...data,
-          status: 'pending_verification',
-          transaction_id: transactionId.trim(),
-          disclaimer_accepted: true,
-          has_proof: true,
-        })
-      }
+      await submitPaymentProof(registrationId, formData)
+      router.push('/dashboard')
     } catch (err) {
+      setSubmitting(false)
       if (err instanceof ApiValidationError) {
         setSubmitError(err.message)
         if (err.fields) setFieldErrors(err.fields)
       } else {
         setSubmitError('Failed to submit payment proof. Please try again.')
       }
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -153,7 +146,7 @@ export function PaymentClient(props: Props) {
         className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[600px] w-full max-w-7xl -translate-x-1/2 bg-[radial-gradient(ellipse_55%_50%_at_50%_20%,rgba(168,85,247,0.22),transparent_70%)]"
       />
 
-      <div className="container relative z-20 mx-auto px-4 py-8 md:py-14">
+      <div className="container relative z-20 mx-auto px-4 sm:px-6 pt-24 pb-12 sm:py-14">
         <div className="mx-auto max-w-4xl">
           {/* Top Back Navigation Link */}
           <Link
@@ -361,33 +354,6 @@ export function PaymentClient(props: Props) {
                     </p>
                   </div>
                 </div>
-
-                {submitSuccess && (
-                  <div className="mb-6 rounded-[6px] border border-primary/40 bg-primary/10 p-5 text-primary font-mono text-xs">
-                    <p className="font-bold flex items-center gap-2 text-sm">✓ {submitSuccess}</p>
-                    <p className="mt-1 text-muted-foreground text-[11px]">
-                      {data.status === 'confirmed'
-                        ? 'Your payment proof has been verified and your event registration is officially confirmed.'
-                        : 'Your payment proof has been submitted and is currently awaiting admin verification.'}
-                    </p>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      {data.status === 'confirmed' && (
-                        <Link
-                          href={`/ticket?id=${data.registration_id}`}
-                          className="inline-flex items-center gap-2 rounded-[3px] border border-emerald-500/60 bg-emerald-500/20 px-4 py-2.5 font-mono text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/30"
-                        >
-                          VIEW TICKET →
-                        </Link>
-                      )}
-                      <Link
-                        href="/dashboard"
-                        className="inline-flex items-center gap-2 rounded-[3px] border border-border bg-background/60 px-4 py-2.5 font-mono text-xs font-bold text-foreground transition-colors hover:border-primary"
-                      >
-                        GO TO DASHBOARD →
-                      </Link>
-                    </div>
-                  </div>
-                )}
 
                 {submitError && (
                   <div className="mb-6 rounded-[6px] border border-destructive/40 bg-destructive/10 p-4 text-destructive font-mono text-xs">

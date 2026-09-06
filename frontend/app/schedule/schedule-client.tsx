@@ -191,7 +191,7 @@ export function ScheduleClient() {
   return (
     <>
       <Navbar />
-      <main className="relative z-10 mx-auto max-w-6xl px-6 pb-40 pt-36 lg:px-10">
+      <main className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6 pb-24 sm:pb-40 pt-28 sm:pt-36 lg:px-10">
         {/* Header Section */}
         <div ref={headerRef} className="flex flex-col gap-3">
           <p className="anim-header font-mono text-[11px] tracking-[0.3em] text-primary">

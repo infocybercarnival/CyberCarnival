@@ -115,11 +115,37 @@ class Event(db.Model):
     created_at = db.Column(db.DateTime, default=db.func.now())
     updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
 
+    def get_capacity_details(self):
+        capacity = self.max_teams
+        confirmed_count = (
+            EventRegistration.query.filter_by(event_id=self.id, status="confirmed").count()
+        )
+        confirmation_pending_count = (
+            EventRegistration.query.filter_by(
+                event_id=self.id, status="pending_verification"
+            ).count()
+        )
+
+        occupied_count = confirmed_count + confirmation_pending_count
+        available_slots = (
+            max(capacity - occupied_count, 0) if capacity is not None else None
+        )
+        confirmation_queue_full = bool(
+            capacity is not None and occupied_count >= capacity
+        )
+        return {
+            "capacity": capacity,
+            "confirmed_count": confirmed_count,
+            "confirmation_pending_count": confirmation_pending_count,
+            "occupied_count": occupied_count,
+            "available_slots": available_slots,
+            "confirmation_queue_full": confirmation_queue_full,
+        }
+
     def seats_available(self):
         if self.max_teams is None:
             return None
-        confirmed = EventRegistration.query.filter_by(event_id=self.id, status="confirmed").count()
-        return max(self.max_teams - confirmed, 0)
+        return self.get_capacity_details()["available_slots"]
 
     def teams_registered(self):
         return EventRegistration.query.filter_by(event_id=self.id, status="confirmed").count()
@@ -149,13 +175,14 @@ class Event(db.Model):
         return {"faculty": faculty, "student": student}
 
     def to_public_dict(self):
+        cap_info = self.get_capacity_details()
         return {
             "id": self.id,
             "name": self.name,
             "category": self.category,
             "tag": self.tag,
             "description": self.description,
-            "poster_url": (f"{config.SITE_URL}{self.poster_url}" if self.poster_url and self.poster_url.startswith("/") else self.poster_url),
+            "poster_url": (f"{config.SITE_URL}{self.poster_url}" if self.poster_url and self.poster_url.startswith("/uploads/") else self.poster_url),
             "venue": self.venue,
             "date": self.event_date,
             "start_date": self.event_start_date.isoformat() if self.event_start_date else None,
@@ -166,12 +193,19 @@ class Event(db.Model):
             "min_team_size": self.min_team_size,
             "max_team_size": self.max_team_size,
             "max_teams": self.max_teams,
+            "capacity": cap_info["capacity"],
+            "confirmed_count": cap_info["confirmed_count"],
+            "confirmation_pending_count": cap_info["confirmation_pending_count"],
+            "occupied_count": cap_info["occupied_count"],
+            "available_slots": cap_info["available_slots"],
+            "confirmation_queue_full": cap_info["confirmation_queue_full"],
             "teams_registered": self.teams_registered(),
-            "seats_available": self.seats_available(),
+            "seats_available": cap_info["available_slots"],
             "prize": self.prize,
             "registration_open": self.registration_open,
             "coordinators": self.get_coordinators_dict(),
         }
+
 
     def to_admin_dict(self):
         d = self.to_public_dict()
@@ -181,10 +215,8 @@ class Event(db.Model):
 
 
 class Coordinator(db.Model):
-    """A per-event login the super admin creates and hands off (over
-    WhatsApp, per how this project actually shares credentials) to a
-    student/event coordinator. Scoped to only the event(s) assigned via
-    CoordinatorEvent — never sees anything outside that."""
+    """A per-event login credential for an event coordinator. Scoped strictly
+    to exactly ONE assigned event — never sees or accesses anything outside that event."""
     __tablename__ = "coordinators"
 
     id = db.Column(db.String(36), primary_key=True, default=new_uuid)
@@ -194,12 +226,33 @@ class Coordinator(db.Model):
     phone = db.Column(db.String(20), nullable=True)
     email = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    event_id = db.Column(db.String(36), db.ForeignKey("events.id", ondelete="CASCADE"), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=db.func.now())
 
+    event = db.relationship("Event", foreign_keys=[event_id])
     events = db.relationship("Event", secondary="coordinator_events", backref="coordinators")
+
+    def get_role(self) -> str:
+        if self.event_id:
+            ce = CoordinatorEvent.query.filter_by(coordinator_id=self.id, event_id=self.event_id).first()
+            if ce:
+                return ce.role
+        elif self.events:
+            ce = CoordinatorEvent.query.filter_by(coordinator_id=self.id, event_id=self.events[0].id).first()
+            if ce:
+                return ce.role
+        return "STUDENT"
+
+    def get_primary_event(self):
+        if self.event:
+            return self.event
+        if self.events:
+            return self.events[0]
+        return None
 
     def to_admin_dict(self):
         email_val = self.email or (self.username if "@" in self.username else f"{self.username}@srmist.edu.in")
+        pe = self.get_primary_event()
         return {
             "id": self.id,
             "username": self.username,
@@ -208,8 +261,11 @@ class Coordinator(db.Model):
             "phone": self.phone or "",
             "is_active": self.is_active,
             "created_at": self.created_at.timestamp() if self.created_at else None,
-            "event_ids": [e.id for e in self.events],
-            "event_names": [e.name for e in self.events],
+            "event_id": pe.id if pe else None,
+            "event_name": pe.name if pe else "Unassigned",
+            "role": self.get_role(),
+            "event_ids": [pe.id] if pe else [],
+            "event_names": [pe.name] if pe else [],
         }
 
 
@@ -239,7 +295,8 @@ class EventRegistration(db.Model):
     # UPI transaction/reference ID. They remain pending_verification until an
     # admin/coordinator verifies the payment and confirms them. Free events
     # are confirmed immediately.
-    status = db.Column(db.String(24), nullable=False, default="pending_payment")
+    status = db.Column(db.String(24), nullable=False, default="pending_verification")
+
     participant_mode = db.Column(db.String(16), nullable=False, default="individual")
     transaction_id = db.Column(db.String(80), nullable=True, unique=True, index=True)
     payment_amount = db.Column(db.Integer, nullable=True)  # paise snapshot at registration time

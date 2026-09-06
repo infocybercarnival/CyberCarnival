@@ -25,6 +25,8 @@ export function DashboardClient() {
   const [loading, setLoading] = useState(true)
   const [copiedToken, setCopiedToken] = useState(false)
   const [filter, setFilter] = useState<StatusFilter>('ALL')
+  const [loggingOut, setLoggingOut] = useState(false)
+
 
   useEffect(() => {
     fetchMe()
@@ -57,7 +59,7 @@ export function DashboardClient() {
     return events.map((ev) => {
       const fallback = staticByName.get(ev.event_name.toUpperCase())
       const posterSrc = fallback?.poster || null
-      const tag = ev.status === 'pending_verification' ? 'PAYMENT PENDING' : (fallback?.tag || 'REGISTERED')
+      const tag = ev.status === 'pending_verification' ? 'AWAITING VERIFICATION' : (fallback?.tag || 'REGISTERED')
 
       return {
         id: ev.event_id || ev.event_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -136,7 +138,7 @@ export function DashboardClient() {
   return (
     <>
       <Navbar />
-      <main className="relative z-10 mx-auto max-w-7xl px-6 pb-32 pt-36 lg:px-10">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 pb-24 sm:pb-32 pt-28 sm:pt-36 lg:px-10">
         {/* Page Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="font-mono text-[11px] tracking-[0.3em] text-primary">MY EVENTS</p>
@@ -183,14 +185,27 @@ export function DashboardClient() {
 
           <button
             type="button"
-            onClick={() => {
-              logout().then(() => router.push('/'))
+            disabled={loggingOut}
+            onClick={async () => {
+              if (loggingOut) return
+              setLoggingOut(true)
+              try {
+                await logout()
+              } catch {
+                // silent
+              } finally {
+                setUser(null)
+                setEvents([])
+                setLoggingOut(false)
+                router.push('/login')
+              }
             }}
-            className="border border-destructive/40 px-4 py-2 font-mono text-[11px] tracking-[0.15em] text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all rounded-sm"
+            className="border border-destructive/40 px-4 py-2 font-mono text-[11px] tracking-[0.15em] text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all rounded-sm disabled:opacity-50"
           >
-            LOG OUT
+            {loggingOut ? 'LOGGING OUT…' : 'LOG OUT'}
           </button>
         </div>
+
 
         {!user.profile_completed ? (
           <ProfileForm
@@ -278,53 +293,45 @@ export function DashboardClient() {
                         </div>
 
                         {/* Status Card Main Body */}
-                        <div className="mt-5 rounded-[8px] border p-4">
+                        <div className="mt-5 rounded-[8px] border border-border/40 p-4">
                           {ev.status === 'pending_verification' && (
-                            <div className="border-amber-500/40 bg-amber-500/10 text-amber-300">
-                              <p className="font-bold tracking-wider uppercase text-[11px]">
-                                REGISTRATION: PENDING VERIFICATION
+                            <div className="border border-amber-500/40 bg-amber-500/10 p-3 rounded-[6px] text-amber-300">
+                              <p className="font-bold tracking-wider uppercase text-[11px] flex items-center gap-1.5">
+                                ⏳ CONFIRMATION PENDING
                               </p>
-                              <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                                Payment submitted successfully. Waiting for admin verification.
+                              <p className="mt-1.5 text-[11px] text-amber-200/80 leading-relaxed">
+                                Your registration is currently under review by event administrators.
                               </p>
                             </div>
                           )}
 
                           {ev.status === 'confirmed' && (
-                            <div className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300">
-                              <p className="font-bold tracking-wider uppercase text-[11px]">
-                                REGISTRATION: APPROVED
+                            <div className="border border-emerald-500/40 bg-emerald-500/10 p-3 rounded-[6px] text-emerald-300">
+                              <p className="font-bold tracking-wider uppercase text-[11px] flex items-center gap-1.5">
+                                ✓ CONFIRMED
                               </p>
-                              <p className="text-[10px] text-emerald-400 font-bold mt-0.5">
-                                PAYMENT: VERIFIED
-                              </p>
-                              <p className="mt-2 text-[11px] text-emerald-200 font-semibold flex items-center gap-1.5">
-                                ✓ Event registration approved
+                              <p className="mt-1.5 text-[11px] text-emerald-200/90 leading-relaxed font-semibold">
+                                Your registration has been confirmed.
                               </p>
                             </div>
                           )}
 
-                          {ev.status === 'rejected' && (
-                            <div className="border-destructive/40 bg-destructive/10 text-destructive">
-                              <p className="font-bold tracking-wider uppercase text-[11px]">
-                                REGISTRATION: REJECTED
+                          {(ev.status === 'rejected' || ev.status === 'removed') && (
+                            <div className="border border-destructive/40 bg-destructive/10 p-3 rounded-[6px] text-destructive">
+                              <p className="font-bold tracking-wider uppercase text-[11px] flex items-center gap-1.5">
+                                ✕ REGISTRATION REMOVED
                               </p>
-                              <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                                {ev.rejection_reason ? `Rejection Reason: ${ev.rejection_reason}` : 'Payment details could not be verified by admin.'}
+                              <p className="mt-1.5 text-[11px] text-destructive-foreground/80 leading-relaxed">
+                                Your registration was not approved. Please check your email for further information.
                               </p>
+                              {ev.rejection_reason && (
+                                <p className="mt-1 font-semibold text-[10px] text-destructive-foreground/70">
+                                  Reason: {ev.rejection_reason}
+                                </p>
+                              )}
                             </div>
                           )}
 
-                          {ev.status === 'pending_payment' && (
-                            <div className="border-primary/40 bg-primary/10 text-primary">
-                              <p className="font-bold tracking-wider uppercase text-[11px]">
-                                PAYMENT REQUIRED
-                              </p>
-                              <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
-                                Complete your payment to submit your registration for review.
-                              </p>
-                            </div>
-                          )}
                         </div>
                       </div>
 
@@ -336,14 +343,6 @@ export function DashboardClient() {
                             className="inline-flex w-full items-center justify-center gap-2 rounded-[3px] border border-emerald-500/60 bg-emerald-500/20 px-4 py-2.5 font-mono text-xs font-bold text-emerald-300 transition-colors hover:bg-emerald-500/30"
                           >
                             VIEW TICKET →
-                          </Link>
-                        )}
-                        {ev.status === 'pending_payment' && (
-                          <Link
-                            href={`/payment?eventId=${ev.event_id}&registrationId=${ev.registration_id}`}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-[3px] border border-primary bg-primary px-4 py-2.5 font-mono text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
-                          >
-                            COMPLETE PAYMENT →
                           </Link>
                         )}
                         {ev.status === 'pending_verification' && (

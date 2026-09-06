@@ -147,7 +147,7 @@ def export_registrations_csv():
         if status_filter == "verified":
             records = [r for r in records if r["status"] == "confirmed"]
         elif status_filter == "unverified":
-            records = [r for r in records if r["status"] in ("pending_payment", "pending_verification")]
+            records = [r for r in records if r["status"] == "pending_verification"]
         elif status_filter == "declined":
             records = [r for r in records if r["status"] == "rejected"]
 
@@ -609,3 +609,151 @@ def _speaker_fields_from_form(form) -> dict:
 @login_required
 def audit_log():
     return jsonify(audit_service.list_audit_log())
+
+
+# --- Coordinator Management -----------------------------------------------------------
+
+@bp.get("/coordinators")
+@login_required
+def list_admin_coordinators():
+    coords = coordinators.list_coordinators()
+    res = []
+    for c in coords:
+        d = c.to_admin_dict()
+        res.append(d)
+    return jsonify(res)
+
+
+@bp.post("/coordinators")
+@login_required
+@limiter.limit("30 per minute")
+def create_admin_coordinator():
+    body = request.get_json(silent=True) or (request.form.to_dict() if request.form else {})
+    username = (body.get("username") or "").strip()
+    password = (body.get("password") or "").strip()
+    full_name = (body.get("full_name") or "").strip()
+    phone = (body.get("phone") or "").strip()
+    email = (body.get("email") or "").strip()
+    role = (body.get("role") or "STUDENT").strip().upper()
+    is_active = body.get("is_active", True)
+    if isinstance(is_active, str):
+        is_active = is_active.lower() in ("true", "1", "yes", "on")
+    event_id = (body.get("event_id") or "").strip()
+    if not event_id and body.get("event_ids"):
+        eids = body.get("event_ids")
+        if isinstance(eids, list) and len(eids) > 0:
+            event_id = eids[0]
+
+    try:
+        coord = coordinators.create_coordinator(
+            username=username,
+            plain_password=password,
+            full_name=full_name,
+            phone=phone,
+            email=email,
+            event_id=event_id,
+            role=role,
+            is_active=is_active,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 422
+
+    audit_service.log_action(_actor(), "COORDINATOR_CREATED", f"coordinator {coord.id} ({coord.username})", _ip())
+    return jsonify(coord.to_admin_dict()), 201
+
+
+@bp.patch("/coordinators/<coordinator_id>")
+@login_required
+@limiter.limit("30 per minute")
+def update_admin_coordinator(coordinator_id):
+    body = request.get_json(silent=True) or (request.form.to_dict() if request.form else {})
+    username = body.get("username")
+    password = body.get("password")
+    full_name = body.get("full_name")
+    phone = body.get("phone")
+    email = body.get("email")
+    role = body.get("role")
+    is_active = body.get("is_active")
+    if isinstance(is_active, str):
+        is_active = is_active.lower() in ("true", "1", "yes", "on")
+    event_id = body.get("event_id")
+    if not event_id and body.get("event_ids"):
+        eids = body.get("event_ids")
+        if isinstance(eids, list) and len(eids) > 0:
+            event_id = eids[0]
+
+    try:
+        coord = coordinators.update_coordinator(
+            coordinator_id=coordinator_id,
+            username=username,
+            full_name=full_name,
+            phone=phone,
+            email=email,
+            plain_password=password,
+            is_active=is_active,
+            event_id=event_id,
+            role=role,
+        )
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 422
+
+    audit_service.log_action(_actor(), "COORDINATOR_UPDATED", f"coordinator {coordinator_id}", _ip())
+    return jsonify(coord.to_admin_dict())
+
+
+@bp.delete("/coordinators/<coordinator_id>")
+@login_required
+@limiter.limit("30 per minute")
+def delete_admin_coordinator(coordinator_id):
+    ok = coordinators.delete_coordinator(coordinator_id)
+    if not ok:
+        return jsonify({"error": "coordinator not found"}), 404
+    audit_service.log_action(_actor(), "COORDINATOR_DELETED", f"coordinator {coordinator_id}", _ip())
+    return jsonify({"ok": True})
+
+
+@bp.post("/coordinators/<coordinator_id>/events")
+@login_required
+@limiter.limit("30 per minute")
+def assign_admin_coordinator_event(coordinator_id):
+    body = request.get_json(silent=True) or {}
+    event_id = body.get("event_id")
+    if not event_id:
+        return jsonify({"error": "event_id is required"}), 422
+    coord = coordinators.get_coordinator(coordinator_id)
+    if not coord:
+        return jsonify({"error": "coordinator not found"}), 404
+    current_eids = [e.id for e in coord.events]
+    if event_id not in current_eids:
+        current_eids.append(event_id)
+        coordinators.set_coordinator_events(coordinator_id, current_eids)
+    audit_service.log_action(_actor(), "COORDINATOR_EVENT_ASSIGNED", f"coordinator {coordinator_id} -> event {event_id}", _ip())
+    return jsonify(coord.to_admin_dict())
+
+
+@bp.delete("/coordinators/<coordinator_id>/events/<event_id>")
+@login_required
+@limiter.limit("30 per minute")
+def remove_admin_coordinator_event(coordinator_id, event_id):
+    coord = coordinators.get_coordinator(coordinator_id)
+    if not coord:
+        return jsonify({"error": "coordinator not found"}), 404
+    current_eids = [e.id for e in coord.events if e.id != event_id]
+    coordinators.set_coordinator_events(coordinator_id, current_eids)
+    audit_service.log_action(_actor(), "COORDINATOR_EVENT_REMOVED", f"coordinator {coordinator_id} -> event {event_id}", _ip())
+    return jsonify(coord.to_admin_dict())
+
+
+@bp.route("/logout", methods=["GET", "POST"])
+def admin_api_logout():
+    from services.session_service import revoke_session
+    username = session.get("admin_username", "unknown")
+    if username != "unknown":
+        audit_service.log_action(username, "logout", "admin logged out via API", _ip())
+    sid = session.get("sid")
+    if sid:
+        revoke_session(sid)
+    session.clear()
+    return jsonify({"success": True, "ok": True, "message": "Logged out successfully"})
+
+

@@ -160,7 +160,7 @@ export default function WorkshopsPage() {
   return (
     <>
       <Navbar />
-      <main className="mx-auto max-w-7xl px-6 pb-32 pt-36 lg:px-10">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 pb-24 sm:pb-32 pt-28 sm:pt-36 lg:px-10">
         <p className="font-mono text-[11px] tracking-[0.3em] text-primary">
           WORKSHOPS / {EVENT_DATES}
         </p>
@@ -177,13 +177,15 @@ export default function WorkshopsPage() {
           </div>
 
           <div className="font-mono text-xs tracking-[0.25em] text-primary border border-primary/40 bg-primary/10 px-3.5 py-2 backdrop-blur-sm rounded-sm">
-            {chromaItems.length} {chromaItems.length === 1 ? 'WORKSHOP FOUND' : 'ACTIVE WORKSHOPS'}
+            {backendError
+              ? `${chromaItems.length} OFFLINE FALLBACK WORKSHOPS`
+              : `${chromaItems.length} ${chromaItems.length === 1 ? 'WORKSHOP FOUND' : 'ACTIVE WORKSHOPS'}`}
           </div>
         </div>
 
         {backendError && (
           <p className="mt-6 border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs font-mono tracking-[0.1em] text-destructive">
-            Registration is temporarily unavailable — backend unreachable. Showing cached workshop details.
+            Registration is temporarily unavailable — live backend unreachable. Showing cached offline fallback details.
           </p>
         )}
 

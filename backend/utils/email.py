@@ -223,26 +223,122 @@ def send_registration_rejection_email(
     registration_id: str,
     rejection_reason: str,
 ) -> None:
-    subject = f"CyberCarnival - Event Registration Status ({event_name})"
+    subject = f"CyberCarnival – Event Registration Update | {event_name}"
     dev_summary = (
         f"Hello {recipient_name},\n\n"
-        f"Your registration for {event_name} (ID: {registration_id}) was not approved.\n"
+        f"Your registration for {event_name} (ID: {registration_id}) was not approved and has been removed.\n"
         f"Reason: {rejection_reason}\n\n"
-        "Please review your details or contact event coordinators."
+        "If you have questions, please contact the CyberCarnival team."
     )
     try:
-        html = f"""
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2>CyberCarnival - Event Registration Status</h2>
-            <p>Hello <strong>{recipient_name}</strong>,</p>
-            <p>Your registration for <strong>{event_name}</strong> (Registration ID: <code>{registration_id}</code>) was not approved.</p>
-            <div style="background: #fff0f0; border: 1px solid #ffcdd2; padding: 15px; border-radius: 6px; margin: 15px 0;">
-                <strong>Reason:</strong> {rejection_reason}
-            </div>
-            <p>You can check your account dashboard under My Events for details.</p>
-            <p>Regards,<br>CyberCarnival Team</p>
-        </div>
-        """
+        html = render_template(
+            "email/registration_declined.html",
+            recipient_name=recipient_name,
+            event_name=event_name,
+            registration_id=registration_id,
+            rejection_reason=rejection_reason,
+        )
         _send_html_email(to, subject, html, dev_summary=dev_summary)
     except Exception:
         logger.exception("Failed to send registration rejection email to %s", to)
+
+
+def get_admin_notification_recipients() -> list[str]:
+    """Returns the list of administrator email addresses to receive system notifications.
+    Checks ADMIN_NOTIFICATION_EMAIL, ADMIN_GOOGLE_EMAIL, and database Admin accounts."""
+    recipients = []
+
+    raw_config_email = (
+        getattr(config, "ADMIN_NOTIFICATION_EMAIL", None)
+        or getattr(config, "ADMIN_GOOGLE_EMAIL", None)
+        or "info.cybercarnival@gmail.com"
+    )
+    for email in str(raw_config_email).split(","):
+        email = email.strip().lower()
+        if email and email not in recipients:
+            recipients.append(email)
+
+    try:
+        from models import Admin
+        admin_rows = Admin.query.all()
+        for admin in admin_rows:
+            if hasattr(admin, "email") and admin.email:
+                e = admin.email.strip().lower()
+                if e and e not in recipients:
+                    recipients.append(e)
+    except Exception as exc:
+        logger.warning("Could not query DB Admin table for email recipients: %s", exc)
+
+    return recipients
+
+
+
+def send_admin_new_registration_notification(
+    registration_id: str,
+    *,
+    event_name: str,
+    participant_name: str,
+    participant_email: str,
+    username: str,
+    participant_mode: str = "individual",
+    team_name: str | None = None,
+    team_size: int = 1,
+    members: list[str] | None = None,
+    payment_status: str = "CONFIRMATION PENDING",
+    fee: str | None = None,
+    transaction_id: str | None = None,
+) -> None:
+    """Sends immediate email notification to CyberCarnival administrator(s) when a new registration is submitted."""
+    recipients = get_admin_notification_recipients()
+    if not recipients:
+        logger.warning("No admin notification recipients configured. Skipping admin notification for registration %s.", registration_id)
+        return
+
+    subject = f"🔔 New Event Registration — CyberCarnival 2026 | {event_name}"
+    admin_login_url = f"{config.SITE_URL}/admin/"
+
+    try:
+        html = render_template(
+            "email/admin_new_registration.html",
+            registration_id=registration_id,
+            event_name=event_name,
+            participant_name=participant_name,
+            participant_email=participant_email,
+            username=username,
+            participant_mode=participant_mode,
+            team_name=team_name,
+            team_size=team_size,
+            members=members or [],
+            payment_status=payment_status,
+            fee=fee or "Free / Pending",
+            transaction_id=transaction_id,
+            admin_login_url=admin_login_url,
+            site_url=config.SITE_URL,
+        )
+    except Exception as exc:
+        logger.exception("Failed to render admin_new_registration.html template: %s", exc)
+        return
+
+    dev_summary = (
+        f"NEW EVENT REGISTRATION RECEIVED\n\n"
+        f"Participant: {participant_name} ({participant_email}, @{username})\n"
+        f"Event: {event_name}\n"
+        f"Registration ID: {registration_id}\n"
+        f"Mode: {participant_mode}"
+        + (f" (Team: {team_name}, Size: {team_size})" if team_name else "")
+        + f"\nFee: {fee}\n"
+        f"Status: {payment_status}\n"
+        f"Admin Link: {admin_login_url}"
+    )
+
+    for to in recipients:
+        try:
+            _send_html_email(
+                to,
+                subject,
+                html,
+                dev_summary=dev_summary,
+            )
+        except Exception:
+            logger.exception("Failed to send admin registration notification to=%s for registration=%s", to, registration_id)
+

@@ -126,7 +126,7 @@ CREATE TABLE event_registrations (
   event_id varchar(36) NOT NULL REFERENCES events(id) ON DELETE CASCADE,
   team_name varchar(120),
   leader_user_id varchar(36) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  status varchar(24) NOT NULL DEFAULT 'confirmed',
+  status varchar(24) NOT NULL DEFAULT 'pending_verification',
   created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
   payment_expires_at timestamp without time zone,
   razorpay_payment_id varchar(64) UNIQUE,
@@ -143,7 +143,7 @@ CREATE TABLE event_registrations (
   disclaimer_accepted boolean NOT NULL DEFAULT false,
   disclaimer_accepted_at timestamp without time zone,
   CONSTRAINT uq_event_registrations_id_event UNIQUE (id, event_id),
-  CONSTRAINT ck_registration_status CHECK (status IN ('confirmed','pending_verification','pending_payment','cancelled','rejected')),
+  CONSTRAINT ck_registration_status CHECK (status IN ('confirmed','pending_verification','cancelled','rejected')),
   CONSTRAINT ck_participant_mode CHECK (participant_mode IN ('individual','team')),
   CONSTRAINT ck_payment_amount_nonnegative CHECK (payment_amount IS NULL OR payment_amount >= 0)
 );

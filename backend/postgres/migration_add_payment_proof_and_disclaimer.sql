@@ -10,12 +10,12 @@ ADD COLUMN IF NOT EXISTS payment_proof_size INTEGER,
 ADD COLUMN IF NOT EXISTS disclaimer_accepted BOOLEAN NOT NULL DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS disclaimer_accepted_at TIMESTAMP WITHOUT TIME ZONE;
 
--- Update status check constraint to include 'pending_payment'
+-- Update status check constraint to support registration status lifecycle
 ALTER TABLE event_registrations 
 DROP CONSTRAINT IF EXISTS ck_registration_status;
 
 ALTER TABLE event_registrations 
 ADD CONSTRAINT ck_registration_status 
-CHECK (status IN ('confirmed', 'pending_verification', 'pending_payment', 'cancelled', 'rejected'));
+CHECK (status IN ('confirmed', 'pending_verification', 'cancelled', 'rejected'));
 
 COMMIT;
