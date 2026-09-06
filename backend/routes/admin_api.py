@@ -423,7 +423,10 @@ def _event_fields_from_form(form) -> dict:
         else:
             data["fee_amount"] = None
 
-    for key, target in (("start_date", "start_date"), ("end_date", "end_date")):
+    for key, target in (
+        ("start_date", "event_start_date"),
+        ("end_date", "event_end_date"),
+    ):
         if key in form:
             raw = form.get(key, "").strip()
             if raw:
@@ -518,37 +521,69 @@ def edit_event(event_id):
     if not existing:
         return jsonify({"error": "event not found"}), 404
 
-    form = request.form
-    data = _event_fields_from_form(form)
-    if "name" in data and (not data["name"] or len(data["name"]) > 150):
-        return jsonify({"error": "name is required (max 150 chars)"}), 422
+    try:
+        form = request.form
+        data = _event_fields_from_form(form)
 
-    # Capacity Safety Check: cannot set max_teams below active confirmed/pending registrations
-    if "max_teams" in data and data["max_teams"] is not None:
-        new_max = data["max_teams"]
-        active_count = (
-            EventRegistration.query.filter_by(event_id=event_id)
-            .filter(EventRegistration.status.in_(["confirmed", "pending_verification"]))
-            .count()
+        if "name" in data and (not data["name"] or len(data["name"]) > 150):
+            return jsonify({"error": "name is required (max 150 chars)"}), 422
+
+        # Capacity Safety Check: cannot set max_teams below active confirmed/pending registrations
+        if "max_teams" in data and data["max_teams"] is not None:
+            new_max = data["max_teams"]
+            active_count = (
+                EventRegistration.query.filter_by(event_id=event_id)
+                .filter(EventRegistration.status.in_(["confirmed", "pending_verification"]))
+                .count()
+            )
+            if new_max < active_count:
+                return jsonify({
+                    "error": (
+                        f"Capacity cannot be set to {new_max}: "
+                        f"{active_count} active registration(s) already exist."
+                    )
+                }), 422
+
+        logger.info(
+            "Updating event %s with fields=%s",
+            event_id,
+            list(data.keys()),
         )
-        if new_max < active_count:
-            return jsonify({"error": f"Capacity cannot be set to {new_max}: {active_count} active registration(s) already exist."}), 422
 
-    record = events.update_event(event_id, data)
+        record = events.update_event(event_id, data)
 
-    faculty_ids, student_ids = _parse_coordinator_ids_from_form(form)
-    coordinators.sync_event_coordinators(record.id, faculty_ids, student_ids)
+        faculty_ids, student_ids = _parse_coordinator_ids_from_form(form)
+        coordinators.sync_event_coordinators(
+            record.id,
+            faculty_ids,
+            student_ids,
+        )
 
-    poster = request.files.get("poster")
-    if poster and poster.filename:
-        try:
-            events.save_poster(record, poster)
-        except ValueError as e:
-            return jsonify({"error": f"Poster upload failed: {str(e)}"}), 422
+        poster = request.files.get("poster")
+        if poster and poster.filename:
+            try:
+                events.save_poster(record, poster)
+            except ValueError as e:
+                return jsonify({"error": f"Poster upload failed: {str(e)}"}), 422
 
-    changed_fields = list(data.keys())
-    audit_service.log_action(_actor(), "EVENT_UPDATED", f"event {event_id} (updated: {', '.join(changed_fields)})", _ip())
-    return jsonify(record.to_admin_dict())
+        changed_fields = list(data.keys())
+        audit_service.log_action(
+            _actor(),
+            "EVENT_UPDATED",
+            f"event {event_id} (updated: {', '.join(changed_fields)})",
+            _ip(),
+        )
+
+        return jsonify(record.to_admin_dict())
+
+    except Exception as exc:
+        db.session.rollback()
+        logger.exception(
+            "EVENT UPDATE FAILED event_id=%s error=%s",
+            event_id,
+            exc,
+        )
+        return jsonify({"error": "internal server error"}), 500
 
 
 @bp.post("/events/<event_id>/toggle")
