@@ -1,8 +1,8 @@
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, request, jsonify, session, send_file
 from urllib.parse import urlsplit
 
 import config
-from extensions import limiter
+from extensions import limiter, db
 from services.registration_service import (
     register_for_event, get_registration, preflight_warnings, member_preview,
     DuplicateRegistrationError, EventNotFoundError, EventFullError,
@@ -126,6 +126,80 @@ def view_payment_details(event_id, registration_id):
         return jsonify({"error": "registration or event not found"}), 404
     except UnauthorizedRegistrationAccessError:
         return jsonify({"error": "you are not authorized to view this registration payment page"}), 403
+
+
+@bp.get("/api/events/<event_id>/payment-qr/<registration_id>")
+@user_login_required
+@limiter.limit("30 per minute")
+def payment_qr(event_id, registration_id):
+    """Generate a registration-specific UPI QR with the exact amount prefilled.
+
+    The amount comes from EventRegistration.payment_amount (the snapshot saved
+    when the registration was created), so a later admin fee edit cannot change
+    what this existing registration is expected to pay.
+    """
+    from io import BytesIO
+    import qrcode
+
+    from models import EventRegistration
+    from services.payment_service import build_upi_uri
+
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "authentication required"}), 401
+
+    reg = db.session.get(EventRegistration, registration_id)
+    if not reg or reg.event_id != event_id:
+        return jsonify({"error": "registration not found"}), 404
+
+    # Leader and registered teammates may view/scan the team's payment QR.
+    is_member = (
+        reg.leader_user_id == user_id
+        or any(m.user_id == user_id for m in reg.members)
+    )
+    if not is_member:
+        return jsonify({"error": "you are not authorized to view this payment QR"}), 403
+
+    event = reg.event
+    if not event:
+        return jsonify({"error": "event not found"}), 404
+
+    amount_paise = (
+        reg.payment_amount
+        if reg.payment_amount is not None
+        else (event.fee_amount or 0)
+    )
+
+    if amount_paise <= 0:
+        return jsonify({"error": "this registration does not require payment"}), 422
+
+    upi_uri = build_upi_uri(
+        amount_paise=amount_paise,
+        event_name=event.name,
+        registration_ref=reg.id[:8],
+    )
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(upi_uri)
+    qr.make(fit=True)
+
+    image = qr.make_image(fill_color="black", back_color="white")
+
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return send_file(
+        buffer,
+        mimetype="image/png",
+        max_age=0,
+        download_name=f"cybercarnival-{reg.id[:8]}-upi.png",
+    )
 
 
 @bp.post("/api/registrations/<registration_id>/payment")
