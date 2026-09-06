@@ -236,51 +236,124 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
     return registration, warnings
 
 
-def get_payment_page_details(event_id: str, registration_id: str, user_id: str) -> dict:
+def get_payment_page_details(
+    event_id: str,
+    registration_id: str,
+    user_id: str
+) -> dict:
     import config
+
     reg = db.session.get(EventRegistration, registration_id)
+
     if not reg or reg.event_id != event_id:
         raise EventNotFoundError(registration_id)
-    
-    is_leader = (reg.leader_user_id == user_id)
-    is_member = any(m.user_id == user_id for m in reg.members)
+
+    # Fetch ALL members of this registration directly from DB.
+    registration_members = (
+        RegistrationMember.query
+        .filter_by(registration_id=registration_id)
+        .order_by(
+            RegistrationMember.is_leader.desc(),
+            RegistrationMember.joined_at.asc()
+        )
+        .all()
+    )
+
+    is_leader = reg.leader_user_id == user_id
+
+    is_member = any(
+        m.user_id == user_id
+        for m in registration_members
+    )
+
     if not (is_leader or is_member):
         raise UnauthorizedRegistrationAccessError()
-    
+
     event = reg.event
+
     if not event:
         raise EventNotFoundError(event_id)
-    
+
+    amount = (
+        reg.payment_amount
+        if reg.payment_amount is not None
+        else (event.fee_amount or 0)
+    )
+
     return {
         "registration_id": reg.id,
         "event_id": event.id,
         "event_name": event.name,
-        "event_description": event.description or getattr(event, "short_description", None) or "",
+
+        "event_description": (
+            event.description
+            or getattr(event, "short_description", None)
+            or ""
+        ),
+
         "event_date": event.event_date,
         "event_time": event.event_time,
         "venue": event.venue,
-        "fee_amount_paise": reg.payment_amount if reg.payment_amount is not None else (event.fee_amount or 0),
-        "fee_amount_rupees": f"{(reg.payment_amount if reg.payment_amount is not None else (event.fee_amount or 0)) / 100:.2f}",
+
+        "fee_amount_paise": amount,
+        "fee_amount_rupees": f"{amount / 100:.2f}",
+
         "participant_mode": reg.participant_mode,
         "team_name": reg.team_name,
         "status": reg.status,
+
         "transaction_id": reg.transaction_id or "",
         "disclaimer_accepted": bool(reg.disclaimer_accepted),
         "has_proof": bool(reg.payment_proof_filename),
+
         "upi_id": config.UPI_ID,
         "upi_payee_name": config.UPI_PAYEE_NAME,
         "upi_dummy_mode": config.UPI_DUMMY_MODE,
         "qr_url": f"/api/events/{event.id}/payment-qr",
+
         "members": [
             {
-                "name": m.participant_name or (m.user.full_name if m.user else None) or (m.user.username if m.user else ""),
-                "email": m.participant_email or (m.user.email if m.user else ""),
-                "college": m.college_name or (m.user.college if m.user else ""),
-                "phone": m.participant_phone or (m.user.phone if m.user else ""),
-                "is_leader": m.is_leader
+                "name": (
+                    m.participant_name
+                    or (
+                        m.user.full_name
+                        if m.user else None
+                    )
+                    or (
+                        m.user.username
+                        if m.user else ""
+                    )
+                ),
+
+                "email": (
+                    m.participant_email
+                    or (
+                        m.user.email
+                        if m.user else ""
+                    )
+                ),
+
+                "college": (
+                    m.college_name
+                    or (
+                        m.user.college
+                        if m.user else ""
+                    )
+                ),
+
+                "phone": (
+                    m.participant_phone
+                    or (
+                        m.user.phone
+                        if m.user else ""
+                    )
+                ),
+
+                "is_leader": bool(m.is_leader),
             }
-            for m in sorted(reg.members, key=lambda x: (not x.is_leader, x.joined_at))
-        ]
+
+            for m in registration_members
+        ],
     }
 
 
