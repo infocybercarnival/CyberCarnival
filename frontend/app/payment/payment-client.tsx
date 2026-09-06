@@ -305,8 +305,8 @@ export function PaymentClient(props: Props) {
                       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent opacity-50" />
                       {/* eslint-disable-next-html-element */}
                       <img
-                        src="/payment-qr.jpeg"
-                        alt="CyberCarnival UPI Payment QR Code"
+                        src={data.qr_url}
+                        alt={`Pay ₹${data.fee_amount_rupees} to CyberCarnival via UPI`}
                         width={240}
                         height={240}
                         className="h-56 w-56 object-contain"
