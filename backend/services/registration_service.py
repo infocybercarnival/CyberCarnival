@@ -1,4 +1,5 @@
 import datetime
+import re
 
 from sqlalchemy.exc import IntegrityError
 from extensions import db
@@ -254,12 +255,12 @@ def get_payment_page_details(event_id: str, registration_id: str, user_id: str) 
         "registration_id": reg.id,
         "event_id": event.id,
         "event_name": event.name,
-        "event_description": event.description or event.short_description or "",
+        "event_description": event.description or getattr(event, "short_description", None) or "",
         "event_date": event.event_date,
         "event_time": event.event_time,
         "venue": event.venue,
-        "fee_amount_paise": event.fee_amount or 0,
-        "fee_amount_rupees": f"{(event.fee_amount or 0) / 100:.2f}",
+        "fee_amount_paise": reg.payment_amount if reg.payment_amount is not None else (event.fee_amount or 0),
+        "fee_amount_rupees": f"{(reg.payment_amount if reg.payment_amount is not None else (event.fee_amount or 0)) / 100:.2f}",
         "participant_mode": reg.participant_mode,
         "team_name": reg.team_name,
         "status": reg.status,
@@ -269,6 +270,7 @@ def get_payment_page_details(event_id: str, registration_id: str, user_id: str) 
         "upi_id": config.UPI_ID,
         "upi_payee_name": config.UPI_PAYEE_NAME,
         "upi_dummy_mode": config.UPI_DUMMY_MODE,
+        "qr_url": f"/api/events/{event.id}/payment-qr",
         "members": [
             {
                 "name": m.participant_name or (m.user.full_name if m.user else None) or (m.user.username if m.user else ""),
