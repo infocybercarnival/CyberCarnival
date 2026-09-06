@@ -309,7 +309,7 @@ def get_payment_page_details(
         "upi_id": config.UPI_ID,
         "upi_payee_name": config.UPI_PAYEE_NAME,
         "upi_dummy_mode": config.UPI_DUMMY_MODE,
-        "qr_url": f"/api/events/{event.id}/payment-qr",
+        "qr_url": f"/api/events/{event.id}/payment-qr/{reg.id}",
 
         "members": [
             {
