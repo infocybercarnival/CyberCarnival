@@ -574,33 +574,62 @@ def my_events():
     from models import EventRegistration, RegistrationMember
 
     registrations = (
-        EventRegistration.query.join(RegistrationMember, EventRegistration.id == RegistrationMember.registration_id)
+        EventRegistration.query
+        .join(
+            RegistrationMember,
+            EventRegistration.id == RegistrationMember.registration_id
+        )
         .filter(
             RegistrationMember.user_id == user.id,
-            EventRegistration.status.in_(["confirmed", "pending_verification", "rejected"]),
+            EventRegistration.status.in_([
+                "pending_payment",
+                "pending_verification",
+                "confirmed",
+                "rejected",
+            ]),
         )
         .order_by(EventRegistration.created_at.desc())
+        .distinct()
         .all()
     )
+
     out = []
+
     for reg in registrations:
         event = get_event(reg.event_id)
-        out.append(
-            {
-                "registration_id": reg.id,
-                "event_id": reg.event_id,
-                "event_name": event.name if event else reg.event_id,
-                "team_name": reg.team_name,
-                "is_leader": any(m.user_id == user.id and m.is_leader for m in reg.members),
-                "status": reg.status,
-                "rejection_reason": reg.rejection_reason,
-                "members": [
-                    {"name": m.user.full_name or m.user.username, "token": m.user.cybercarnival_token}
-                    for m in reg.members
-                ],
-                "venue": event.venue if event else None,
-                "date": event.event_date if event else None,
-                "time": event.event_time if event else None,
-            }
-        )
+
+        out.append({
+            "registration_id": reg.id,
+            "event_id": reg.event_id,
+            "event_name": event.name if event else reg.event_id,
+            "team_name": reg.team_name,
+            "is_leader": any(
+                m.user_id == user.id and m.is_leader
+                for m in reg.members
+            ),
+            "status": reg.status,
+            "rejection_reason": reg.rejection_reason,
+            "members": [
+                {
+                    "name": (
+                        m.participant_name
+                        or (m.user.full_name if m.user else None)
+                        or (m.user.username if m.user else "")
+                    ),
+                    "token": (
+                        m.user.cybercarnival_token
+                        if m.user else None
+                    ),
+                    "is_leader": bool(m.is_leader),
+                }
+                for m in sorted(
+                    reg.members,
+                    key=lambda m: (not m.is_leader, m.joined_at)
+                )
+            ],
+            "venue": event.venue if event else None,
+            "date": event.event_date if event else None,
+            "time": event.event_time if event else None,
+        })
+
     return jsonify(out)
