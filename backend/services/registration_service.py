@@ -134,7 +134,7 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
 
     effective_fee = get_effective_fee_amount(event)
     if effective_fee <= 0:
-        raise UnconfiguredFeeError("Registration for this event is currently unavailable because the event fee is pending configuration.")
+        raise UnconfiguredFeeError("For free events kindly contact the Student Co-Ordinator")
 
     # Check if leader has an abandoned pending_payment registration for this event
     existing_pending = (
