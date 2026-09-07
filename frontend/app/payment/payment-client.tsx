@@ -155,15 +155,16 @@ export function PaymentClient(props: Props) {
         className="pointer-events-none absolute left-1/2 top-0 -z-10 h-[600px] w-full max-w-7xl -translate-x-1/2 bg-[radial-gradient(ellipse_55%_50%_at_50%_20%,rgba(168,85,247,0.22),transparent_70%)]"
       />
 
-      <div className="container relative z-20 mx-auto px-4 py-8 md:py-14">
+      <div className="container relative z-20 mx-auto px-4 pb-8 pt-28 md:pb-14 md:pt-32">
         <div className="mx-auto max-w-4xl">
-          {/* Top Back Navigation Link */}
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 font-mono text-xs tracking-[0.2em] text-muted-foreground transition-colors hover:text-primary mb-8"
+          {/* Top Back Navigation */}
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard')}
+            className="mb-8 inline-flex cursor-pointer items-center gap-2 font-mono text-xs tracking-[0.2em] text-muted-foreground transition-colors hover:text-primary"
           >
             <span>←</span> <span>BACK TO DASHBOARD</span>
-          </Link>
+          </button>
 
           {/* Loading State */}
           {loading && (
