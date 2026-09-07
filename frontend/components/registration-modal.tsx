@@ -196,15 +196,9 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
         participants: participantList,
       })
 
-      if (result.status === 'pending_payment' || (result.payment_url && result.status !== 'confirmed')) {
-        onClose()
-        const targetUrl = result.payment_url || `/payment?eventId=${eventId}&registrationId=${result.id}`
-        router.push(targetUrl)
-        return
-      }
-
       setWarnings((prev) => [...prev, ...(result.warnings || [])])
       setStatus('done')
+
     } catch (err) {
       setStatus('error')
       if (err instanceof ApiValidationError) {
@@ -217,9 +211,9 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm px-4 py-6" onClick={onClose}>
-      <div onClick={(e) => e.stopPropagation()} className="relative max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-card p-6 md:p-8">
-        <button type="button" onClick={onClose} aria-label="Close" className="absolute right-4 top-4 text-muted-foreground hover:text-foreground">✕</button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm p-3 sm:p-4 sm:py-6" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="relative max-h-[90vh] max-h-[90dvh] w-full max-w-3xl overflow-y-auto rounded-xl sm:rounded-2xl border border-border bg-card p-4 sm:p-6 md:p-8 shadow-2xl">
+        <button type="button" onClick={onClose} aria-label="Close modal" className="absolute right-3 top-3 sm:right-4 sm:top-4 flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/20 hover:text-foreground">✕</button>
 
         {me === 'loading' && <p className="py-10 text-center font-mono text-xs tracking-[.2em] text-muted-foreground">LOADING…</p>}
         {me === null && (
@@ -257,8 +251,22 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
               <p className="font-mono text-xs tracking-[.3em] text-primary">EVENT REGISTRATION & CERTIFICATE DETAILS</p>
               <h3 className="mt-2 text-2xl font-bold">{eventName}</h3>
             </div>
+            {event?.confirmation_queue_full && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-left font-mono">
+                <div className="flex items-center gap-2 text-amber-400 font-bold text-xs tracking-[0.15em] mb-1">
+                  <span>⚠ REGISTRATION TEMPORARILY UNAVAILABLE</span>
+                </div>
+                <p className="text-xs text-amber-200/90 font-sans mb-1 font-semibold">
+                  The confirmation queue for this event is currently full.
+                </p>
+                <p className="text-xs text-muted-foreground font-sans">
+                  Please wait while existing registrations are reviewed by the event administrators. New registration slots will automatically become available when space is released.
+                </p>
+              </div>
+            )}
             {warnings.length > 0 && <WarningBox warnings={warnings} />}
             {errorMsg && <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-semibold text-destructive">{errorMsg}</p>}
+
 
             {/* Participation Type Selection */}
             <section>
@@ -358,9 +366,18 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
               {fieldErrors.member_tokens && <p className="text-xs text-destructive">{fieldErrors.member_tokens}</p>}
             </section>
 
-            <button type="submit" disabled={status === 'submitting'} className="w-full rounded-lg bg-primary px-6 py-3.5 font-mono text-xs tracking-[.15em] text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50">
-              {status === 'submitting' ? 'VALIDATING & PROCEEDING…' : 'CONFIRM PARTICIPANT DETAILS & PROCEED TO PAYMENT →'}
+            <button
+              type="submit"
+              disabled={status === 'submitting' || Boolean(event?.confirmation_queue_full)}
+              className="w-full rounded-lg bg-primary px-6 py-3.5 font-mono text-xs tracking-[.15em] text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {event?.confirmation_queue_full
+                ? 'QUEUE FULL — AWAITING REVIEW'
+                : status === 'submitting'
+                ? 'VALIDATING & PROCEEDING…'
+                : 'CONFIRM PARTICIPANT DETAILS & PROCEED TO PAYMENT →'}
             </button>
+
           </form>
         )}
       </div>
@@ -379,7 +396,7 @@ function WarningBox({ warnings }: { warnings: string[] }) {
 
 function ModeCard({ label, selected, disabled, onClick }: { label: string; selected: boolean; disabled: boolean; onClick: () => void }) {
   return (
-    <button type="button" disabled={disabled} onClick={onClick} className={`rounded-lg border p-3 text-left text-sm ${selected ? 'border-primary bg-primary/10' : 'border-border'} disabled:cursor-not-allowed disabled:opacity-40`}>
+    <button type="button" disabled={disabled} onClick={onClick} className={`min-h-[44px] w-full rounded-lg border p-3 text-left text-sm ${selected ? 'border-primary bg-primary/10' : 'border-border'} disabled:cursor-not-allowed disabled:opacity-40`}>
       {label}
     </button>
   )
@@ -389,7 +406,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   return (
     <div>
       <label className="font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">{label}</label>
-      <div className="mt-1 [&>input]:w-full [&>input]:rounded-lg [&>input]:border [&>input]:border-input [&>input]:bg-transparent [&>input]:px-3 [&>input]:py-2 [&>input]:text-sm [&>input]:outline-none [&>input]:focus:border-primary">
+      <div className="mt-1 [&>input]:h-11 [&>input]:w-full [&>input]:rounded-lg [&>input]:border [&>input]:border-input [&>input]:bg-transparent [&>input]:px-3 [&>input]:py-2 [&>input]:text-sm [&>input]:outline-none [&>input]:focus:border-primary">
         {children}
       </div>
       {error && <p className="mt-1 text-xs font-semibold text-destructive">{error}</p>}

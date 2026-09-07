@@ -69,8 +69,11 @@ def verify_otp_and_create_user(email: str, otp: str) -> User:
     if not entry:
         raise InvalidOtpError(email)
 
-    now = datetime.datetime.utcnow()
-    if now > entry.expires_at:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    exp = entry.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=datetime.timezone.utc)
+    if now > exp:
         raise ExpiredOtpError(email)
 
     if entry.attempts >= entry.max_attempts:

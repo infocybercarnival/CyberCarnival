@@ -90,38 +90,54 @@ export function Navbar() {
     }
   }, [])
 
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [open])
+
+  // close mobile drawer on route change
+  useEffect(() => {
+    setOpen(false)
+  }, [pathname])
+
+  const [loggingOut, setLoggingOut] = useState(false)
+
   async function handleLogout() {
+    if (loggingOut) return
+    setLoggingOut(true)
     try {
       await logout()
-    } catch (err) {
-      console.error('Logout failed:', err)
+    } catch {
+      // silent catch
     } finally {
       setUser(null)
       setAccountMenuOpen(false)
       setOpen(false)
-
-      router.push('/')
-      router.refresh()
+      setLoggingOut(false)
+      router.push('/login')
     }
   }
 
-  const displayName =
-    user?.full_name ||
-    user?.username ||
-    user?.email ||
-    'ACCOUNT'
+
+  const displayName = user?.full_name || user?.username || ''
 
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-colors duration-500 ${
         scrolled
-          ? 'border-b border-border bg-background/80 backdrop-blur-md'
-          : 'border-b border-transparent bg-transparent'
+          ? 'bg-background/90 backdrop-blur-md border-b border-border'
+          : 'bg-transparent border-b border-transparent'
       }`}
     >
       <nav
         aria-label="Main navigation"
-        className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 lg:px-10"
+        className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3.5 lg:px-10"
       >
         {/* Logo */}
         <Link
@@ -136,7 +152,7 @@ export function Navbar() {
               width={160}
               height={89}
               priority
-              className="h-11 w-auto animate-logo-float transition-all duration-500 group-hover:brightness-110 group-hover:drop-shadow-[0_0_15px_rgba(168,85,247,0.85)] lg:h-14"
+              className="h-10 w-auto sm:h-12 lg:h-14 animate-logo-float transition-all duration-500 group-hover:brightness-110 group-hover:drop-shadow-[0_0_15px_rgba(168,85,247,0.85)]"
             />
 
             <div
@@ -202,8 +218,7 @@ export function Navbar() {
           )}
         </ul>
 
-        {/* Desktop Account Area */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           {user ? (
             <div
               ref={accountMenuRef}
@@ -224,23 +239,22 @@ export function Navbar() {
               </button>
 
               {accountMenuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 border border-border bg-background/95 backdrop-blur-md">
+                <div className="absolute right-0 top-full mt-2 w-44 border border-border bg-background/95 backdrop-blur-md shadow-xl rounded-sm">
                   <Link
                     href="/dashboard"
-                    onClick={() =>
-                      setAccountMenuOpen(false)
-                    }
-                    className="block px-4 py-3 font-mono text-[11px] tracking-[0.15em] text-muted-foreground transition-colors hover:text-foreground"
+                    onClick={() => setAccountMenuOpen(false)}
+                    className="flex min-h-[44px] items-center px-4 py-2.5 font-mono text-[11px] tracking-[0.15em] text-muted-foreground transition-colors hover:text-foreground hover:bg-primary/10"
                   >
                     MY EVENTS
                   </Link>
 
                   <button
                     type="button"
+                    disabled={loggingOut}
                     onClick={handleLogout}
-                    className="block w-full px-4 py-3 text-left font-mono text-[11px] tracking-[0.15em] text-muted-foreground transition-colors hover:text-foreground"
+                    className="flex min-h-[44px] w-full items-center px-4 py-2.5 text-left font-mono text-[11px] tracking-[0.15em] text-muted-foreground transition-colors hover:text-foreground hover:bg-primary/10 disabled:opacity-50"
                   >
-                    LOG OUT
+                    {loggingOut ? 'LOGGING OUT…' : 'LOG OUT'}
                   </button>
                 </div>
               )}
@@ -266,7 +280,7 @@ export function Navbar() {
             </>
           )}
 
-          {/* Mobile hamburger */}
+          {/* Touch-friendly Hamburger Toggle Button (Minimum 44x44px target) */}
           <button
             type="button"
             onClick={() =>
@@ -274,115 +288,95 @@ export function Navbar() {
             }
             aria-expanded={open}
             aria-label="Toggle menu"
-            className="flex h-10 w-10 flex-col items-center justify-center gap-1.5 lg:hidden"
+            className="flex h-11 w-11 flex-col items-center justify-center gap-1.5 rounded-sm border border-border/60 bg-card/60 lg:hidden"
           >
             <span
-              className={`h-px w-6 bg-foreground transition-transform ${
-                open
-                  ? 'translate-y-[3.5px] rotate-45'
-                  : ''
-              }`}
+              className={`h-0.5 w-5 bg-foreground transition-transform duration-300 ${open ? 'translate-y-[4px] rotate-45' : ''}`}
             />
 
             <span
-              className={`h-px w-6 bg-foreground transition-transform ${
-                open
-                  ? '-translate-y-[3.5px] -rotate-45'
-                  : ''
-              }`}
+              className={`h-0.5 w-5 bg-foreground transition-transform duration-300 ${open ? '-translate-y-[4px] -rotate-45' : ''}`}
             />
           </button>
         </div>
       </nav>
 
-      {/* Mobile Menu */}
+      {/* Mobile Drawer Overlay Backdrop */}
       {open && (
-        <div className="border-t border-border bg-background/95 backdrop-blur-md lg:hidden">
-          <ul className="flex flex-col px-6 py-6">
-            {LINKS.map((link) => (
-              <li key={link.label}>
-                {link.external ? (
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() =>
-                      setOpen(false)
-                    }
-                    className="block py-3 font-mono text-sm tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {link.label}
-                  </a>
-                ) : (
-                  <Link
-                    href={link.href}
-                    onClick={() =>
-                      setOpen(false)
-                    }
-                    className="block py-3 font-mono text-sm tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {link.label}
-                  </Link>
-                )}
-              </li>
-            ))}
+        <div
+          aria-hidden="true"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 top-[65px] z-40 bg-background/80 backdrop-blur-sm transition-opacity lg:hidden"
+        />
+      )}
 
-            {/* Logged-in mobile user */}
-            {user && (
-              <li>
-                <Link
-                  href="/dashboard"
-                  onClick={() =>
-                    setOpen(false)
-                  }
-                  className="block py-3 font-mono text-sm tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  MY EVENTS
-                </Link>
-              </li>
-            )}
+      {/* Mobile Drawer Slide Menu */}
+      {open && (
+        <div className="relative z-50 max-h-[calc(100vh-65px)] overflow-y-auto border-b border-border bg-background/95 px-4 py-6 backdrop-blur-md lg:hidden">
+          <ul className="flex flex-col space-y-1">
+            {LINKS.map((link) => {
+              const isActive = !link.external && pathname === link.href
+              return (
+                <li key={link.label}>
+                  {link.external ? (
+                    <a
+                      href={link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setOpen(false)}
+                      className="flex min-h-[44px] items-center rounded-sm px-4 py-2.5 font-mono text-xs tracking-[0.2em] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link
+                      href={link.href}
+                      onClick={() => setOpen(false)}
+                      className={`flex min-h-[44px] items-center rounded-sm px-4 py-2.5 font-mono text-xs tracking-[0.2em] transition-colors ${
+                        isActive
+                          ? 'bg-primary/15 font-bold text-primary border-l-2 border-primary'
+                          : 'text-muted-foreground hover:bg-primary/10 hover:text-foreground'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  )}
+                </li>
+              )
+            })}
 
-            <li className="pt-4">
+            <li className="pt-4 border-t border-border/40">
               {user ? (
                 <>
-                  <p className="py-3 font-mono text-sm tracking-[0.2em] text-foreground">
+                  <div className="px-4 py-2 font-mono text-xs tracking-[0.15em] text-foreground font-bold">
                     {displayName}
-                  </p>
-
+                  </div>
                   <button
                     type="button"
+                    disabled={loggingOut}
                     onClick={handleLogout}
-                    className="block py-3 font-mono text-sm tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
+                    className="flex min-h-[44px] w-full items-center rounded-sm px-4 py-2.5 font-mono text-xs tracking-[0.2em] text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                   >
-                    LOG OUT
+                    {loggingOut ? 'LOGGING OUT…' : 'LOG OUT'}
                   </button>
                 </>
               ) : (
-                <>
-                  <Link
-                    href="/login"
-                    onClick={() =>
-                      setOpen(false)
-                    }
-                    className="block py-3 font-mono text-sm tracking-[0.2em] text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    LOGIN
-                  </Link>
-
-                  <Link
-                    href="/register"
-                    onClick={() =>
-                      setOpen(false)
-                    }
-                    className="mt-2 inline-flex items-center gap-2 border border-primary/60 px-5 py-3 font-mono text-xs tracking-[0.2em] text-foreground"
-                  >
-                    REGISTER
-                    <span aria-hidden="true">
-                      →
-                    </span>
-                  </Link>
-                </>
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className="flex min-h-[44px] items-center rounded-sm px-4 py-2.5 font-mono text-xs tracking-[0.2em] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+                >
+                  LOGIN
+                </Link>
               )}
+
+              <Link
+                href="/register"
+                onClick={() => setOpen(false)}
+                className="mt-3 flex min-h-[44px] items-center justify-center gap-2 border border-primary/60 bg-primary/20 px-5 py-3 font-mono text-xs tracking-[0.2em] text-foreground transition-all hover:bg-primary hover:text-primary-foreground rounded-sm"
+              >
+                REGISTER <span aria-hidden="true">→</span>
+              </Link>
             </li>
           </ul>
         </div>
@@ -390,3 +384,4 @@ export function Navbar() {
     </header>
   )
 }
+

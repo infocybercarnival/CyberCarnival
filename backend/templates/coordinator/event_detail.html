@@ -1,0 +1,91 @@
+{% extends "admin/base.html" %}
+{% block title %}{{ event.name }} — Coordinator Portal{% endblock %}
+{% block body %}
+<meta name="csrf-token" content="{{ csrf_token() }}" />
+
+<div class="shell">
+  <header class="topbar">
+    <div class="auth-brand"><a href="/coordinator/" style="color:inherit; text-decoration:none;">CYBERCARNIVAL<span>/ COORDINATOR</span></a></div>
+    <div class="topbar-right">
+      <span class="who">{{ coordinator_name or coordinator_username }}</span>
+      <form method="post" action="{{ url_for('coordinator_auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit" class="btn-ghost">Log out</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="coord-shell" style="max-width:1200px; margin:0 auto; padding:24px 16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:24px;">
+      <div>
+        <a href="/coordinator/" class="btn-ghost" style="font-size:12px; display:inline-block; margin-bottom:8px;">← Back to My Events</a>
+        <h1 style="margin:0; font-size:24px; color:var(--fg);">{{ event.name }}</h1>
+        <div style="font-size:13px; color:var(--muted); margin-top:4px;">
+          <span style="color:var(--primary); font-weight:bold;">{{ event.category }}</span> · {{ event.date or 'TBA' }} · {{ event.venue or 'SRM Ramapuram' }}
+        </div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <a href="/coordinator/events/{{ event.id }}/export.csv" class="btn-ghost">EXPORT CSV</a>
+        <a href="/coordinator/events/{{ event.id }}/scan" class="btn-primary" style="padding:10px 20px; font-weight:bold; font-size:14px; text-decoration:none; display:inline-flex; align-items:center; gap:8px;">
+          📷 SCAN QR TICKETS
+        </a>
+      </div>
+    </div>
+
+    <!-- Attendance Stats Cards -->
+    <div class="cards" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
+      <div class="card" style="background:var(--card-bg); border:1px solid var(--border); padding:20px; border-radius:8px; text-align:center;">
+        <div class="num" id="stat-confirmed" style="font-size:32px; font-weight:bold; color:var(--fg);">0</div>
+        <div class="label" style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-top:4px;">CONFIRMED</div>
+      </div>
+      <div class="card" style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.3); padding:20px; border-radius:8px; text-align:center;">
+        <div class="num" id="stat-present" style="font-size:32px; font-weight:bold; color:#10b981;">0</div>
+        <div class="label" style="font-size:12px; color:#10b981; text-transform:uppercase; letter-spacing:0.08em; margin-top:4px;">🟢 PRESENT</div>
+      </div>
+      <div class="card" style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); padding:20px; border-radius:8px; text-align:center;">
+        <div class="num" id="stat-remaining" style="font-size:32px; font-weight:bold; color:#f87171;">0</div>
+        <div class="label" style="font-size:12px; color:#f87171; text-transform:uppercase; letter-spacing:0.08em; margin-top:4px;">⚪ REMAINING</div>
+      </div>
+    </div>
+
+    <!-- Participants Table -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+      <h2 style="margin:0; font-size:18px;">Event Participants & Attendance</h2>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <input type="text" id="part-search" placeholder="Search participant name, email, token..." style="padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg); min-width:240px;" />
+        <select id="part-status-filter" style="padding:8px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);">
+          <option value="">ALL ATTENDANCE</option>
+          <option value="present">🟢 PRESENT ONLY</option>
+          <option value="remaining">⚪ REMAINING ONLY</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="registration-table-wrapper" style="overflow-x:auto;">
+      <table class="table" id="coordinator-participants-table">
+        <thead>
+          <tr>
+            <th>TOKEN</th>
+            <th>PARTICIPANT / TEAM</th>
+            <th>EMAIL / PHONE</th>
+            <th>COLLEGE</th>
+            <th>STATUS</th>
+            <th>CHECK-IN TIME</th>
+            <th>CHECKED IN BY</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="7" class="table-empty-state">Loading participants...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<div id="toast-stack"></div>
+
+<script>
+  window.EVENT_ID = "{{ event.id }}";
+</script>
+<script src="/static/coordinator/js/event_detail.js"></script>
+{% endblock %}

@@ -16,4 +16,5 @@ frontend/out/
 *.dump
 *.db
 scratch/
-
+*credentials*
+*.credentials*

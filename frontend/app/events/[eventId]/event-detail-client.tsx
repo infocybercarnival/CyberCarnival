@@ -226,12 +226,20 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   const toolsRequired = matchingStatic?.toolsRequired
   const additionalInfo = matchingStatic?.additionalInfo
 
+  const isQueueFull = Boolean(
+    event?.confirmation_queue_full ||
+    (event?.max_teams != null && (event?.available_slots ?? event?.seats_available ?? 0) <= 0)
+  )
+
   const seatsLabel =
     !event || event.max_teams == null
       ? 'UNLIMITED'
-      : `${event.seats_available ?? 0} / ${event.max_teams} LEFT`
+      : isQueueFull
+      ? `0 / ${event.max_teams} LEFT (QUEUE FULL)`
+      : `${event.available_slots ?? event.seats_available ?? 0} / ${event.max_teams} LEFT`
 
   const handleRegisterClick = async () => {
+    if (isQueueFull || !isOpen) return
     try {
       const user = await fetchMe()
       if (!user) {
@@ -243,6 +251,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
       router.push(`/register?redirect=/events/${encodeURIComponent(eventId)}?autoRegister=true`)
     }
   }
+
 
   const handleCopyLink = () => {
     if (typeof window !== 'undefined') {
@@ -259,7 +268,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
     return (
       <>
         <Navbar />
-        <main className="mx-auto flex min-h-[70vh] max-w-[1300px] flex-col items-center justify-center px-6 pt-36">
+        <main className="mx-auto flex min-h-[70vh] max-w-[1300px] flex-col items-center justify-center px-4 sm:px-6 pt-36">
           <div className="flex flex-col items-center gap-4 text-center">
             <div className="h-8 w-8 animate-spin border-2 border-primary border-t-transparent" />
             <p className="font-mono text-xs tracking-[0.25em] text-muted-foreground">
@@ -305,7 +314,8 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   return (
     <>
       <Navbar />
-      <main ref={containerRef} className="relative z-20 mx-auto max-w-[1340px] px-6 lg:px-10 pb-32 pt-32">
+      <main ref={containerRef} className="relative z-20 mx-auto max-w-[1340px] px-4 sm:px-6 lg:px-10 pb-32 pt-28 sm:pt-32">
+
         {/* Top Header Bar & Breadcrumb Controls */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-6">
           <Link
@@ -781,19 +791,46 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
               )}
             </div>
 
-            {/* 5. Registration Action Button (Mobile Order: 12) */}
+            {/* 5. Registration Action Button & Queue Full Warning (Mobile Order: 12) */}
             <div className="w-full order-12 lg:order-none">
+              {isQueueFull && (
+                <div className="mb-4 w-full rounded-[10px] border border-amber-500/40 bg-[linear-gradient(155deg,rgba(35,20,5,0.95),rgba(18,8,3,0.98))] p-5 sm:p-6 backdrop-blur-md shadow-[0_0_25px_rgba(245,158,11,0.15)] font-mono text-left">
+                  <div className="flex items-center gap-2.5 text-amber-400 font-bold text-xs sm:text-sm tracking-[0.15em] mb-2.5">
+                    <span className="text-sm sm:text-base">⚠</span>
+                    <span>REGISTRATION TEMPORARILY UNAVAILABLE</span>
+                  </div>
+                  <p className="text-xs text-amber-200/90 leading-relaxed font-sans mb-2 font-medium">
+                    The confirmation queue for this event is currently full.
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed font-sans">
+                    Please wait while existing registrations are reviewed by the event administrators. New registration slots will automatically become available when space is released.
+                  </p>
+                </div>
+              )}
+
               <button
                 type="button"
-                disabled={!isOpen}
+                disabled={!isOpen || isQueueFull}
                 onClick={handleRegisterClick}
-                className="group relative w-full overflow-hidden rounded-[3px] border border-primary bg-primary px-8 py-5 text-center font-mono text-xs font-bold tracking-[0.25em] text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] disabled:cursor-not-allowed disabled:opacity-40"
+                className={
+                  isQueueFull
+                    ? "group relative w-full overflow-hidden rounded-[3px] border border-amber-500/50 bg-amber-950/30 px-8 py-5 text-center font-mono text-xs font-bold tracking-[0.25em] text-amber-400 opacity-90 cursor-not-allowed"
+                    : "group relative w-full overflow-hidden rounded-[3px] border border-primary bg-primary px-8 py-5 text-center font-mono text-xs font-bold tracking-[0.25em] text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-[0_0_30px_rgba(168,85,247,0.4)] disabled:cursor-not-allowed disabled:opacity-40"
+                }
               >
-                {/* Button Moving Glass Highlight */}
-                <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
-                <span>{isOpen ? 'REGISTER NOW →' : 'REGISTRATION CLOSED'}</span>
+                {!isQueueFull && isOpen && (
+                  <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 group-hover:translate-x-full" />
+                )}
+                <span>
+                  {isQueueFull
+                    ? 'QUEUE FULL — AWAITING REVIEW'
+                    : isOpen
+                    ? 'REGISTER NOW →'
+                    : 'REGISTRATION CLOSED'}
+                </span>
               </button>
             </div>
+
           </div>
         </div>
       </main>

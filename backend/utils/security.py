@@ -22,6 +22,11 @@ def add_security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
+    if request.path.startswith("/admin") or request.path.startswith("/coordinator") or request.path.startswith("/api/auth/me"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
     if request.path.startswith("/admin") or request.path.startswith("/coordinator"):
         # Admin panel + coordinator panel: same trust level (both are
         # server-rendered, session-authenticated, own hand-written JS files,
@@ -32,6 +37,7 @@ def add_security_headers(response):
         # layout tweaks rather than a dedicated CSS class each. Same
         # tradeoff the public site already makes below, just for styles
         # only; scripts stay locked down on both panels.
+        allowed_origins_str = " ".join(o.rstrip("/") for o in (config.ALLOWED_ORIGINS or []))
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self'; "
@@ -39,7 +45,7 @@ def add_security_headers(response):
             "img-src 'self' data:; "
             "frame-ancestors 'none'; "
             "base-uri 'self'; "
-            "form-action 'self'"
+            f"form-action 'self' {allowed_origins_str}"
         )
     else:
         # Public site: Next.js embeds inline hydration/bootstrap scripts and
@@ -61,6 +67,7 @@ def add_security_headers(response):
     if config.IS_PRODUCTION:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
 
 
 # --- Login brute-force protection -------------------------------------------------

@@ -262,7 +262,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
     return (
       <>
         <Navbar />
-        <main className="mx-auto flex min-h-[70vh] max-w-[1300px] flex-col items-center justify-center px-6 pt-36">
+        <main className="mx-auto flex min-h-[70vh] max-w-[1300px] flex-col items-center justify-center px-4 sm:px-6 pt-28 sm:pt-36">
           <div className="flex flex-col items-center gap-4 text-center">
             <div className="h-8 w-8 animate-spin border-2 border-primary border-t-transparent" />
             <p className="font-mono text-xs tracking-[0.25em] text-muted-foreground">
@@ -308,7 +308,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   return (
     <>
       <Navbar />
-      <main ref={containerRef} className="relative z-20 mx-auto max-w-[1340px] px-6 lg:px-10 pb-32 pt-32">
+      <main ref={containerRef} className="relative z-20 mx-auto max-w-[1340px] px-4 sm:px-6 lg:px-10 pb-32 pt-28 sm:pt-32">
         {/* Top Header Bar & Breadcrumb Controls */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-6">
           <Link

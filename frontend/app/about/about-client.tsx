@@ -26,7 +26,7 @@ export function AboutClient() {
   return (
     <>
       <Navbar />
-      <main className="relative z-10 mx-auto max-w-7xl px-6 pb-32 pt-36 lg:px-10">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 pb-24 sm:pb-32 pt-28 sm:pt-36 lg:px-10">
         {/* 1. Hero Section */}
         <div ref={heroRef} className="flex flex-col gap-4">
           <div className="flex flex-wrap items-center gap-3">

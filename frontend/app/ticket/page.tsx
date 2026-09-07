@@ -26,7 +26,7 @@ function TicketContent() {
   }, [id])
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-32">
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 sm:px-6 py-28 sm:py-32">
       {loading && (
         <p className="font-mono text-[11px] tracking-[0.3em] text-muted-foreground">LOADING…</p>
       )}

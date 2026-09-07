@@ -50,11 +50,10 @@ export default function RegisterPage() {
       const authUrl = await initiateGoogleLogin(turnstileToken, 'register')
       window.location.href = authUrl
     } catch (err) {
-      setError(
-        err instanceof ApiValidationError
-          ? err.message
-          : 'Something went wrong. Try again.'
-      )
+      const errMsg = err instanceof ApiValidationError
+        ? err.message
+        : (err instanceof Error ? err.message : 'Google authentication initiation failed')
+      setError(errMsg)
       turnstileRef.current?.reset()
       setTurnstileToken('')
       setGoogleLoading(false)
@@ -64,12 +63,8 @@ export default function RegisterPage() {
   return (
     <>
       <Navbar />
-
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-32">
-        <p className="font-mono text-[11px] tracking-[0.3em] text-primary">
-          01 / REGISTER & LOGIN
-        </p>
-
+      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 sm:px-6 py-28 sm:py-32">
+        <p className="font-mono text-[11px] tracking-[0.3em] text-primary">01 / REGISTER & LOGIN</p>
         <h1 className="mt-4 font-sans text-4xl font-bold leading-none tracking-tight text-foreground">
           Get your token
         </h1>

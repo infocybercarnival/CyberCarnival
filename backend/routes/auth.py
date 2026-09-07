@@ -15,6 +15,8 @@ from services import otp_service
 from services import user_service
 from services import registration_service as regs
 from services.event_service import get_event
+from services.session_service import generate_sid, revoke_session
+
 from utils.validators import (
     validate_email_payload,
     validate_otp_payload,
@@ -37,9 +39,19 @@ def generate_pkce():
 
 
 def get_frontend_base():
-    if config.ALLOWED_ORIGINS:
-        return config.ALLOWED_ORIGINS[0].rstrip("/")
-    return ""
+    if request:
+        origin = request.headers.get("Origin") or request.headers.get("Referer")
+        if origin:
+            clean_origin = origin.rstrip("/").split("/login")[0].split("/register")[0]
+            if any(clean_origin == o.rstrip("/") for o in (config.ALLOWED_ORIGINS or [])):
+                return clean_origin
+            if request.host_url.rstrip("/") == clean_origin:
+                return clean_origin
+        if request.host_url:
+            host_base = request.host_url.rstrip("/")
+            if any(host_base == o.rstrip("/") for o in (config.ALLOWED_ORIGINS or [])):
+                return host_base
+    return config.SITE_URL.rstrip("/")
 
 
 def verify_turnstile_token(token: str, remote_ip: str | None = None) -> tuple[bool, str]:
@@ -121,38 +133,12 @@ def google_login():
     state = secrets.token_urlsafe(32)
     code_verifier, code_challenge = generate_pkce()
 
-    # Store OAuth state server-side in Supabase/PostgreSQL instead of relying
-    # on a browser cookie across Vercel -> Render -> Google -> Render.
-    from models import OAuthFlow
+    session["oauth_state"] = state
+    session["code_verifier"] = code_verifier
+    session["oauth_source"] = source
+    session["oauth_frontend_base"] = get_frontend_base()
 
-    # Opportunistically remove expired OAuth flows.
-    try:
-        OAuthFlow.query.filter(OAuthFlow.expires_at < datetime.utcnow()).delete(
-            synchronize_session=False
-        )
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception("Failed to clean expired OAuth flows")
-
-    flow = OAuthFlow(
-        state=state,
-        code_verifier=code_verifier,
-        source=source,
-        expires_at=datetime.utcnow() + timedelta(minutes=10),
-    )
-
-    try:
-        db.session.add(flow)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception("Failed to persist Google OAuth flow")
-        frontend_base = get_frontend_base()
-        if request.method == "POST" or request.args.get("format") == "json":
-            return jsonify({"error": "Could not start Google authentication"}), 500
-        return redirect(f"{frontend_base}/{source}?error=oauth_start_failed")
-
+    logger.warning("[OAUTH_DEBUG] redirect_uri=%s client_id=%s", config.GOOGLE_REDIRECT_URI, config.GOOGLE_CLIENT_ID)
     params = {
         "client_id": config.GOOGLE_CLIENT_ID,
         "redirect_uri": config.GOOGLE_REDIRECT_URI,
@@ -175,7 +161,12 @@ def google_login():
 @bp.get("/google/callback")
 @limiter.limit("15 per minute")
 def google_callback():
-    frontend_base = get_frontend_base()
+    logger.warning("[OAUTH_TRACE] callback_started")
+    oauth_frontend_base = session.pop("oauth_frontend_base", None)
+    frontend_base = oauth_frontend_base or get_frontend_base()
+    oauth_source = session.pop("oauth_source", "login")
+    origin_page = "login" if oauth_source == "login" else "register"
+    error_redirect_base = f"{frontend_base}/{origin_page}"
 
     oauth_error = request.args.get("error")
     state = str(request.args.get("state") or "").strip()
@@ -184,56 +175,32 @@ def google_callback():
     # If Google cancelled/failed before returning a usable state, send the user
     # back to the login page.
     if oauth_error:
-        logger.info("Google OAuth login cancelled or error: %s", oauth_error)
-        return redirect(f"{frontend_base}/login?error=oauth_cancelled")
-
-    if not state:
-        logger.warning("Google OAuth callback received without state")
-        return redirect(f"{frontend_base}/login?error=invalid_state")
-
-    from models import OAuthFlow
-
-    flow = OAuthFlow.query.filter_by(state=state).first()
-
-    if not flow:
-        logger.warning("Google OAuth state not found in server-side store")
-        return redirect(f"{frontend_base}/login?error=invalid_state")
-
-    oauth_source = flow.source if flow.source in ("login", "register") else "login"
-    origin_page = "login" if oauth_source == "login" else "register"
-    error_redirect_base = f"{frontend_base}/{origin_page}"
-
-    # Reject expired flows.
-    if flow.expires_at is None or flow.expires_at < datetime.utcnow():
-        try:
-            db.session.delete(flow)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-        logger.warning("Google OAuth flow expired")
-        return redirect(f"{error_redirect_base}?error=invalid_state")
+        logger.warning("[OAUTH_TRACE_ERROR] oauth_error_param received: %s", oauth_error)
+        return redirect(f"{error_redirect_base}?error=oauth_cancelled")
 
     if not code:
-        try:
-            db.session.delete(flow)
-            db.session.commit()
-        except Exception:
-            db.session.rollback()
-        logger.warning("Google OAuth callback received without code")
+        logger.warning("[OAUTH_TRACE_ERROR] code_missing callback received without code")
         return redirect(f"{error_redirect_base}?error=invalid_callback")
 
     code_verifier = flow.code_verifier
 
-    # Make the OAuth state single-use before token exchange.
-    try:
-        db.session.delete(flow)
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        logger.exception("Failed to consume Google OAuth flow")
+    if not session_state:
+        logger.warning("[OAUTH_TRACE_ERROR] state_missing Session state missing or session cookie expired")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
+    if not state:
+        logger.warning("[OAUTH_TRACE_ERROR] state_param_missing Query parameter 'state' missing from Google callback")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
+    if not code_verifier:
+        logger.warning("[OAUTH_TRACE_ERROR] code_verifier_missing PKCE code_verifier missing from session")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
+    if not secrets.compare_digest(state, session_state):
+        logger.warning("[OAUTH_TRACE_ERROR] state_mismatch State parameter does not match session state")
         return redirect(f"{error_redirect_base}?error=invalid_state")
 
-    # Exchange authorization code for tokens.
+    logger.warning("[OAUTH_TRACE] state_validation_passed")
+    logger.warning("[OAUTH_TRACE] pkce_validation_passed")
+
+    # 3. Exchange authorization code for tokens
     token_url = "https://oauth2.googleapis.com/token"
     token_data = {
         "client_id": config.GOOGLE_CLIENT_ID,
@@ -248,13 +215,15 @@ def google_callback():
         token_resp = requests.post(token_url, data=token_data, timeout=10)
         token_json = token_resp.json()
     except Exception as exc:
-        logger.exception("Error connecting to Google token endpoint: %s", exc)
+        logger.warning("[OAUTH_TRACE_ERROR] token_exchange_failed Error connecting to Google token endpoint: %s", exc)
         return redirect(f"{error_redirect_base}?error=token_exchange_failed")
 
     if token_resp.status_code != 200 or "id_token" not in token_json:
-        print("GOOGLE TOKEN EXCHANGE ERROR:", token_json, flush=True)
-        logger.error("Token exchange failed with Google: %s", token_json)
+        safe_error = {k: v for k, v in token_json.items() if k in ("error", "error_description")} if isinstance(token_json, dict) else str(token_json)
+        logger.warning("[OAUTH_TRACE_ERROR] token_exchange_failed status=%s error=%s", token_resp.status_code, safe_error)
         return redirect(f"{error_redirect_base}?error=token_exchange_failed")
+
+    logger.warning("[OAUTH_TRACE] token_exchange_passed")
 
     raw_id_token = token_json["id_token"]
 
@@ -266,92 +235,89 @@ def google_callback():
             audience=config.GOOGLE_CLIENT_ID,
         )
     except Exception as exc:
-        logger.warning("Invalid Google ID Token verification failed: %s", exc)
+        logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed Invalid Google ID Token: %s", exc)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
 
     iss = claims.get("iss")
     if iss not in ("accounts.google.com", "https://accounts.google.com"):
-        logger.warning("Invalid issuer in Google ID Token: %s", iss)
+        logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed Invalid issuer: %s", iss)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
 
-    email = str(claims.get("email") or "").lower().strip()
+    logger.warning("[OAUTH_TRACE] id_token_verification_passed")
+
+    # Verify email
+    email = claims.get("email", "").lower().strip()
     email_verified = claims.get("email_verified")
     google_sub = claims.get("sub")
     full_name = claims.get("name")
 
     if not email or not email_verified or not google_sub:
-        logger.warning("Google ID token missing email or unverified email")
+        logger.warning("[OAUTH_TRACE_ERROR] google_profile_failed Missing or unverified email in ID token")
         return redirect(f"{error_redirect_base}?error=unverified_email")
 
-    admin_email = (
-        config.ADMIN_GOOGLE_EMAIL or "info.cybercarnival@gmail.com"
-    ).strip().lower()
+    logger.warning("[OAUTH_TRACE] google_profile_passed")
+
+    admin_email = (config.ADMIN_GOOGLE_EMAIL or "info.cybercarnival@gmail.com").strip().lower()
 
     # Admin Google account -> Render-hosted Flask admin panel.
     if email == admin_email:
         from services import admin_service, audit_service
-
+        from flask_wtf.csrf import generate_csrf
         admin = admin_service.get_or_create_admin_for_email(email)
 
         session.clear()
         session["admin_username"] = admin.username
         session["is_admin"] = True
+        session["sid"] = generate_sid()
         session.permanent = True
-
-        audit_service.log_action(
-            admin.username,
-            "google_oauth_admin_login",
-            f"admin login via Google OAuth ({email})",
-            request.remote_addr or "unknown",
-        )
-
-        logger.info(
-            "Successful Google OAuth admin login for email=%s admin_username=%s",
-            email,
-            admin.username,
-        )
+        generate_csrf()
+        logger.warning("[OAUTH_TRACE] session_creation_passed")
+        logger.warning("[OAUTH_TRACE] callback_redirect=/admin/")
+        audit_service.log_action(admin.username, "google_oauth_admin_login", f"admin login via Google OAuth ({email})", request.remote_addr or "unknown")
+        logger.info("Successful Google OAuth admin login for email=%s admin_username=%s", email, admin.username)
         return redirect("/admin/")
 
     # Optional educational-domain restriction for normal users.
     if config.ALLOWED_EMAIL_DOMAIN:
         domain = email.split("@")[-1] if "@" in email else ""
         if domain.lower() != config.ALLOWED_EMAIL_DOMAIN:
-            logger.warning(
-                "Google login attempt with unauthorized email domain: %s",
-                email,
-            )
-            return redirect(
-                f"{error_redirect_base}?error=authorized_email_required"
-            )
+            logger.warning("[OAUTH_TRACE_ERROR] google_profile_failed Unauthorized email domain: %s", email)
+            return redirect(f"{error_redirect_base}?error=authorized_email_required")
 
-    # Normal user account creation/linking.
+    # 5. User Registration / Account Linking via existing user service for normal users
     try:
+        existing_sub = user_service.get_user_by_google_sub(google_sub)
+        existing_email = user_service.get_user_by_email(email)
+        if existing_sub or existing_email:
+            logger.warning("[OAUTH_TRACE] user_lookup_passed")
+
         user = user_service.get_or_create_google_user(
             email=email,
             google_sub=google_sub,
             full_name=full_name,
         )
+        if not existing_sub and not existing_email:
+            logger.warning("[OAUTH_TRACE] user_creation_passed")
+
     except Exception as exc:
-        logger.exception(
-            "Failed to register/get user for Google identity: %s",
-            exc,
-        )
+        logger.warning("[OAUTH_TRACE_ERROR] user_creation_failed Failed to register/get user for Google identity: %s", exc)
         return redirect(f"{error_redirect_base}?error=user_creation_failed")
 
     if not user.is_active:
-        logger.warning("Attempted login to inactive user account: %s", user.id)
+        logger.warning("[OAUTH_TRACE_ERROR] callback_failed Attempted login to inactive user account: %s", user.id)
         return redirect(f"{error_redirect_base}?error=account_disabled")
 
     session.clear()
     session["user_id"] = user.id
+    session["sid"] = generate_sid()
     session.permanent = True
+    logger.warning("[OAUTH_TRACE] session_creation_passed")
+    redirect_target = f"{frontend_base}/dashboard"
+    logger.warning("[OAUTH_TRACE] callback_redirect=%s", redirect_target)
 
-    logger.info(
-        "Successful Google OAuth registration/login for user=%s email=%s",
-        user.id,
-        user.email,
-    )
-    return redirect(f"{frontend_base}/dashboard")
+    logger.info("Successful Google OAuth registration/login for user=%s email=%s", user.id, user.email)
+    return redirect(redirect_target)
+
 
 
 # --- Email OTP Signup (alternative to Google) ----------------------------------------
@@ -487,6 +453,7 @@ def verify_login_otp():
     session.pop("pending_login_user_id", None)
     session.clear()
     session["user_id"] = user.id
+    session["sid"] = generate_sid()
     session.permanent = True
 
     logger.info("Successful username/password + OTP login for user=%s username=%s", user.id, user.username)
@@ -520,10 +487,17 @@ def change_password():
 
 
 
-@bp.post("/logout")
+@bp.route("/logout", methods=["GET", "POST"])
 def logout():
+    sid = session.get("sid")
+    if sid:
+        revoke_session(sid)
     session.clear()
-    return jsonify({"ok": True})
+    resp = jsonify({"success": True, "ok": True, "message": "Logged out successfully"})
+    resp.set_cookie("session", "", expires=0, path="/")
+    return resp
+
+
 
 
 @bp.get("/me")

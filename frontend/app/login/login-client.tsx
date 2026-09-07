@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/turnstile-widget'
-import { initiateGoogleLogin, loginWithPassword, verifyLoginOtp, resendLoginOtp, ApiValidationError } from '@/lib/api'
+import { initiateGoogleLogin, loginWithPassword, verifyLoginOtp, resendLoginOtp, ApiValidationError, API_URL } from '@/lib/api'
 
 export function LoginClient() {
   const router = useRouter()
@@ -158,16 +158,19 @@ export function LoginClient() {
       setStatus('idle')
       turnstileRef.current?.reset()
       setTurnstileToken('')
-      setError(err instanceof ApiValidationError ? err.message.toUpperCase() : 'GOOGLE AUTHENTICATION FAILED')
+      const errMsg = err instanceof ApiValidationError
+        ? err.message
+        : (err instanceof Error ? err.message : 'Google authentication initiation failed')
+      setError(errMsg.toUpperCase())
     }
   }
 
   return (
     <>
       <Navbar />
-      <main className="relative z-10 mx-auto flex min-h-[85vh] max-w-7xl flex-col items-center justify-center px-6 pb-32 pt-36 lg:px-10">
+      <main className="relative z-10 mx-auto flex min-h-[85vh] max-w-7xl flex-col items-center justify-center px-4 sm:px-6 pb-24 sm:pb-32 pt-28 sm:pt-36 lg:px-10">
         {/* Authentication Card Panel */}
-        <div className="w-full max-w-md border border-primary/40 bg-card/70 p-6 md:p-8 backdrop-blur-md rounded-[10px] shadow-[0_0_35px_rgba(168,85,247,0.15)] transition-all">
+        <div className="w-full max-w-md border border-primary/40 bg-card/70 p-4 sm:p-6 md:p-8 backdrop-blur-md rounded-[10px] shadow-[0_0_35px_rgba(168,85,247,0.15)] transition-all">
           <div className="text-center">
             <span className="font-mono text-[10px] tracking-[0.3em] text-primary font-bold">
               {step === 'credentials' ? 'SECURE ACCESS' : '2FA VERIFICATION'}
@@ -319,6 +322,38 @@ export function LoginClient() {
                     : 'CONTINUE WITH GOOGLE'}
                 </span>
               </button>
+
+              {/* Coordinator Login Navigation Button */}
+              <div className="mt-3">
+                {turnstileToken ? (
+                  <a
+                    href={`${API_URL}/coordinator/login`}
+                    className="flex w-full items-center justify-center gap-2 border border-purple-500/40 bg-purple-950/30 px-6 py-3 font-mono text-xs tracking-[0.2em] text-purple-200 transition-all hover:border-purple-500/70 hover:bg-purple-900/50 hover:text-purple-100 hover:shadow-[0_0_20px_rgba(168,85,247,0.3)] rounded-[3px] cursor-pointer"
+                  >
+                    <svg className="h-4 w-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span>COORDINATOR LOGIN</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setError('PLEASE COMPLETE THE SECURITY VERIFICATION')
+                    }}
+                    title="Complete security verification to enable coordinator login"
+                    className="flex w-full items-center justify-center gap-2 border border-purple-500/10 bg-purple-950/10 px-6 py-3 font-mono text-xs tracking-[0.2em] text-purple-400/40 opacity-50 cursor-not-allowed rounded-[3px]"
+                  >
+                    <svg className="h-4 w-4 text-purple-400/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span>COORDINATOR LOGIN</span>
+                  </button>
+                )}
+              </div>
+
 
               {/* Register Callout Footer */}
               <div className="mt-6 pt-4 border-t border-border/40 text-center font-mono text-[11px]">

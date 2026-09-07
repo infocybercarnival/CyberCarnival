@@ -87,7 +87,13 @@ def submit_registration():
     except EventNotFoundError:
         return jsonify({"error": "unknown or inactive event_id"}), 404
     except EventFullError:
-        return jsonify({"error": "this event is at capacity"}), 409
+        return jsonify({
+            "success": False,
+            "code": "CONFIRMATION_QUEUE_FULL",
+            "message": "The registration confirmation queue for this event is currently full. Please wait until existing registrations are processed.",
+            "error": "The registration confirmation queue for this event is currently full. Please wait until existing registrations are processed."
+        }), 409
+
     except RegistrationClosedError:
         return jsonify({"error": "registration for this event is closed"}), 409
     except DuplicateRegistrationError:
@@ -106,9 +112,9 @@ def submit_registration():
         "id": record.id,
         "status": record.status,
         "warnings": warnings,
-        "payment_url": f"/payment?eventId={record.event_id}&registrationId={record.id}" if record.status == "pending_payment" else None,
-        "payment_message": "Proceed to the payment page to complete your registration." if record.status == "pending_payment" else None,
+        "message": "Registration submitted successfully! Your registration is now pending admin verification.",
     }), 201
+
 
 
 @bp.get("/api/events/<event_id>/payment/<registration_id>")

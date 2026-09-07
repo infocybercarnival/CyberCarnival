@@ -30,7 +30,7 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
           SECURITY VERIFICATION
         </label>
         <div className="flex w-full max-w-full items-center justify-center overflow-hidden rounded-sm bg-background/60 border border-primary/30 hover:border-primary/60 p-1.5 transition-all shadow-[0_0_15px_rgba(168,85,247,0.12)]">
-          <div className="flex items-center justify-center max-w-full overflow-hidden scale-[0.92] min-[380px]:scale-100 origin-center transition-transform">
+          <div className="flex items-center justify-center max-w-full overflow-hidden scale-[0.85] min-[360px]:scale-[0.92] min-[410px]:scale-100 origin-center transition-transform">
             <Turnstile
               ref={turnstileRef}
               siteKey={siteKey}
