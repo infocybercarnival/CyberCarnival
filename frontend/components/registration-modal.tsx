@@ -196,6 +196,18 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
         participants: participantList,
       })
 
+      if (
+        result.status === 'pending_payment' ||
+        (result.payment_url && result.status !== 'confirmed')
+      ) {
+        onClose()
+        const targetUrl =
+          result.payment_url ||
+          `/payment?eventId=${eventId}&registrationId=${result.id}`
+        router.push(targetUrl)
+        return
+      }
+
       setWarnings((prev) => [...prev, ...(result.warnings || [])])
       setStatus('done')
 
