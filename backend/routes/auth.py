@@ -123,22 +123,24 @@ def google_login():
             "Google OAuth is missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET configuration"
         )
         if request.method == "POST" or request.args.get("format") == "json":
-            return jsonify(
-                {"error": "Google OAuth is not configured on the server"}
-            ), 500
+            return jsonify({"error": "Google OAuth is not configured on the server"}), 500
         frontend_base = get_frontend_base()
         return redirect(f"{frontend_base}/{source}?error=config_missing")
 
-    # Generate OAuth state + PKCE verifier.
+    from models import OAuthFlow
+
     state = secrets.token_urlsafe(32)
     code_verifier, code_challenge = generate_pkce()
 
-    session["oauth_state"] = state
-    session["code_verifier"] = code_verifier
-    session["oauth_source"] = source
-    session["oauth_frontend_base"] = get_frontend_base()
+    flow = OAuthFlow(
+        state=state,
+        code_verifier=code_verifier,
+        source=source,
+        expires_at=datetime.utcnow() + timedelta(minutes=10),
+    )
+    db.session.add(flow)
+    db.session.commit()
 
-    logger.warning("[OAUTH_DEBUG] redirect_uri=%s client_id=%s", config.GOOGLE_REDIRECT_URI, config.GOOGLE_CLIENT_ID)
     params = {
         "client_id": config.GOOGLE_CLIENT_ID,
         "redirect_uri": config.GOOGLE_REDIRECT_URI,
@@ -154,7 +156,6 @@ def google_login():
 
     if request.method == "POST" or request.args.get("format") == "json":
         return jsonify({"auth_url": auth_url})
-
     return redirect(auth_url)
 
 
@@ -162,45 +163,45 @@ def google_login():
 @limiter.limit("15 per minute")
 def google_callback():
     logger.warning("[OAUTH_TRACE] callback_started")
-    oauth_frontend_base = session.pop("oauth_frontend_base", None)
-    frontend_base = oauth_frontend_base or get_frontend_base()
-    oauth_source = session.pop("oauth_source", "login")
-    origin_page = "login" if oauth_source == "login" else "register"
-    error_redirect_base = f"{frontend_base}/{origin_page}"
+
+    from models import OAuthFlow
 
     oauth_error = request.args.get("error")
     state = str(request.args.get("state") or "").strip()
     code = str(request.args.get("code") or "").strip()
 
-    # If Google cancelled/failed before returning a usable state, send the user
-    # back to the login page.
-    if oauth_error:
-        logger.warning("[OAUTH_TRACE_ERROR] oauth_error_param received: %s", oauth_error)
-        return redirect(f"{error_redirect_base}?error=oauth_cancelled")
+    frontend_base = config.SITE_URL.rstrip("/")
+    origin_page = "login"
+    error_redirect_base = f"{frontend_base}/{origin_page}"
 
+    if oauth_error:
+        return redirect(f"{error_redirect_base}?error=oauth_cancelled")
+    if not state:
+        return redirect(f"{error_redirect_base}?error=invalid_state")
     if not code:
-        logger.warning("[OAUTH_TRACE_ERROR] code_missing callback received without code")
         return redirect(f"{error_redirect_base}?error=invalid_callback")
 
+    flow = OAuthFlow.query.filter_by(state=state).first()
+    if not flow:
+        logger.warning("[OAUTH_TRACE_ERROR] state_not_found")
+        return redirect(f"{error_redirect_base}?error=invalid_state")
+
+    oauth_source = flow.source if flow.source in ("login", "register") else "login"
+    origin_page = "login" if oauth_source == "login" else "register"
+    error_redirect_base = f"{frontend_base}/{origin_page}"
+
+    if flow.expires_at and flow.expires_at < datetime.utcnow():
+        db.session.delete(flow)
+        db.session.commit()
+        return redirect(f"{error_redirect_base}?error=invalid_state")
+
     code_verifier = flow.code_verifier
+    db.session.delete(flow)
+    db.session.commit()
 
-    if not session_state:
-        logger.warning("[OAUTH_TRACE_ERROR] state_missing Session state missing or session cookie expired")
-        return redirect(f"{error_redirect_base}?error=invalid_state")
-    if not state:
-        logger.warning("[OAUTH_TRACE_ERROR] state_param_missing Query parameter 'state' missing from Google callback")
-        return redirect(f"{error_redirect_base}?error=invalid_state")
     if not code_verifier:
-        logger.warning("[OAUTH_TRACE_ERROR] code_verifier_missing PKCE code_verifier missing from session")
-        return redirect(f"{error_redirect_base}?error=invalid_state")
-    if not secrets.compare_digest(state, session_state):
-        logger.warning("[OAUTH_TRACE_ERROR] state_mismatch State parameter does not match session state")
         return redirect(f"{error_redirect_base}?error=invalid_state")
 
-    logger.warning("[OAUTH_TRACE] state_validation_passed")
-    logger.warning("[OAUTH_TRACE] pkce_validation_passed")
-
-    # 3. Exchange authorization code for tokens
     token_url = "https://oauth2.googleapis.com/token"
     token_data = {
         "client_id": config.GOOGLE_CLIENT_ID,
@@ -215,19 +216,14 @@ def google_callback():
         token_resp = requests.post(token_url, data=token_data, timeout=10)
         token_json = token_resp.json()
     except Exception as exc:
-        logger.warning("[OAUTH_TRACE_ERROR] token_exchange_failed Error connecting to Google token endpoint: %s", exc)
+        logger.warning("[OAUTH_TRACE_ERROR] token_exchange_failed: %s", exc)
         return redirect(f"{error_redirect_base}?error=token_exchange_failed")
 
     if token_resp.status_code != 200 or "id_token" not in token_json:
-        safe_error = {k: v for k, v in token_json.items() if k in ("error", "error_description")} if isinstance(token_json, dict) else str(token_json)
-        logger.warning("[OAUTH_TRACE_ERROR] token_exchange_failed status=%s error=%s", token_resp.status_code, safe_error)
+        logger.warning("[OAUTH_TRACE_ERROR] token_exchange_failed status=%s", token_resp.status_code)
         return redirect(f"{error_redirect_base}?error=token_exchange_failed")
 
-    logger.warning("[OAUTH_TRACE] token_exchange_passed")
-
     raw_id_token = token_json["id_token"]
-
-    # Verify ID Token (signature, issuer, audience, expiration).
     try:
         claims = google_id_token.verify_oauth2_token(
             raw_id_token,
@@ -235,88 +231,66 @@ def google_callback():
             audience=config.GOOGLE_CLIENT_ID,
         )
     except Exception as exc:
-        logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed Invalid Google ID Token: %s", exc)
+        logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed: %s", exc)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
 
     iss = claims.get("iss")
     if iss not in ("accounts.google.com", "https://accounts.google.com"):
-        logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed Invalid issuer: %s", iss)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
 
-    logger.warning("[OAUTH_TRACE] id_token_verification_passed")
-
-    # Verify email
     email = claims.get("email", "").lower().strip()
     email_verified = claims.get("email_verified")
     google_sub = claims.get("sub")
     full_name = claims.get("name")
 
     if not email or not email_verified or not google_sub:
-        logger.warning("[OAUTH_TRACE_ERROR] google_profile_failed Missing or unverified email in ID token")
         return redirect(f"{error_redirect_base}?error=unverified_email")
 
-    logger.warning("[OAUTH_TRACE] google_profile_passed")
+    admin_email = (config.ADMIN_GOOGLE_EMAIL or "").strip().lower()
 
-    admin_email = (config.ADMIN_GOOGLE_EMAIL or "info.cybercarnival@gmail.com").strip().lower()
-
-    # Admin Google account -> Render-hosted Flask admin panel.
-    if email == admin_email:
+    if admin_email and email == admin_email:
         from services import admin_service, audit_service
         from flask_wtf.csrf import generate_csrf
-        admin = admin_service.get_or_create_admin_for_email(email)
 
+        admin = admin_service.get_or_create_admin_for_email(email)
         session.clear()
         session["admin_username"] = admin.username
         session["is_admin"] = True
         session["sid"] = generate_sid()
         session.permanent = True
         generate_csrf()
-        logger.warning("[OAUTH_TRACE] session_creation_passed")
-        logger.warning("[OAUTH_TRACE] callback_redirect=/admin/")
-        audit_service.log_action(admin.username, "google_oauth_admin_login", f"admin login via Google OAuth ({email})", request.remote_addr or "unknown")
-        logger.info("Successful Google OAuth admin login for email=%s admin_username=%s", email, admin.username)
+        audit_service.log_action(
+            admin.username,
+            "google_oauth_admin_login",
+            f"admin login via Google OAuth ({email})",
+            request.remote_addr or "unknown",
+        )
         return redirect("/admin/")
 
-    # Optional educational-domain restriction for normal users.
     if config.ALLOWED_EMAIL_DOMAIN:
         domain = email.split("@")[-1] if "@" in email else ""
         if domain.lower() != config.ALLOWED_EMAIL_DOMAIN:
-            logger.warning("[OAUTH_TRACE_ERROR] google_profile_failed Unauthorized email domain: %s", email)
             return redirect(f"{error_redirect_base}?error=authorized_email_required")
 
-    # 5. User Registration / Account Linking via existing user service for normal users
     try:
-        existing_sub = user_service.get_user_by_google_sub(google_sub)
-        existing_email = user_service.get_user_by_email(email)
-        if existing_sub or existing_email:
-            logger.warning("[OAUTH_TRACE] user_lookup_passed")
-
         user = user_service.get_or_create_google_user(
             email=email,
             google_sub=google_sub,
             full_name=full_name,
         )
-        if not existing_sub and not existing_email:
-            logger.warning("[OAUTH_TRACE] user_creation_passed")
-
-    except Exception as exc:
-        logger.warning("[OAUTH_TRACE_ERROR] user_creation_failed Failed to register/get user for Google identity: %s", exc)
+    except Exception:
+        logger.exception("[OAUTH_TRACE_ERROR] user_creation_failed")
         return redirect(f"{error_redirect_base}?error=user_creation_failed")
 
     if not user.is_active:
-        logger.warning("[OAUTH_TRACE_ERROR] callback_failed Attempted login to inactive user account: %s", user.id)
         return redirect(f"{error_redirect_base}?error=account_disabled")
 
     session.clear()
     session["user_id"] = user.id
     session["sid"] = generate_sid()
     session.permanent = True
-    logger.warning("[OAUTH_TRACE] session_creation_passed")
-    redirect_target = f"{frontend_base}/dashboard"
-    logger.warning("[OAUTH_TRACE] callback_redirect=%s", redirect_target)
 
-    logger.info("Successful Google OAuth registration/login for user=%s email=%s", user.id, user.email)
-    return redirect(redirect_target)
+    return redirect(f"{frontend_base}/dashboard")
 
 
 
