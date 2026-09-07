@@ -36,7 +36,7 @@ def _date_conflicts_for_user(user_id: str, event: Event) -> list[str]:
         .join(Event, EventRegistration.event_id == Event.id)
         .filter(
             RegistrationMember.user_id == user_id,
-            EventRegistration.status.in_(["confirmed", "pending_verification"]),
+            EventRegistration.status.in_(["confirmed", "pending_verification", "pending_payment"]),
             EventRegistration.event_id != event.id,
             Event.event_start_date.isnot(None),
         )
@@ -58,7 +58,7 @@ def _already_registered(event_id: str, user_id: str) -> bool:
         RegistrationMember.query.join(EventRegistration, RegistrationMember.registration_id == EventRegistration.id)
         .filter(
             EventRegistration.event_id == event_id,
-            EventRegistration.status.in_(["confirmed", "pending_verification"]),
+            EventRegistration.status.in_(["confirmed", "pending_verification", "pending_payment"]),
             RegistrationMember.user_id == user_id,
         )
         .with_for_update()
@@ -120,7 +120,7 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
             db.session.query(EventRegistration)
             .filter(
                 EventRegistration.event_id == event.id,
-                EventRegistration.status.in_(["confirmed", "pending_verification"]),
+                EventRegistration.status.in_(["confirmed", "pending_verification", "pending_payment"]),
             )
             .count()
         )
@@ -133,6 +133,21 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
     effective_fee = get_effective_fee_amount(event)
     if effective_fee <= 0:
         raise UnconfiguredFeeError("For free events kindly contact the Student Co-Ordinator")
+
+    # If the leader already started a payment for this event, resume that
+    # registration instead of creating a duplicate.
+    existing_pending = (
+        EventRegistration.query.filter_by(
+            event_id=event.id,
+            leader_user_id=leader.id,
+            status="pending_payment",
+        )
+        .order_by(EventRegistration.created_at.desc())
+        .first()
+    )
+    if existing_pending:
+        warnings = [f"Resuming your pending payment for {event.name}."]
+        return existing_pending, warnings
 
     raw_tokens = clean_data.get("member_tokens", [])
     mode = clean_data.get("participant_mode", "individual")
@@ -170,12 +185,12 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
         transaction_id=None,
         payment_amount=effective_fee,
         payment_submitted_at=None,
-        status="pending_verification",
+        status="pending_payment",
     )
     db.session.add(registration)
     db.session.flush()
 
-    is_active = (registration.status in ["confirmed", "pending_verification"])
+    is_active = (registration.status in ["confirmed", "pending_verification", "pending_payment"])
     participants_input = clean_data.get("participants", [])
 
     leader_p = participants_input[0] if len(participants_input) > 0 else {}
@@ -390,7 +405,7 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
     if not event or not event.fee_amount:
         raise InvalidPaymentStateError("This event does not require payment")
 
-    if reg.status not in ("pending_verification", "confirmed"):
+    if reg.status != "pending_payment":
         raise InvalidPaymentStateError(f"Registration status '{reg.status}' is not eligible for payment submission")
 
 
