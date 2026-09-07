@@ -3,6 +3,7 @@ import base64
 import hashlib
 import secrets
 from urllib.parse import urlencode
+from datetime import datetime, timedelta
 
 import requests
 from google.oauth2 import id_token as google_id_token
@@ -29,7 +30,6 @@ from utils.logger import get_logger
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = get_logger("auth")
-
 
 def generate_pkce():
     verifier = secrets.token_urlsafe(64)
@@ -105,10 +105,13 @@ def google_login():
     source = str(
         request.args.get("source") or payload.get("source") or "login"
     ).strip().lower()
+
     if source not in ("login", "register"):
         source = "login"
 
-    is_valid_captcha, captcha_error = verify_turnstile_token(turnstile_token, request.remote_addr)
+    is_valid_captcha, captcha_error = verify_turnstile_token(
+        turnstile_token, request.remote_addr
+    )
     if not is_valid_captcha:
         if request.method == "POST" or request.args.get("format") == "json":
             return jsonify({"error": captcha_error}), 400
@@ -116,12 +119,17 @@ def google_login():
         return redirect(f"{frontend_base}/{source}?error=captcha_failed")
 
     if not config.GOOGLE_CLIENT_ID or not config.GOOGLE_CLIENT_SECRET:
-        logger.error("Google OAuth is missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET configuration")
+        logger.error(
+            "Google OAuth is missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET configuration"
+        )
         if request.method == "POST" or request.args.get("format") == "json":
-            return jsonify({"error": "Google OAuth is not configured on the server"}), 500
+            return jsonify(
+                {"error": "Google OAuth is not configured on the server"}
+            ), 500
         frontend_base = get_frontend_base()
         return redirect(f"{frontend_base}/{source}?error=config_missing")
 
+    # Generate OAuth state + PKCE verifier.
     state = secrets.token_urlsafe(32)
     code_verifier, code_challenge = generate_pkce()
 
@@ -141,10 +149,12 @@ def google_login():
         "code_challenge_method": "S256",
         "prompt": "select_account",
     }
+
     auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
     if request.method == "POST" or request.args.get("format") == "json":
         return jsonify({"auth_url": auth_url})
+
     return redirect(auth_url)
 
 
@@ -158,21 +168,21 @@ def google_callback():
     origin_page = "login" if oauth_source == "login" else "register"
     error_redirect_base = f"{frontend_base}/{origin_page}"
 
-    # 1. Check for OAuth error / cancellation
     oauth_error = request.args.get("error")
+    state = str(request.args.get("state") or "").strip()
+    code = str(request.args.get("code") or "").strip()
+
+    # If Google cancelled/failed before returning a usable state, send the user
+    # back to the login page.
     if oauth_error:
         logger.warning("[OAUTH_TRACE_ERROR] oauth_error_param received: %s", oauth_error)
         return redirect(f"{error_redirect_base}?error=oauth_cancelled")
 
-    code = request.args.get("code")
-    state = request.args.get("state")
     if not code:
         logger.warning("[OAUTH_TRACE_ERROR] code_missing callback received without code")
         return redirect(f"{error_redirect_base}?error=invalid_callback")
 
-    # 2. Validate state and PKCE verifier
-    session_state = session.pop("oauth_state", None)
-    code_verifier = session.pop("code_verifier", None)
+    code_verifier = flow.code_verifier
 
     if not session_state:
         logger.warning("[OAUTH_TRACE_ERROR] state_missing Session state missing or session cookie expired")
@@ -217,7 +227,7 @@ def google_callback():
 
     raw_id_token = token_json["id_token"]
 
-    # 4. Verify ID Token (signature, issuer, audience, expiration)
+    # Verify ID Token (signature, issuer, audience, expiration).
     try:
         claims = google_id_token.verify_oauth2_token(
             raw_id_token,
@@ -228,7 +238,6 @@ def google_callback():
         logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed Invalid Google ID Token: %s", exc)
         return redirect(f"{error_redirect_base}?error=invalid_id_token")
 
-    # Verify issuer
     iss = claims.get("iss")
     if iss not in ("accounts.google.com", "https://accounts.google.com"):
         logger.warning("[OAUTH_TRACE_ERROR] id_token_verification_failed Invalid issuer: %s", iss)
@@ -250,11 +259,12 @@ def google_callback():
 
     admin_email = (config.ADMIN_GOOGLE_EMAIL or "info.cybercarnival@gmail.com").strip().lower()
 
-    # If the verified Google identity matches ADMIN_GOOGLE_EMAIL, establish admin session
+    # Admin Google account -> Render-hosted Flask admin panel.
     if email == admin_email:
         from services import admin_service, audit_service
         from flask_wtf.csrf import generate_csrf
         admin = admin_service.get_or_create_admin_for_email(email)
+
         session.clear()
         session["admin_username"] = admin.username
         session["is_admin"] = True
@@ -267,7 +277,7 @@ def google_callback():
         logger.info("Successful Google OAuth admin login for email=%s admin_username=%s", email, admin.username)
         return redirect("/admin/")
 
-    # Check educational domain restriction if configured for normal users
+    # Optional educational-domain restriction for normal users.
     if config.ALLOWED_EMAIL_DOMAIN:
         domain = email.split("@")[-1] if "@" in email else ""
         if domain.lower() != config.ALLOWED_EMAIL_DOMAIN:
@@ -297,7 +307,6 @@ def google_callback():
         logger.warning("[OAUTH_TRACE_ERROR] callback_failed Attempted login to inactive user account: %s", user.id)
         return redirect(f"{error_redirect_base}?error=account_disabled")
 
-    # 7. Establish application session for normal user
     session.clear()
     session["user_id"] = user.id
     session["sid"] = generate_sid()
@@ -539,33 +548,62 @@ def my_events():
     from models import EventRegistration, RegistrationMember
 
     registrations = (
-        EventRegistration.query.join(RegistrationMember, EventRegistration.id == RegistrationMember.registration_id)
+        EventRegistration.query
+        .join(
+            RegistrationMember,
+            EventRegistration.id == RegistrationMember.registration_id
+        )
         .filter(
             RegistrationMember.user_id == user.id,
-            EventRegistration.status.in_(["confirmed", "pending_verification", "rejected"]),
+            EventRegistration.status.in_([
+                "pending_payment",
+                "pending_verification",
+                "confirmed",
+                "rejected",
+            ]),
         )
         .order_by(EventRegistration.created_at.desc())
+        .distinct()
         .all()
     )
+
     out = []
+
     for reg in registrations:
         event = get_event(reg.event_id)
-        out.append(
-            {
-                "registration_id": reg.id,
-                "event_id": reg.event_id,
-                "event_name": event.name if event else reg.event_id,
-                "team_name": reg.team_name,
-                "is_leader": any(m.user_id == user.id and m.is_leader for m in reg.members),
-                "status": reg.status,
-                "rejection_reason": reg.rejection_reason,
-                "members": [
-                    {"name": m.user.full_name or m.user.username, "token": m.user.cybercarnival_token}
-                    for m in reg.members
-                ],
-                "venue": event.venue if event else None,
-                "date": event.event_date if event else None,
-                "time": event.event_time if event else None,
-            }
-        )
+
+        out.append({
+            "registration_id": reg.id,
+            "event_id": reg.event_id,
+            "event_name": event.name if event else reg.event_id,
+            "team_name": reg.team_name,
+            "is_leader": any(
+                m.user_id == user.id and m.is_leader
+                for m in reg.members
+            ),
+            "status": reg.status,
+            "rejection_reason": reg.rejection_reason,
+            "members": [
+                {
+                    "name": (
+                        m.participant_name
+                        or (m.user.full_name if m.user else None)
+                        or (m.user.username if m.user else "")
+                    ),
+                    "token": (
+                        m.user.cybercarnival_token
+                        if m.user else None
+                    ),
+                    "is_leader": bool(m.is_leader),
+                }
+                for m in sorted(
+                    reg.members,
+                    key=lambda m: (not m.is_leader, m.joined_at)
+                )
+            ],
+            "venue": event.venue if event else None,
+            "date": event.event_date if event else None,
+            "time": event.event_time if event else None,
+        })
+
     return jsonify(out)

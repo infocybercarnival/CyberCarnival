@@ -1,12 +1,20 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Space_Grotesk, Oxanium, JetBrains_Mono, Orbitron, Chakra_Petch } from 'next/font/google'
+import {
+  Space_Grotesk,
+  Oxanium,
+  JetBrains_Mono,
+  Orbitron,
+  Chakra_Petch,
+} from 'next/font/google'
 import dynamic from 'next/dynamic'
 import './globals.css'
 import { BackgroundField } from '@/components/background-field'
 
-const EventPromoTicker = dynamic(
-  () => import('@/components/event-promo-ticker').then((m) => m.EventPromoTicker),
+const EventPromoTicker = dynamic(() =>
+  import('@/components/event-promo-ticker').then(
+    (m) => m.EventPromoTicker,
+  ),
 )
 
 const spaceGrotesk = Space_Grotesk({
@@ -86,23 +94,33 @@ export default function RootLayout({
       className={`bg-background ${spaceGrotesk.variable} ${oxanium.variable} ${jetbrainsMono.variable} ${orbitron.variable} ${chakraPetch.variable}`}
     >
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="preconnect"
+          href="https://fonts.googleapis.com"
+        />
+
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+
         <link
           href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased font-sans">
-        {/* Layer 2 Background Field (Stars, Nebulas & Spiders at z-10) */}
+
+      <body className="font-sans antialiased">
+        {/* Background stars / nebula / spiders */}
         <BackgroundField />
 
-        {/* Layer 3 Foreground UI Stacking Context (z-20+) */}
+        {/* Main UI */}
         <div className="relative z-20 min-h-screen">
           {children}
         </div>
 
-        {/* Global Floating Event Promo Ticker (Auto-hides on Home '/') */}
+        {/* Floating event promo */}
         <EventPromoTicker />
 
         <Analytics />

@@ -297,6 +297,29 @@ def validate_event_registration_payload(data: dict) -> dict:
             cleaned_participants = []
             seen_emails = set()
             for idx, p_data in enumerate(participants):
+                # The frontend may include an empty placeholder object for a
+                # teammate selected by CyberCarnival token. That teammate is
+                # already identified by member_tokens, and registration_service
+                # can safely fall back to the verified User profile for any
+                # participant fields not supplied here.
+                #
+                # Completely empty participant objects are therefore treated as
+                # "details not overridden" instead of a validation failure.
+                # Partially filled objects are still validated strictly.
+                if isinstance(p_data, dict):
+                    participant_values = (
+                        p_data.get("participant_name") or p_data.get("name"),
+                        p_data.get("participant_email") or p_data.get("email"),
+                        p_data.get("college_name") or p_data.get("college"),
+                        p_data.get("participant_phone") or p_data.get("phone"),
+                    )
+                    if not any(
+                        isinstance(value, str) and value.strip()
+                        for value in participant_values
+                    ):
+                        cleaned_participants.append({})
+                        continue
+
                 try:
                     p_clean = validate_single_participant_detail(p_data, idx)
                     p_email = p_clean["participant_email"]
@@ -422,5 +445,4 @@ def validate_participant_details_submission(data: dict) -> dict:
 
     clean["participants"] = cleaned_participants
     return clean
-
 
