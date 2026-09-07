@@ -59,21 +59,36 @@ export function DashboardClient() {
     return events.map((ev) => {
       const fallback = staticByName.get(ev.event_name.toUpperCase())
       const posterSrc = fallback?.poster || null
-      const tag = ev.status === 'pending_verification' ? 'AWAITING VERIFICATION' : (fallback?.tag || 'REGISTERED')
+      const tag =
+        ev.status === 'pending_payment'
+          ? 'PAYMENT PENDING'
+          : ev.status === 'pending_verification'
+          ? 'AWAITING VERIFICATION'
+          : (fallback?.tag || 'REGISTERED')
 
       return {
         id: ev.event_id || ev.event_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         name: ev.event_name,
         tag,
         category: 'REGISTERED',
-        description: ev.status === 'pending_verification' ? `Payment submitted — verification pending${ev.team_name ? ` · Team: ${ev.team_name}` : ''}` : (ev.team_name ? `Team: ${ev.team_name}` : 'Individual Registration'),
+        description:
+          ev.status === 'pending_payment'
+            ? `Payment not completed yet${ev.team_name ? ` · Team: ${ev.team_name}` : ''}`
+            : ev.status === 'pending_verification'
+            ? `Payment submitted — verification pending${ev.team_name ? ` · Team: ${ev.team_name}` : ''}`
+            : (ev.team_name ? `Team: ${ev.team_name}` : 'Individual Registration'),
         posterSrc,
         posterAlt: `${ev.event_name} poster`,
         fee: fallback?.details.fee || 'REGISTERED',
         date: ev.date || fallback?.details.date || '7 — 8 OCTOBER',
         venue: ev.venue || fallback?.details.venue || 'SRM RAMAPURAM',
         teamSize: ev.members && ev.members.length > 0 ? `${ev.members.length} MEMBER(S)` : null,
-        seatsStatus: ev.status === 'pending_verification' ? '● PAYMENT VERIFICATION PENDING' : '● CONFIRMED',
+        seatsStatus:
+          ev.status === 'pending_payment'
+            ? '● PAYMENT PENDING'
+            : ev.status === 'pending_verification'
+            ? '● PAYMENT VERIFICATION PENDING'
+            : '● CONFIRMED',
         seatsRatio: null,
         registrationOpen: true,
         isFallback: false,
@@ -294,6 +309,17 @@ export function DashboardClient() {
 
                         {/* Status Card Main Body */}
                         <div className="mt-5 rounded-[8px] border border-border/40 p-4">
+                          {ev.status === 'pending_payment' && (
+                            <div className="border border-primary/40 bg-primary/10 p-3 rounded-[6px] text-primary">
+                              <p className="font-bold tracking-wider uppercase text-[11px] flex items-center gap-1.5">
+                                ₹ PAYMENT PENDING
+                              </p>
+                              <p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
+                                Your event slot is reserved temporarily. Complete the payment to submit your registration for verification.
+                              </p>
+                            </div>
+                          )}
+
                           {ev.status === 'pending_verification' && (
                             <div className="border border-amber-500/40 bg-amber-500/10 p-3 rounded-[6px] text-amber-300">
                               <p className="font-bold tracking-wider uppercase text-[11px] flex items-center gap-1.5">
@@ -345,6 +371,15 @@ export function DashboardClient() {
                             VIEW TICKET →
                           </Link>
                         )}
+                        {ev.status === 'pending_payment' && (
+                          <Link
+                            href={`/payment?eventId=${ev.event_id}&registrationId=${ev.registration_id}`}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-[3px] border border-primary bg-primary px-4 py-2.5 font-mono text-[11px] font-bold tracking-[0.12em] text-primary-foreground transition-all hover:bg-primary/90 hover:shadow-[0_0_20px_rgba(168,85,247,0.3)]"
+                          >
+                            COMPLETE PAYMENT →
+                          </Link>
+                        )}
+
                         {ev.status === 'pending_verification' && (
                           <Link
                             href={`/payment?eventId=${ev.event_id}&registrationId=${ev.registration_id}`}
