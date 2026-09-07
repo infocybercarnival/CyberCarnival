@@ -112,7 +112,21 @@ def submit_registration():
         "id": record.id,
         "status": record.status,
         "warnings": warnings,
-        "message": "Registration submitted successfully! Your registration is now pending admin verification.",
+        "payment_url": (
+            f"/payment?eventId={record.event_id}&registrationId={record.id}"
+            if record.status == "pending_payment"
+            else None
+        ),
+        "payment_message": (
+            "Proceed to the payment page to complete your registration."
+            if record.status == "pending_payment"
+            else None
+        ),
+        "message": (
+            "Proceed to payment to complete your registration."
+            if record.status == "pending_payment"
+            else "Registration submitted successfully."
+        ),
     }), 201
 
 
