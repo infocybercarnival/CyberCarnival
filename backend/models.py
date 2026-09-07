@@ -144,8 +144,13 @@ class Event(db.Model):
                 event_id=self.id, status="pending_verification"
             ).count()
         )
+        pending_payment_count = (
+            EventRegistration.query.filter_by(
+                event_id=self.id, status="pending_payment"
+            ).count()
+        )
 
-        occupied_count = confirmed_count + confirmation_pending_count
+        occupied_count = confirmed_count + confirmation_pending_count + pending_payment_count
         available_slots = (
             max(capacity - occupied_count, 0) if capacity is not None else None
         )
@@ -156,6 +161,7 @@ class Event(db.Model):
             "capacity": capacity,
             "confirmed_count": confirmed_count,
             "confirmation_pending_count": confirmation_pending_count,
+            "pending_payment_count": pending_payment_count,
             "occupied_count": occupied_count,
             "available_slots": available_slots,
             "confirmation_queue_full": confirmation_queue_full,
@@ -215,6 +221,7 @@ class Event(db.Model):
             "capacity": cap_info["capacity"],
             "confirmed_count": cap_info["confirmed_count"],
             "confirmation_pending_count": cap_info["confirmation_pending_count"],
+            "pending_payment_count": cap_info.get("pending_payment_count", 0),
             "occupied_count": cap_info["occupied_count"],
             "available_slots": cap_info["available_slots"],
             "confirmation_queue_full": cap_info["confirmation_queue_full"],
@@ -314,7 +321,7 @@ class EventRegistration(db.Model):
     # UPI transaction/reference ID. They remain pending_verification until an
     # admin/coordinator verifies the payment and confirms them. Free events
     # are confirmed immediately.
-    status = db.Column(db.String(24), nullable=False, default="pending_verification")
+    status = db.Column(db.String(24), nullable=False, default="pending_payment")
 
     participant_mode = db.Column(db.String(16), nullable=False, default="individual")
     transaction_id = db.Column(db.String(80), nullable=True, unique=True, index=True)
