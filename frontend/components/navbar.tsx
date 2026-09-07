@@ -361,22 +361,24 @@ export function Navbar() {
                   </button>
                 </>
               ) : (
-                <Link
-                  href="/login"
-                  onClick={() => setOpen(false)}
-                  className="flex min-h-[44px] items-center rounded-sm px-4 py-2.5 font-mono text-xs tracking-[0.2em] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
-                >
-                  LOGIN
-                </Link>
-              )}
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setOpen(false)}
+                    className="flex min-h-[44px] items-center rounded-sm px-4 py-2.5 font-mono text-xs tracking-[0.2em] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
+                  >
+                    LOGIN
+                  </Link>
 
-              <Link
-                href="/register"
-                onClick={() => setOpen(false)}
-                className="mt-3 flex min-h-[44px] items-center justify-center gap-2 border border-primary/60 bg-primary/20 px-5 py-3 font-mono text-xs tracking-[0.2em] text-foreground transition-all hover:bg-primary hover:text-primary-foreground rounded-sm"
-              >
-                REGISTER <span aria-hidden="true">→</span>
-              </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setOpen(false)}
+                    className="mt-3 flex min-h-[44px] items-center justify-center gap-2 border border-primary/60 bg-primary/20 px-5 py-3 font-mono text-xs tracking-[0.2em] text-foreground transition-all hover:bg-primary hover:text-primary-foreground rounded-sm"
+                  >
+                    REGISTER <span aria-hidden="true">→</span>
+                  </Link>
+                </>
+              )}
             </li>
           </ul>
         </div>
@@ -384,4 +386,3 @@ export function Navbar() {
     </header>
   )
 }
-
