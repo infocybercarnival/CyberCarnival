@@ -729,3 +729,48 @@
     );
   }
 }
+
+  // --- UI wiring ------------------------------------------------------------
+
+  var nextScanButton = el("btn-next-scan");
+  if (nextScanButton) {
+    nextScanButton.addEventListener("click", resetToReady);
+  }
+
+  var manualForm = el("manual-scan-form");
+  if (manualForm) {
+    manualForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      var input = el("manual-ticket-input");
+      var value = input ? input.value.trim() : "";
+
+      if (value) {
+        processScanResult(value);
+        input.value = "";
+      }
+    });
+  }
+
+  var startCameraButton = el("btn-start-camera");
+  if (startCameraButton) {
+    startCameraButton.addEventListener("click", startCameraScanner);
+  }
+
+  var retryCameraButton = el("btn-retry-camera");
+  if (retryCameraButton) {
+    retryCameraButton.addEventListener("click", startCameraScanner);
+  }
+
+  window.addEventListener("pagehide", function () {
+    if (html5QrCode && html5QrCode.isScanning) {
+      try {
+        html5QrCode.stop();
+      } catch (e) {}
+    }
+  });
+
+  updateLiveCount();
+
+  // Do not auto-start the camera. The coordinator must tap START CAMERA.
+})();
