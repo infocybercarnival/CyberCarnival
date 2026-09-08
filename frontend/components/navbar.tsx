@@ -11,7 +11,7 @@ const LINKS = [
   { label: 'EVENTS', href: '/events' },
   { label: 'SCHEDULE', href: '/schedule' },
   { label: 'WORKSHOPS', href: '/workshops' },
-  { label: 'SPEAKERS', href: '/speakers' },
+  
   {
     label: 'PORTFOLIO',
     href: 'https://portfolio.cybercarnival.in/',
