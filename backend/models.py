@@ -104,6 +104,7 @@ class Event(db.Model):
     tag = db.Column(db.String(40), nullable=True)
     description = db.Column(db.Text, nullable=True)
     poster_url = db.Column(db.String(500), nullable=True)
+    poster_url_2 = db.Column(db.String(500), nullable=True)
     venue = db.Column(db.String(200), nullable=True)
     event_date = db.Column(db.String(60), nullable=True)
     # Real dates for the same-day conflict check — event_date above stays as
@@ -208,6 +209,7 @@ class Event(db.Model):
             "tag": self.tag,
             "description": self.description,
             "poster_url": (f"{config.SITE_URL}{self.poster_url}" if self.poster_url and self.poster_url.startswith("/uploads/") else self.poster_url),
+            "poster_url_2": (f"{config.SITE_URL}{self.poster_url_2}" if self.poster_url_2 and self.poster_url_2.startswith("/uploads/") else self.poster_url_2),
             "venue": self.venue,
             "date": self.event_date,
             "start_date": self.event_start_date.isoformat() if self.event_start_date else None,
