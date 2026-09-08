@@ -1,247 +1,294 @@
-/* ChromaGrid collectible acrylic card slab presentation & 3D tilt effects */
+'use client'
 
-.chroma-grid {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 2rem;
-  width: 100%;
-  align-items: stretch;
+import React, { useRef, useEffect, useState } from 'react'
+import Image from 'next/image'
+import { useRouter } from 'next/navigation'
+import './ChromaGrid.css'
+
+export type ChromaGridItem = {
+  id: string
+  no?: string
+  name: string
+  tag: string
+  category: string
+  description?: string | null
+  posterSrc: string | null
+  posterSrc2?: string | null
+  posterAlt: string
+  fee: string
+  date: string
+  venue: string
+  teamSize?: string | null
+  seatsStatus: string
+  seatsRatio: number | null
+  registrationOpen: boolean
+  isFallback?: boolean
 }
 
-@media (min-width: 640px) {
-  .chroma-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+function PosterSlider({ item }: { item: ChromaGridItem }) {
+  const hasSecondPoster = Boolean(item.posterSrc && item.posterSrc2)
+  const [activePoster, setActivePoster] = useState(0)
+
+  useEffect(() => {
+    if (!hasSecondPoster) {
+      setActivePoster(0)
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      setActivePoster((current) => (current === 0 ? 1 : 0))
+    }, 5000)
+
+    return () => window.clearInterval(timer)
+  }, [hasSecondPoster, item.posterSrc, item.posterSrc2])
+
+  if (!item.posterSrc) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center font-mono bg-[radial-gradient(ellipse_at_center,rgba(155,77,255,0.15),rgba(5,0,8,0.95))]">
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_50%,rgba(0,0,0,0.4)_51%)] bg-[length:100%_4px] pointer-events-none opacity-40" />
+        <div className="relative z-10 flex flex-col items-center gap-1.5">
+          <span className="text-xl text-primary animate-pulse">◈</span>
+          <span className="text-[10px] tracking-[0.3em] text-primary/80 font-bold">CYBERCARNIVAL</span>
+          <span className="my-0.5 border-y border-primary/30 py-0.5 text-[10px] font-bold tracking-[0.25em] text-foreground">
+            POSTER TBA
+          </span>
+          <span className="text-[8.5px] tracking-[0.2em] text-muted-foreground/70">
+            TRANSMISSION PENDING
+          </span>
+        </div>
+      </div>
+    )
   }
-}
 
-@media (min-width: 1024px) {
-  .chroma-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  if (!hasSecondPoster) {
+    return (
+      <Image
+        src={item.posterSrc}
+        alt={item.posterAlt}
+        fill
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        className="object-contain p-1 rounded-[7px] transition-transform duration-500 group-hover:scale-[1.025]"
+        priority
+      />
+    )
   }
+
+  return (
+    <>
+      <div
+        className="absolute inset-0 flex h-full w-[200%] transition-transform duration-700 ease-in-out"
+        style={{ transform: `translateX(-${activePoster * 50}%)` }}
+      >
+        <div className="relative h-full w-1/2 shrink-0">
+          <Image
+            src={item.posterSrc}
+            alt={`${item.posterAlt} 1`}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-contain p-1 rounded-[7px]"
+            priority
+          />
+        </div>
+
+        <div className="relative h-full w-1/2 shrink-0">
+          <Image
+            src={item.posterSrc2 as string}
+            alt={`${item.posterAlt} 2`}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-contain p-1 rounded-[7px]"
+          />
+        </div>
+      </div>
+
+      <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 gap-1.5">
+        <span className={`h-1.5 rounded-full transition-all duration-300 ${activePoster === 0 ? 'w-5 bg-primary' : 'w-1.5 bg-white/35'}`} />
+        <span className={`h-1.5 rounded-full transition-all duration-300 ${activePoster === 1 ? 'w-5 bg-primary' : 'w-1.5 bg-white/35'}`} />
+      </div>
+    </>
+  )
 }
 
-/* Collectible Acrylic Card Slab Container */
-.chroma-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  border-radius: 14px;
-  cursor: pointer;
-  z-index: 20;
-  transform-style: preserve-3d;
-  will-change: transform, opacity;
-  opacity: 0;
-  transform: translateY(25px);
-  transition: opacity 0.6s ease var(--stagger-delay, 0ms),
-              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1) var(--stagger-delay, 0ms);
+interface ChromaGridProps {
+  items: ChromaGridItem[]
 }
 
-.chroma-card.chroma-card-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
+export function ChromaGrid({ items }: ChromaGridProps) {
+  const gridRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
-/* Thin Acrylic Glass Outer Case Container (Glossy effect STRICTLY clipped inside card) */
-.collectible-slab-case {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
-  border-radius: 14px;
-  border: 1px solid rgba(168, 85, 247, 0.35);
-  background: linear-gradient(155deg, rgba(20, 10, 35, 0.96), rgba(7, 3, 14, 0.98));
-  backdrop-filter: blur(12px);
-  overflow: hidden;
-  box-shadow: 0 0 20px rgba(155, 77, 255, 0.1), inset 0 1px 1px 0 rgba(255, 255, 255, 0.12);
-  transform-style: preserve-3d;
-  transition: border-color 0.4s ease, box-shadow 0.4s ease;
-}
+  // Scroll Reveal IntersectionObserver Animation
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('chroma-card-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.1 }
+    )
 
-/* Layer 4: Iridescent Refractive Edge Glow (Clipped inside slab glow outline) */
-.collectible-slab-glow {
-  position: absolute;
-  inset: -1px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.5), rgba(56, 189, 248, 0.35), rgba(168, 85, 247, 0.5));
-  opacity: 0.12;
-  filter: blur(5px);
-  pointer-events: none;
-  z-index: 1;
-  transition: opacity 0.4s ease, filter 0.4s ease;
-}
+    const cards = gridRef.current?.querySelectorAll('.chroma-card')
+    cards?.forEach((card, idx) => {
+      const delay = (idx % 3) * 80
+      ;(card as HTMLElement).style.setProperty('--stagger-delay', `${delay}ms`)
+      observer.observe(card)
+    })
 
-.chroma-card:hover .collectible-slab-glow {
-  opacity: 0.38;
-  filter: blur(8px);
-}
+    return () => observer.disconnect()
+  }, [items])
 
-.chroma-card.chroma-card-visible:hover .collectible-slab-case {
-  border-color: rgba(168, 85, 247, 0.7);
-  box-shadow: 0 12px 28px -10px rgba(168, 85, 247, 0.2), inset 0 1px 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-/* Subtle 3D Glass tilt & elevation on hover (Desktop: rotateX +-4deg, rotateY +-6deg, scale 1.018) */
-@media (min-width: 640px) {
-  .chroma-card.chroma-card-visible:hover {
-    transform: perspective(1000px) rotateX(var(--rotate-x, 0deg)) rotateY(var(--rotate-y, 0deg)) scale3d(1.018, 1.018, 1.018);
+  const handleCardClick = (item: ChromaGridItem) => {
+    if (item.isFallback) return
+    router.push(`/event?eventId=${encodeURIComponent(item.id)}`)
   }
-}
 
-@media (max-width: 639px) {
-  .chroma-card.chroma-card-visible:hover {
-    transform: translateY(-3px);
+  // Smooth mouse tilt handler using requestAnimationFrame (rotateX: +-4deg, rotateY: +-6deg)
+  const handleCardPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const card = e.currentTarget
+    const rect = card.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    const width = rect.width
+    const height = rect.height
+
+    const normX = x / width - 0.5
+    const normY = y / height - 0.5
+
+    // Restrained, subtle 3D tilt (rotateX: +-4deg, rotateY: +-6deg)
+    const rotateX = (-normY * 4).toFixed(2)
+    const rotateY = (normX * 6).toFixed(2)
+
+    requestAnimationFrame(() => {
+      card.style.setProperty('--card-mouse-x', `${x}px`)
+      card.style.setProperty('--card-mouse-y', `${y}px`)
+      card.style.setProperty('--rotate-x', `${rotateX}deg`)
+      card.style.setProperty('--rotate-y', `${rotateY}deg`)
+    })
   }
-}
 
-/* Event Poster Wrapper with Intentional 18px Inset Spacing from Top & Sides */
-.event-poster-wrapper {
-  position: relative;
-  width: auto;
-  height: auto;
-  min-height: 0;
-  padding: 18px 18px 8px 18px;
-  flex-shrink: 0;
-}
-
-@media (max-width: 1023px) {
-  .event-poster-wrapper {
-    padding: 16px 16px 6px 16px;
+  const handleCardPointerLeave = (e: React.PointerEvent<HTMLDivElement>) => {
+    const card = e.currentTarget
+    requestAnimationFrame(() => {
+      card.style.setProperty('--rotate-x', '0deg')
+      card.style.setProperty('--rotate-y', '0deg')
+    })
   }
-}
 
-@media (max-width: 639px) {
-  .event-poster-wrapper {
-    padding: 14px 14px 4px 14px;
-  }
-}
+  return (
+    <div ref={gridRef} className="chroma-grid">
+      {items.map((item) => (
+        <article
+          key={item.id}
+          className="chroma-card group collectible-slab h-full"
+          onClick={() => handleCardClick(item)}
+          onPointerMove={handleCardPointerMove}
+          onPointerLeave={handleCardPointerLeave}
+        >
+          {/* Layer 4: Iridescent Refractive Edge Glow (Strictly inside card container) */}
+          <div className="collectible-slab-glow" />
 
-/* Natural Poster Stage (Height strictly derived from actual image aspect ratio with zero empty gaps) */
-.collectible-poster-stage {
-  position: relative;
-  width: 100%;
-  height: auto;
-  min-height: 0;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: rgba(10, 5, 22, 0.95);
-  display: block;
-  border: 1px solid rgba(160, 80, 255, 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  transform: translateZ(8px);
-}
+          {/* Layer 3: Thin Acrylic Glass Outer Case Container */}
+          <div className="collectible-slab-case flex flex-col h-full">
+            {/* Layer 5: Cursor Tracking Glass Spotlight (Strictly inside card) */}
+            <div className="chroma-glass-spotlight" />
 
-.collectible-glass-surface {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: 8px;
-  box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.15);
-}
+            {/* Layer 5: Continuous 6.5s Light Reflection Sheen Sweep (Strictly inside card) */}
+            <div className="chroma-glass-shine" />
 
-.chroma-img {
-  display: block !important;
-  width: 100% !important;
-  height: auto !important;
-  object-fit: contain;
-  border-radius: 7px;
-  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s ease;
-  filter: brightness(0.98) contrast(1.02);
-}
+            {/* Film Grain Surface */}
+            <div className="collectible-grain-overlay" />
 
-.chroma-card:hover .chroma-img {
-  transform: scale(1.02);
-  filter: brightness(1.03) contrast(1.03);
-}
+            {/* Dedicated Framed Inset Poster Stage (Fixed 16:9 Landscape Aspect Ratio Wrapper) */}
+            <div className="event-poster-wrapper">
+              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[8px] bg-[rgba(10,5,22,0.95)] border border-[rgba(160,80,255,0.3)] shadow-[0_4px_12px_rgba(0,0,0,0.4)]">
+                <PosterSlider item={item} />
+                {/* Layer 2: Glass Surface Highlight Overlay */}
+                <div className="collectible-glass-surface" />
+              </div>
+            </div>
 
-/* Cursor-Tracking Glass Spotlight (ONLY INSIDE INDIVIDUAL CARD) */
-.chroma-glass-spotlight {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 4;
-  border-radius: 14px;
-  background: radial-gradient(
-    180px circle at var(--card-mouse-x, 50%) var(--card-mouse-y, 50%),
-    rgba(255, 255, 255, 0.035),
-    rgba(168, 85, 247, 0.015) 45%,
-    transparent 70%
-  );
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}
+            {/* Card Information Body (Flex 1 Column Layout) */}
+            <div className="collectible-card-body flex flex-1 flex-col justify-between gap-3 p-5 pt-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between font-mono text-[10px] tracking-[0.25em] text-primary font-bold">
+                  <span>{item.tag}</span>
+                  <span className="text-foreground/40 font-normal">{item.category}</span>
+                </div>
 
-.chroma-card:hover .chroma-glass-spotlight {
-  opacity: 0.65;
-}
+                <h3 className="font-display text-lg sm:text-xl font-bold leading-tight text-foreground transition-colors group-hover:text-primary">
+                  {item.name}
+                </h3>
 
-/* Continuous 6.5s Light Reflection Sheen Sweep (ONLY INSIDE INDIVIDUAL CARD) */
-.chroma-glass-shine {
-  position: absolute;
-  top: -60%;
-  left: -60%;
-  width: 220%;
-  height: 220%;
-  pointer-events: none;
-  z-index: 5;
-  border-radius: 14px;
-  background: linear-gradient(
-    115deg,
-    transparent 25%,
-    rgba(255, 255, 255, 0.02) 40%,
-    rgba(180, 120, 255, 0.14) 50%,
-    rgba(255, 255, 255, 0.06) 55%,
-    transparent 70%
-  );
-  animation: glassSheenSweep 6.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
+                {item.description && (
+                  <p className="text-xs sm:text-sm leading-relaxed text-muted-foreground line-clamp-3 font-sans">
+                    {item.description}
+                  </p>
+                )}
+              </div>
 
-@keyframes glassSheenSweep {
-  0% {
-    transform: translateX(-120%) skewX(-15deg);
-    opacity: 0;
-  }
-  15% {
-    opacity: 0.65;
-  }
-  45% {
-    transform: translateX(120%) skewX(-15deg);
-    opacity: 0.65;
-  }
-  50%, 100% {
-    transform: translateX(120%) skewX(-15deg);
-    opacity: 0;
-  }
-}
+              {/* Anchored Bottom Block: Metadata Grid + REGISTER Button (mt-auto) */}
+              <div className="mt-auto pt-3 border-t border-border/40">
+                <dl className="grid grid-cols-2 gap-x-2 gap-y-1.5 font-mono text-[10px] tracking-[0.08em] text-muted-foreground pb-3">
+                  <div>
+                    <dt className="inline text-foreground/60">FEE </dt>
+                    <dd className="inline font-semibold text-primary">{item.fee}</dd>
+                  </div>
+                  {item.teamSize && (
+                    <div>
+                      <dt className="inline text-foreground/60">TEAM </dt>
+                      <dd className="inline">{item.teamSize}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="inline text-foreground/60">VENUE </dt>
+                    <dd className="inline">{item.venue}</dd>
+                  </div>
+                  <div>
+                    <dt className="inline text-foreground/60">DATE </dt>
+                    <dd className="inline">{item.date}</dd>
+                  </div>
+                  <div className="col-span-2">
+                    <dt className="inline text-foreground/60">SEATS </dt>
+                    <dd className="inline">
+                      <span className={item.seatsStatus === 'FULL' ? 'text-destructive' : item.seatsStatus === 'ALMOST FULL' ? 'text-amber-400' : ''}>
+                        {item.seatsStatus}
+                      </span>
+                    </dd>
+                  </div>
+                  {item.seatsRatio != null && (
+                    <div className="col-span-2 mt-1 h-1 w-full overflow-hidden rounded-full bg-border">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          item.seatsStatus === 'FULL' ? 'bg-destructive' : item.seatsStatus === 'ALMOST FULL' ? 'bg-amber-400' : 'bg-primary'
+                        }`}
+                        style={{ width: `${Math.round(item.seatsRatio * 100)}%` }}
+                      />
+                    </div>
+                  )}
+                </dl>
 
-/* Subtle Film Grain Surface Overlay */
-.collectible-grain-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 6;
-  opacity: 0.03;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.8) 1px, transparent 0);
-  background-size: 4px 4px;
-}
-
-/* Accessibility: prefers-reduced-motion */
-@media (prefers-reduced-motion: reduce) {
-  .chroma-card {
-    opacity: 1 !important;
-    transform: none !important;
-    transition: none !important;
-  }
-  .chroma-img {
-    transition: none !important;
-  }
-  .chroma-glass-shine {
-    animation: none !important;
-    display: none !important;
-  }
-  .collectible-slab-glow {
-    opacity: 0.15 !important;
-  }
+                {/* Action Button anchored at exact bottom baseline across every row */}
+                <div
+                  className={`flex items-center justify-between rounded-[3px] border px-4 py-2.5 font-mono text-[11px] tracking-[0.2em] font-bold transition-all ${
+                    item.registrationOpen
+                      ? 'border-primary/60 text-foreground group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                      : 'border-border text-muted-foreground opacity-40 pointer-events-none'
+                  }`}
+                >
+                  <span>{item.registrationOpen ? 'REGISTER' : 'REGISTRATION CLOSED'}</span>
+                  <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  )
 }
