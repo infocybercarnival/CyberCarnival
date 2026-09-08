@@ -255,7 +255,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
       return { label: 'FILLING FAST', percent: Math.max(fillPercent, 80), tone: 'warning' as const }
     }
 
-    return { label: 'AVAILABLE', percent: Math.max(fillPercent, 18), tone: 'open' as const }
+    return { label: 'AVAILABLE', percent: fillPercent, tone: 'open' as const }
   })()
 
   const handleRegisterClick = async () => {
@@ -706,12 +706,6 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
                   <div className="group border-b border-border/50 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5 rounded-sm">
                     <dt className="text-foreground/50">EVENT ROUNDS</dt>
                     <dd className="mt-1 font-semibold text-foreground">{rounds}</dd>
-                  </div>
-                )}
-                {expectedRegistrations && (
-                  <div className="group border-b border-border/50 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5 rounded-sm">
-                    <dt className="text-foreground/50">EXPECTED REGISTRATIONS</dt>
-                    <dd className="mt-1 font-semibold text-foreground">{expectedRegistrations}</dd>
                   </div>
                 )}
                 <div className="group col-span-1 sm:col-span-2 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5 rounded-sm">
