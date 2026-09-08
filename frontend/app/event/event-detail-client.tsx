@@ -219,7 +219,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
     ? event.coordinators.faculty.map(c => ({ name: c.name, role: c.email || 'FACULTY COORDINATOR', phone: c.phone }))
     : matchingStatic?.facultyCoordinators
   const studentCoordinators = (event?.coordinators?.student && event.coordinators.student.length > 0)
-    ? event.coordinators.student.map(c => ({ name: c.name, role: c.email || 'STUDENT COORDINATOR', phone: c.phone }))
+    ? event.coordinators.student.map(c => ({ name: c.name, phone: c.phone }))
     : matchingStatic?.studentCoordinators
   const customRules = matchingStatic?.rules
   const prerequisites = matchingStatic?.prerequisites
@@ -229,10 +229,34 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   const toolsRequired = matchingStatic?.toolsRequired
   const additionalInfo = matchingStatic?.additionalInfo
 
-  const seatsLabel =
-    !event || event.max_teams == null
-      ? 'UNLIMITED'
-      : `${event.seats_available ?? 0} / ${event.max_teams} LEFT`
+  const capacityStatus = (() => {
+    if (!event) {
+      return { label: 'REGISTRATION OPEN', percent: 35, tone: 'open' as const }
+    }
+
+    if (!event.registration_open) {
+      return { label: 'REGISTRATION CLOSED', percent: 100, tone: 'closed' as const }
+    }
+
+    if (event.max_teams == null) {
+      return { label: 'REGISTRATION OPEN', percent: 35, tone: 'open' as const }
+    }
+
+    const capacity = Math.max(event.max_teams, 1)
+    const available = Math.max(event.seats_available ?? 0, 0)
+    const occupied = Math.max(capacity - available, 0)
+    const fillPercent = Math.min(100, Math.round((occupied / capacity) * 100))
+
+    if (available <= 0) {
+      return { label: 'FULL', percent: 100, tone: 'closed' as const }
+    }
+
+    if (fillPercent >= 80) {
+      return { label: 'FILLING FAST', percent: Math.max(fillPercent, 80), tone: 'warning' as const }
+    }
+
+    return { label: 'AVAILABLE', percent: Math.max(fillPercent, 18), tone: 'open' as const }
+  })()
 
   const handleRegisterClick = async () => {
     try {
@@ -513,14 +537,18 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
                     {studentCoordinators.map((sc) => (
                       <div key={sc.name} className="border border-border/60 bg-background/50 p-3.5 rounded-sm flex flex-col justify-between">
-                        <div>
-                          <span className="block font-bold text-foreground">{sc.name}</span>
-                          <span className="text-primary text-[10.5px] tracking-wide block mt-0.5">{sc.role}</span>
-                        </div>
-                        {sc.phone && (
-                          <a href={`tel:${sc.phone.replace(/\s+/g, '')}`} className="mt-2.5 text-muted-foreground hover:text-primary transition-colors text-[11px] font-mono block">
+                        <span className="block font-bold text-foreground">{sc.name}</span>
+                        {sc.phone ? (
+                          <a
+                            href={`tel:${sc.phone.replace(/\s+/g, '')}`}
+                            className="mt-2 text-primary hover:text-foreground transition-colors text-[11px] font-mono block"
+                          >
                             {sc.phone}
                           </a>
+                        ) : (
+                          <span className="mt-2 text-[11px] font-mono text-muted-foreground">
+                            CONTACT NUMBER TBA
+                          </span>
                         )}
                       </div>
                     ))}
@@ -687,8 +715,56 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
                   </div>
                 )}
                 <div className="group col-span-1 sm:col-span-2 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5 rounded-sm">
-                  <dt className="text-foreground/50">SEATS AVAILABLE</dt>
-                  <dd className="mt-1 font-semibold text-foreground">{seatsLabel}</dd>
+                  <dt className="text-foreground/50">REGISTRATION STATUS</dt>
+
+                  <dd className="mt-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <span
+                        className={`font-semibold tracking-[0.08em] ${
+                          capacityStatus.tone === 'closed'
+                            ? 'text-rose-400'
+                            : capacityStatus.tone === 'warning'
+                              ? 'text-amber-400'
+                              : 'text-emerald-400'
+                        }`}
+                      >
+                        {capacityStatus.label}
+                      </span>
+
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          capacityStatus.tone === 'closed'
+                            ? 'bg-rose-400'
+                            : capacityStatus.tone === 'warning'
+                              ? 'bg-amber-400'
+                              : 'bg-emerald-400'
+                        }`}
+                      />
+                    </div>
+
+                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-background/80 ring-1 ring-border/60">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          capacityStatus.tone === 'closed'
+                            ? 'bg-rose-500'
+                            : capacityStatus.tone === 'warning'
+                              ? 'bg-amber-400'
+                              : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${capacityStatus.percent}%` }}
+                      />
+                    </div>
+
+                    <p className="mt-2 text-[10px] leading-relaxed tracking-[0.08em] text-muted-foreground">
+                      {capacityStatus.label === 'FULL'
+                        ? 'Registrations have reached capacity.'
+                        : capacityStatus.label === 'REGISTRATION CLOSED'
+                          ? 'Registrations are currently closed for this event.'
+                          : capacityStatus.label === 'FILLING FAST'
+                            ? 'Limited availability — register soon.'
+                            : 'Registrations are currently available.'}
+                    </p>
+                  </dd>
                 </div>
               </dl>
 
