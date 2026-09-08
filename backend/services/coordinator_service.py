@@ -161,6 +161,78 @@ def set_coordinator_events(coordinator_id: str, event_ids: list) -> bool:
     return False
 
 
+def sync_event_coordinators(event_id: str, faculty_ids: list, student_ids: list) -> bool:
+    """Synchronize coordinator assignments for one event.
+
+    Replaces the CoordinatorEvent rows for the target event with the exact
+    faculty/student coordinator IDs submitted by the admin event form.
+
+    This function is intentionally role-aware:
+      - IDs in faculty_ids are stored with role FACULTY
+      - IDs in student_ids are stored with role STUDENT
+
+    Invalid/duplicate IDs are ignored safely. The operation is committed
+    atomically and rolled back on failure.
+    """
+    event = db.session.get(Event, event_id)
+    if not event:
+        raise ValueError("Event not found")
+
+    def _clean_ids(values):
+        cleaned = []
+        seen = set()
+        for value in values or []:
+            cid = str(value or "").strip()
+            if not cid or cid in seen:
+                continue
+            seen.add(cid)
+            cleaned.append(cid)
+        return cleaned
+
+    faculty_clean = _clean_ids(faculty_ids)
+    student_clean = _clean_ids(student_ids)
+
+    # If an ID somehow appears in both groups, faculty wins deterministically.
+    faculty_set = set(faculty_clean)
+    student_clean = [cid for cid in student_clean if cid not in faculty_set]
+
+    desired = [(cid, "FACULTY") for cid in faculty_clean]
+    desired += [(cid, "STUDENT") for cid in student_clean]
+
+    try:
+        # Remove the event's existing role assignments first.
+        CoordinatorEvent.query.filter_by(event_id=event_id).delete(
+            synchronize_session=False
+        )
+
+        for coordinator_id, role in desired:
+            coord = db.session.get(Coordinator, coordinator_id)
+            if not coord:
+                continue
+
+            # Keep the coordinator's primary event aligned with this assignment
+            # when it is currently unset or already points to this event.
+            # Do not silently steal a coordinator from another event.
+            if not coord.event_id or coord.event_id == event_id:
+                coord.event_id = event_id
+                coord.events = [event]
+
+            db.session.add(
+                CoordinatorEvent(
+                    coordinator_id=coordinator_id,
+                    event_id=event_id,
+                    role=role,
+                )
+            )
+
+        db.session.commit()
+        return True
+
+    except Exception:
+        db.session.rollback()
+        raise
+
+
 def set_coordinator_active(coordinator_id: str, active: bool) -> bool:
     coord = get_coordinator(coordinator_id)
     if not coord:
