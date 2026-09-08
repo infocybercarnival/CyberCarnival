@@ -96,6 +96,7 @@ export type ApiEvent = {
   tag: string | null
   description: string | null
   poster_url: string | null
+  poster_url_2: string | null
   venue: string | null
   date: string | null
   time: string | null
