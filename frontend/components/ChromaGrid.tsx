@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import './ChromaGrid.css'
@@ -13,6 +13,7 @@ export type ChromaGridItem = {
   category: string
   description?: string | null
   posterSrc: string | null
+  posterSrc2?: string | null
   posterAlt: string
   fee: string
   date: string
@@ -22,6 +23,91 @@ export type ChromaGridItem = {
   seatsRatio: number | null
   registrationOpen: boolean
   isFallback?: boolean
+}
+
+
+function PosterSlider({ item }: { item: ChromaGridItem }) {
+  const hasSecondPoster = Boolean(item.posterSrc && item.posterSrc2)
+  const [activePoster, setActivePoster] = useState(0)
+
+  useEffect(() => {
+    if (!hasSecondPoster) {
+      setActivePoster(0)
+      return
+    }
+
+    const timer = window.setInterval(() => {
+      setActivePoster((current) => (current === 0 ? 1 : 0))
+    }, 5000)
+
+    return () => window.clearInterval(timer)
+  }, [hasSecondPoster, item.posterSrc, item.posterSrc2])
+
+  if (!item.posterSrc) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center font-mono bg-[radial-gradient(ellipse_at_center,rgba(155,77,255,0.15),rgba(5,0,8,0.95))]">
+        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_50%,rgba(0,0,0,0.4)_51%)] bg-[length:100%_4px] pointer-events-none opacity-40" />
+        <div className="relative z-10 flex flex-col items-center gap-1.5">
+          <span className="text-xl text-primary animate-pulse">◈</span>
+          <span className="text-[10px] tracking-[0.3em] text-primary/80 font-bold">CYBERCARNIVAL</span>
+          <span className="my-0.5 border-y border-primary/30 py-0.5 text-[10px] font-bold tracking-[0.25em] text-foreground">
+            POSTER TBA
+          </span>
+          <span className="text-[8.5px] tracking-[0.2em] text-muted-foreground/70">
+            TRANSMISSION PENDING
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!hasSecondPoster) {
+    return (
+      <Image
+        src={item.posterSrc}
+        alt={item.posterAlt}
+        fill
+        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+        className="object-contain p-1 rounded-[7px] transition-transform duration-500 group-hover:scale-[1.025]"
+        priority
+      />
+    )
+  }
+
+  return (
+    <>
+      <div
+        className="absolute inset-0 flex h-full w-[200%] transition-transform duration-700 ease-in-out"
+        style={{ transform: `translateX(-${activePoster * 50}%)` }}
+      >
+        <div className="relative h-full w-1/2 shrink-0">
+          <Image
+            src={item.posterSrc}
+            alt={`${item.posterAlt} 1`}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-contain p-1 rounded-[7px]"
+            priority
+          />
+        </div>
+
+        <div className="relative h-full w-1/2 shrink-0">
+          <Image
+            src={item.posterSrc2 as string}
+            alt={`${item.posterAlt} 2`}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className="object-contain p-1 rounded-[7px]"
+          />
+        </div>
+      </div>
+
+      <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 gap-1.5">
+        <span className={`h-1.5 rounded-full transition-all duration-300 ${activePoster === 0 ? 'w-5 bg-primary' : 'w-1.5 bg-white/35'}`} />
+        <span className={`h-1.5 rounded-full transition-all duration-300 ${activePoster === 1 ? 'w-5 bg-primary' : 'w-1.5 bg-white/35'}`} />
+      </div>
+    </>
+  )
 }
 
 interface ChromaGridProps {
@@ -121,30 +207,7 @@ export function ChromaGrid({ items }: ChromaGridProps) {
             {/* Dedicated Framed Inset Poster Stage (Fixed 16:9 Landscape Aspect Ratio Wrapper) */}
             <div className="event-poster-wrapper">
               <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[8px] bg-[rgba(10,5,22,0.95)] border border-[rgba(160,80,255,0.3)] shadow-[0_4px_12px_rgba(0,0,0,0.4)]">
-                {item.posterSrc ? (
-                  <Image
-                    src={item.posterSrc}
-                    alt={item.posterAlt}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                    className="object-contain p-1 rounded-[7px] transition-transform duration-500 group-hover:scale-[1.025]"
-                    priority
-                  />
-                ) : (
-                  <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center font-mono bg-[radial-gradient(ellipse_at_center,rgba(155,77,255,0.15),rgba(5,0,8,0.95))]">
-                    <div className="absolute inset-0 bg-[linear-gradient(to_bottom,transparent_50%,rgba(0,0,0,0.4)_51%)] bg-[length:100%_4px] pointer-events-none opacity-40" />
-                    <div className="relative z-10 flex flex-col items-center gap-1.5">
-                      <span className="text-xl text-primary animate-pulse">◈</span>
-                      <span className="text-[10px] tracking-[0.3em] text-primary/80 font-bold">CYBERCARNIVAL</span>
-                      <span className="my-0.5 border-y border-primary/30 py-0.5 text-[10px] font-bold tracking-[0.25em] text-foreground">
-                        POSTER TBA
-                      </span>
-                      <span className="text-[8.5px] tracking-[0.2em] text-muted-foreground/70">
-                        TRANSMISSION PENDING
-                      </span>
-                    </div>
-                  </div>
-                )}
+                <PosterSlider item={item} />
                 {/* Layer 2: Glass Surface Highlight Overlay */}
                 <div className="collectible-glass-surface" />
               </div>
