@@ -164,15 +164,15 @@ def set_coordinator_events(coordinator_id: str, event_ids: list) -> bool:
 def sync_event_coordinators(event_id: str, faculty_ids: list, student_ids: list) -> bool:
     """Synchronize coordinator assignments for one event.
 
-    Replaces the CoordinatorEvent rows for the target event with the exact
-    faculty/student coordinator IDs submitted by the admin event form.
+    The CoordinatorEvent rows for this event are replaced with the exact
+    faculty/student IDs submitted by the admin event form.
 
-    This function is intentionally role-aware:
-      - IDs in faculty_ids are stored with role FACULTY
-      - IDs in student_ids are stored with role STUDENT
-
-    Invalid/duplicate IDs are ignored safely. The operation is committed
-    atomically and rolled back on failure.
+    Important:
+    - Do NOT assign ``coord.events = [event]`` here. That relationship uses the
+      same coordinator_events table and would create an implicit junction row,
+      causing a duplicate-key error when we also add CoordinatorEvent manually.
+    - Flush the DELETE before INSERTs so PostgreSQL sees the old rows removed
+      before the replacement rows are added.
     """
     event = db.session.get(Event, event_id)
     if not event:
@@ -181,18 +181,20 @@ def sync_event_coordinators(event_id: str, faculty_ids: list, student_ids: list)
     def _clean_ids(values):
         cleaned = []
         seen = set()
+
         for value in values or []:
             cid = str(value or "").strip()
             if not cid or cid in seen:
                 continue
             seen.add(cid)
             cleaned.append(cid)
+
         return cleaned
 
     faculty_clean = _clean_ids(faculty_ids)
     student_clean = _clean_ids(student_ids)
 
-    # If an ID somehow appears in both groups, faculty wins deterministically.
+    # If the same coordinator appears in both groups, FACULTY takes priority.
     faculty_set = set(faculty_clean)
     student_clean = [cid for cid in student_clean if cid not in faculty_set]
 
@@ -200,22 +202,23 @@ def sync_event_coordinators(event_id: str, faculty_ids: list, student_ids: list)
     desired += [(cid, "STUDENT") for cid in student_clean]
 
     try:
-        # Remove the event's existing role assignments first.
+        # Remove the old mappings for this event first.
         CoordinatorEvent.query.filter_by(event_id=event_id).delete(
             synchronize_session=False
         )
+
+        # Force the DELETE to execute before new INSERTs.
+        db.session.flush()
 
         for coordinator_id, role in desired:
             coord = db.session.get(Coordinator, coordinator_id)
             if not coord:
                 continue
 
-            # Keep the coordinator's primary event aligned with this assignment
-            # when it is currently unset or already points to this event.
-            # Do not silently steal a coordinator from another event.
-            if not coord.event_id or coord.event_id == event_id:
-                coord.event_id = event_id
-                coord.events = [event]
+            # Keep the direct primary-event column aligned, but DO NOT touch
+            # coord.events here because that relationship writes to the same
+            # junction table automatically.
+            coord.event_id = event_id
 
             db.session.add(
                 CoordinatorEvent(
@@ -231,6 +234,7 @@ def sync_event_coordinators(event_id: str, faculty_ids: list, student_ids: list)
     except Exception:
         db.session.rollback()
         raise
+
 
 
 def set_coordinator_active(coordinator_id: str, active: bool) -> bool:
