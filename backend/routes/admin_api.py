@@ -514,40 +514,154 @@ def create_event():
 @login_required
 @limiter.limit("30 per minute")
 def edit_event(event_id):
-    existing = events.get_event(event_id)
+    logger.info("EVENT EDIT START event_id=%s", event_id)
+
+    try:
+        existing = events.get_event(event_id)
+    except Exception as e:
+        logger.exception("EVENT LOOKUP ERROR event_id=%s", event_id)
+        return jsonify({
+            "error": f"Event lookup failed: {type(e).__name__}: {str(e)}"
+        }), 500
+
     if not existing:
         return jsonify({"error": "event not found"}), 404
 
     form = request.form
     data = _event_fields_from_form(form)
+
     if "name" in data and (not data["name"] or len(data["name"]) > 150):
         return jsonify({"error": "name is required (max 150 chars)"}), 422
 
-    # Capacity Safety Check: cannot set max_teams below active confirmed/pending registrations
+    # Capacity Safety Check: pending_payment also occupies a slot, so include it.
     if "max_teams" in data and data["max_teams"] is not None:
         new_max = data["max_teams"]
-        active_count = (
-            EventRegistration.query.filter_by(event_id=event_id)
-            .filter(EventRegistration.status.in_(["confirmed", "pending_verification"]))
-            .count()
-        )
-        if new_max < active_count:
-            return jsonify({"error": f"Capacity cannot be set to {new_max}: {active_count} active registration(s) already exist."}), 422
 
-    record = events.update_event(event_id, data)
-
-    faculty_ids, student_ids = _parse_coordinator_ids_from_form(form)
-    coordinators.sync_event_coordinators(record.id, faculty_ids, student_ids)
-
-    poster = request.files.get("poster")
-    if poster and poster.filename:
         try:
-            events.save_poster(record, poster)
+            active_count = (
+                EventRegistration.query.filter_by(event_id=event_id)
+                .filter(
+                    EventRegistration.status.in_(
+                        ["confirmed", "pending_verification", "pending_payment"]
+                    )
+                )
+                .count()
+            )
+        except Exception as e:
+            logger.exception("EVENT CAPACITY CHECK ERROR event_id=%s", event_id)
+            return jsonify({
+                "error": f"Capacity check failed: {type(e).__name__}: {str(e)}"
+            }), 500
+
+        if new_max < active_count:
+            return jsonify({
+                "error": (
+                    f"Capacity cannot be set to {new_max}: "
+                    f"{active_count} active registration(s) already exist."
+                )
+            }), 422
+
+    # STEP 1: Update the event row itself.
+    try:
+        logger.info(
+            "EVENT DB UPDATE START event_id=%s fields=%s",
+            event_id,
+            ",".join(sorted(data.keys())) if data else "none",
+        )
+
+        record = events.update_event(event_id, data)
+
+        if not record:
+            logger.error("EVENT DB UPDATE RETURNED NONE event_id=%s", event_id)
+            return jsonify({"error": "event not found during update"}), 404
+
+        logger.info("EVENT DB UPDATE SUCCESS event_id=%s", event_id)
+
+    except Exception as e:
+        logger.exception("EVENT DB UPDATE ERROR event_id=%s", event_id)
+        return jsonify({
+            "error": f"Event update failed: {type(e).__name__}: {str(e)}"
+        }), 500
+
+    # STEP 2: Sync faculty/student coordinator assignments.
+    try:
+        faculty_ids, student_ids = _parse_coordinator_ids_from_form(form)
+
+        logger.info(
+            "EVENT COORDINATOR SYNC START event_id=%s faculty_count=%s student_count=%s",
+            event_id,
+            len(faculty_ids),
+            len(student_ids),
+        )
+
+        coordinators.sync_event_coordinators(
+            record.id,
+            faculty_ids,
+            student_ids,
+        )
+
+        logger.info("EVENT COORDINATOR SYNC SUCCESS event_id=%s", event_id)
+
+    except Exception as e:
+        logger.exception("EVENT COORDINATOR SYNC ERROR event_id=%s", event_id)
+        return jsonify({
+            "error": f"Coordinator sync failed: {type(e).__name__}: {str(e)}"
+        }), 500
+
+    # STEP 3: Save poster, if one was included in this edit request.
+    poster = request.files.get("poster")
+
+    if poster and poster.filename:
+        logger.info(
+            "POSTER UPLOAD START event_id=%s filename=%s content_type=%s",
+            event_id,
+            poster.filename,
+            poster.content_type,
+        )
+
+        try:
+            poster_url = events.save_poster(record, poster)
+
+            logger.info(
+                "POSTER UPLOAD SUCCESS event_id=%s url=%s",
+                event_id,
+                poster_url,
+            )
+
         except ValueError as e:
-            return jsonify({"error": f"Poster upload failed: {str(e)}"}), 422
+            logger.exception(
+                "POSTER VALIDATION/SAVE ERROR event_id=%s",
+                event_id,
+            )
+            return jsonify({
+                "error": f"Poster upload failed: {str(e)}"
+            }), 422
+
+        except Exception as e:
+            logger.exception(
+                "POSTER UNEXPECTED ERROR event_id=%s",
+                event_id,
+            )
+            return jsonify({
+                "error": f"Poster upload server error: {type(e).__name__}: {str(e)}"
+            }), 500
+    else:
+        logger.info("EVENT EDIT NO POSTER event_id=%s", event_id)
 
     changed_fields = list(data.keys())
-    audit_service.log_action(_actor(), "EVENT_UPDATED", f"event {event_id} (updated: {', '.join(changed_fields)})", _ip())
+
+    try:
+        audit_service.log_action(
+            _actor(),
+            "EVENT_UPDATED",
+            f"event {event_id} (updated: {', '.join(changed_fields)})",
+            _ip(),
+        )
+    except Exception:
+        # Do not fail a successful event edit just because audit logging failed.
+        logger.exception("EVENT AUDIT LOG ERROR event_id=%s", event_id)
+
+    logger.info("EVENT EDIT SUCCESS event_id=%s", event_id)
     return jsonify(record.to_admin_dict())
 
 
@@ -755,5 +869,4 @@ def admin_api_logout():
         revoke_session(sid)
     session.clear()
     return jsonify({"success": True, "ok": True, "message": "Logged out successfully"})
-
 
