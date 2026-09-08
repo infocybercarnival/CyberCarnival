@@ -49,6 +49,14 @@ ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+if not ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5000",
+        "http://127.0.0.1:5000",
+    ]
+
 
 # --- Site / OAuth -----------------------------------------------------------
 
@@ -69,6 +77,23 @@ ALLOWED_EMAIL_DOMAIN = (
     os.environ.get("ALLOWED_EMAIL_DOMAIN", "")
     .strip()
     .lower()
+)
+
+ADMIN_GOOGLE_EMAIL = (
+    os.environ.get(
+        "ADMIN_GOOGLE_EMAIL",
+        "info.cybercarnival@gmail.com",
+    )
+    .strip()
+    .lower()
+)
+
+ADMIN_NOTIFICATION_EMAIL = (
+    os.environ.get(
+        "ADMIN_NOTIFICATION_EMAIL",
+        ADMIN_GOOGLE_EMAIL,
+    )
+    .strip()
 )
 
 
@@ -157,14 +182,36 @@ if DATABASE_URL_ENV:
             + SQLALCHEMY_DATABASE_URI[len("mysql://"):]
         )
 
+    elif SQLALCHEMY_DATABASE_URI.startswith("postgresql://"):
+        SQLALCHEMY_DATABASE_URI = (
+            "postgresql+psycopg://"
+            + SQLALCHEMY_DATABASE_URI[len("postgresql://"):]
+        )
+
+    elif SQLALCHEMY_DATABASE_URI.startswith("postgres://"):
+        SQLALCHEMY_DATABASE_URI = (
+            "postgresql+psycopg://"
+            + SQLALCHEMY_DATABASE_URI[len("postgres://"):]
+        )
+
 else:
-    # Local development fallback
+    if IS_PRODUCTION:
+        raise RuntimeError(
+            "DATABASE_URL environment variable is missing. "
+            "Refusing to start in production without a database connection."
+        )
+
     SQLALCHEMY_DATABASE_URI = (
         f"sqlite:///{DATA_DIR / 'cybercarnival.db'}"
     )
 
 
 SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+SQLALCHEMY_ENGINE_OPTIONS = {
+    "pool_pre_ping": True,
+    "pool_recycle": 280,
+}
 
 
 # --- Email ------------------------------------------------------------------
@@ -232,6 +279,31 @@ ALLOWED_POSTER_EXTENSIONS = {
 }
 
 
+# --- Payment Proof Uploads --------------------------------------------------
+
+PAYMENT_PROOF_DIR = DATA_DIR / "uploads" / "payment_proofs"
+
+PAYMENT_PROOF_DIR.mkdir(
+    parents=True,
+    exist_ok=True,
+)
+
+MAX_PAYMENT_PROOF_SIZE_BYTES = 5 * 1024 * 1024
+
+ALLOWED_PAYMENT_PROOF_EXTENSIONS = {
+    "png",
+    "jpg",
+    "jpeg",
+}
+
+ALLOWED_PAYMENT_PROOF_MIMES = {
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+    "image/pjpeg",
+}
+
+
 # --- Frontend Build Directory -----------------------------------------------
 
 FRONTEND_DIST_DIR = Path(
@@ -248,7 +320,7 @@ FRONTEND_DIST_DIR = Path(
 
 # --- Request Size -----------------------------------------------------------
 
-# Allows two poster files up to 5 MB each
+# Supports two event poster uploads up to 5 MB each
 # plus multipart/form-data overhead.
 MAX_CONTENT_LENGTH = 12 * 1024 * 1024
 
@@ -261,8 +333,7 @@ SESSION_COOKIE_SECURE = IS_PRODUCTION
 
 SESSION_COOKIE_HTTPONLY = True
 
-# Production frontend is hosted separately on Vercel,
-# so the Render session cookie must support cross-site requests.
+# Vercel frontend -> Render backend requires cross-site session cookies.
 SESSION_COOKIE_SAMESITE = (
     "None"
     if IS_PRODUCTION
