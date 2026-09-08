@@ -103,7 +103,7 @@ FRONTEND_DIST_DIR = Path(
 ).resolve()
 
 
-MAX_CONTENT_LENGTH = 12 * 1024 * 1024  # 12 MB: two 5 MB posters + multipart overhead
+MAX_CONTENT_LENGTH = 6 * 1024 * 1024  # 12 MB: two 5 MB posters + multipart overhead
 
 SESSION_COOKIE_SECURE = IS_PRODUCTION
 SESSION_COOKIE_HTTPONLY = True
