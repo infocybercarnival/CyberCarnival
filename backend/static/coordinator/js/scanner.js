@@ -427,64 +427,140 @@
     }
   }
 
-  function startCameraScanner() {
-    if (
-      cameraStarting ||
-      cameraStarted
-    ) {
-      return;
-    }
+  async function startCameraScanner() {
+  if (cameraStarting || cameraStarted) {
+    return;
+  }
 
-    if (!window.isSecureContext) {
-      showCameraError(
-        "SECURE CONNECTION REQUIRED",
-        "Open this scanner using HTTPS. Camera access will not work on normal HTTP."
-      );
+  if (!window.isSecureContext) {
+    showCameraError(
+      "SECURE CONNECTION REQUIRED",
+      "Camera access requires HTTPS."
+    );
+    return;
+  }
 
-      return;
-    }
+  if (
+    !navigator.mediaDevices ||
+    !navigator.mediaDevices.getUserMedia
+  ) {
+    showCameraError(
+      "CAMERA API NOT AVAILABLE",
+      "This browser does not support camera access."
+    );
+    return;
+  }
 
-    if (
-      !navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia
-    ) {
-      showCameraError(
-        "CAMERA API NOT AVAILABLE",
-        "Try the latest Chrome or Safari on this phone."
-      );
+  if (typeof Html5Qrcode === "undefined") {
+    showCameraError(
+      "QR SCANNER LIBRARY FAILED TO LOAD",
+      "Refresh the page and try again."
+    );
+    return;
+  }
 
-      return;
-    }
+  cameraStarting = true;
 
-    if (
-      typeof Html5Qrcode === "undefined"
-    ) {
-      showCameraError(
-        "QR SCANNER LIBRARY FAILED TO LOAD",
-        "The scanner library did not load. Refresh the page and try again."
-      );
+  hideCameraError();
 
-      return;
-    }
+  var startButton =
+    document.getElementById("btn-start-camera");
 
-    cameraStarting = true;
+  var retryButton =
+    document.getElementById("btn-retry-camera");
 
-    hideCameraError();
+  if (startButton) {
+    startButton.disabled = true;
+    startButton.textContent =
+      "REQUESTING CAMERA PERMISSION...";
+  }
 
-    el("btn-start-camera").disabled =
-      true;
+  if (retryButton) {
+    retryButton.disabled = true;
+  }
 
-    el("btn-start-camera").textContent =
-      "STARTING CAMERA...";
+  setStatus(
+    "⏳ REQUESTING CAMERA PERMISSION...",
+    "rgba(255,255,255,.1)",
+    "#fff"
+  );
 
-    el("btn-retry-camera").disabled =
-      true;
+  var permissionStream = null;
+
+  try {
+    /*
+     * IMPORTANT:
+     * Explicitly invoke the browser camera API first.
+     *
+     * This is what should make Chrome/Safari display:
+     * "Allow this site to use your camera?"
+     */
+    permissionStream =
+      await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: {
+            ideal: "environment"
+          }
+        },
+        audio: false
+      });
+
+    /*
+     * We only requested this stream to obtain permission.
+     * html5-qrcode will open its own stream below.
+     */
+    permissionStream
+      .getTracks()
+      .forEach(function (track) {
+        track.stop();
+      });
+
+    permissionStream = null;
 
     setStatus(
-      "⏳ REQUESTING CAMERA ACCESS...",
-      "rgba(255,255,255,.1)",
-      "#fff"
+      "✓ CAMERA PERMISSION GRANTED — STARTING SCANNER...",
+      "rgba(16,185,129,.15)",
+      "#10b981"
     );
+
+    /*
+     * Permission is now granted, so camera labels
+     * should also be available.
+     */
+    var cameras =
+      await Html5Qrcode.getCameras();
+
+    if (!cameras || cameras.length === 0) {
+      throw new Error(
+        "No cameras detected on this device."
+      );
+    }
+
+    /*
+     * Prefer rear/back/environment camera.
+     */
+    var selectedCamera = cameras[0];
+
+    for (
+      var i = 0;
+      i < cameras.length;
+      i++
+    ) {
+      var label =
+        (cameras[i].label || "")
+          .toLowerCase();
+
+      if (
+        label.includes("back") ||
+        label.includes("rear") ||
+        label.includes("environment")
+      ) {
+        selectedCamera =
+          cameras[i];
+
+        break;
+      }
+    }
 
     if (!html5QrCode) {
       html5QrCode =
@@ -494,19 +570,25 @@
     var config = {
       fps: 10,
 
-      qrbox: function (w, h) {
+      qrbox: function (
+        viewfinderWidth,
+        viewfinderHeight
+      ) {
+        var minEdge =
+          Math.min(
+            viewfinderWidth,
+            viewfinderHeight
+          );
+
         var size =
           Math.floor(
-            Math.min(w, h) * 0.72
+            minEdge * 0.72
           );
 
         size =
           Math.max(
             180,
-            Math.min(
-              size,
-              280
-            )
+            Math.min(size, 280)
           );
 
         return {
@@ -518,130 +600,132 @@
       disableFlip: false
     };
 
-    html5QrCode
-      .start(
-        {
-          facingMode: {
-            ideal: "environment"
-          }
-        },
+    await html5QrCode.start(
+      selectedCamera.id,
+      config,
 
-        config,
-
-        function (decodedText) {
-          processScanResult(
-            decodedText
-          );
-        },
-
-        function () {}
-      )
-      .then(function () {
-        cameraStarted = true;
-        cameraStarting = false;
-
-        el("btn-start-camera").style.display =
-          "none";
-
-        el("btn-start-camera").disabled =
-          false;
-
-        el("btn-retry-camera").disabled =
-          false;
-
-        setStatus(
-          "● READY TO SCAN",
-          "rgba(0,240,255,.1)",
-          "#00f0ff"
-        );
-      })
-      .catch(function (err) {
-        cameraStarted = false;
-        cameraStarting = false;
-
-        el("btn-start-camera").style.display =
-          "block";
-
-        el("btn-start-camera").disabled =
-          false;
-
-        el("btn-start-camera").textContent =
-          "📷 START CAMERA";
-
-        el("btn-retry-camera").disabled =
-          false;
-
-        console.warn(
-          "Camera start failed:",
-          err
-        );
-
-        var explained =
-          cameraErrorText(err);
-
-        showCameraError(
-          explained[0],
-          explained[1]
-        );
-      });
-  }
-
-  el("btn-next-scan")
-    .addEventListener(
-      "click",
-      resetToReady
-    );
-
-  el("manual-scan-form")
-    .addEventListener(
-      "submit",
-      function (e) {
-        e.preventDefault();
-
-        var val =
-          el("manual-ticket-input")
-            .value
-            .trim();
-
-        if (val) {
-          processScanResult(val);
-
-          el("manual-ticket-input").value =
-            "";
-        }
-      }
-    );
-
-  el("btn-start-camera")
-    .addEventListener(
-      "click",
-      startCameraScanner
-    );
-
-  el("btn-retry-camera")
-    .addEventListener(
-      "click",
-      startCameraScanner
-    );
-
-  window.addEventListener(
-    "pagehide",
-    function () {
-      if (
-        html5QrCode &&
-        html5QrCode.isScanning
+      function onScanSuccess(
+        decodedText
       ) {
-        try {
-          html5QrCode.stop();
-        } catch (e) {}
+        processScanResult(
+          decodedText
+        );
+      },
+
+      function onScanError() {
+        /*
+         * Normal while camera frames
+         * do not contain a QR.
+         */
       }
+    );
+
+    cameraStarted = true;
+    cameraStarting = false;
+
+    if (startButton) {
+      startButton.style.display =
+        "none";
+
+      startButton.disabled =
+        false;
+
+      startButton.textContent =
+        "📷 START CAMERA";
     }
-  );
 
-  updateLiveCount();
+    if (retryButton) {
+      retryButton.disabled =
+        false;
+    }
 
-  // IMPORTANT:
-  // Do not auto-start on mobile.
-  // User must tap START CAMERA so browser
-  // can show permission prompt reliably.
-})();
+    setStatus(
+      "● READY TO SCAN",
+      "rgba(0,240,255,.1)",
+      "#00f0ff"
+    );
+
+  } catch (err) {
+    cameraStarted = false;
+    cameraStarting = false;
+
+    /*
+     * Ensure temporary permission stream
+     * never remains open after an error.
+     */
+    if (permissionStream) {
+      permissionStream
+        .getTracks()
+        .forEach(function (track) {
+          track.stop();
+        });
+    }
+
+    console.error(
+      "Camera permission/start error:",
+      err
+    );
+
+    if (startButton) {
+      startButton.style.display =
+        "block";
+
+      startButton.disabled =
+        false;
+
+      startButton.textContent =
+        "📷 START CAMERA";
+    }
+
+    if (retryButton) {
+      retryButton.disabled =
+        false;
+    }
+
+    var errorName =
+      err && err.name
+        ? err.name
+        : "";
+
+    if (
+      errorName === "NotAllowedError" ||
+      errorName === "SecurityError"
+    ) {
+      showCameraError(
+        "CAMERA PERMISSION DENIED",
+        "Camera access was denied. Open browser Site Settings → Camera → Allow, then retry."
+      );
+
+      return;
+    }
+
+    if (
+      errorName === "NotFoundError"
+    ) {
+      showCameraError(
+        "NO CAMERA FOUND",
+        "No camera was detected on this device."
+      );
+
+      return;
+    }
+
+    if (
+      errorName === "NotReadableError"
+    ) {
+      showCameraError(
+        "CAMERA BUSY",
+        "Another app or browser tab may currently be using the camera."
+      );
+
+      return;
+    }
+
+    showCameraError(
+      "CAMERA COULD NOT START",
+      err && err.message
+        ? err.message
+        : "Unable to start the camera."
+    );
+  }
+}
