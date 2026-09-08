@@ -1594,6 +1594,7 @@
     document.getElementById("coord-fullname").value = coord ? (coord.full_name || "") : "";
     document.getElementById("coord-username").value = coord ? coord.username : "";
     document.getElementById("coord-username").readOnly = !!coord;
+    document.getElementById("coord-phone").value = coord ? (coord.phone || "") : "";
     document.getElementById("coord-password").value = "";
     document.getElementById("coord-role").value = coord ? (coord.role || "STUDENT") : "STUDENT";
     document.getElementById("coord-active").value = coord ? (coord.is_active ? "true" : "false") : "true";
@@ -1659,6 +1660,7 @@
       var eventId = document.getElementById("coord-event-select").value;
       var fullName = document.getElementById("coord-fullname").value.trim();
       var username = document.getElementById("coord-username").value.trim();
+      var phone = document.getElementById("coord-phone").value.trim();
       var password = document.getElementById("coord-password").value.trim();
       var role = document.getElementById("coord-role").value;
       var isActive = document.getElementById("coord-active").value === "true";
@@ -1672,6 +1674,7 @@
         event_id: eventId,
         full_name: fullName,
         username: username,
+        phone: phone,
         role: role,
         is_active: isActive,
         event_ids: [eventId]
