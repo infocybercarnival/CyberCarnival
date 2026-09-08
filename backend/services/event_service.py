@@ -40,9 +40,6 @@ def _apply_fields(event: Event, data: dict) -> None:
     if "date" in data:
         event.event_date = data["date"]
 
-    # Current admin_api.py sends event_start_date/event_end_date.
-    # Keep support for the old start_date/end_date keys too so older callers
-    # do not break during deployment.
     if "event_start_date" in data:
         event.event_start_date = data["event_start_date"]
     elif "start_date" in data:
@@ -77,6 +74,9 @@ def _apply_fields(event: Event, data: dict) -> None:
     if "poster_url" in data:
         event.poster_url = data["poster_url"]
 
+    if "poster_url_2" in data:
+        event.poster_url_2 = data["poster_url_2"]
+
     if "active" in data:
         event.active = bool(data["active"])
 
@@ -86,7 +86,6 @@ def _apply_fields(event: Event, data: dict) -> None:
 
 def create_event(data: dict) -> Event:
     event = Event(name=data["name"])
-
     try:
         _apply_fields(event, data)
         db.session.add(event)
@@ -100,7 +99,6 @@ def create_event(data: dict) -> Event:
 
 def update_event(event_id: str, data: dict) -> Event | None:
     event = get_event(event_id)
-
     if not event:
         return None
 
@@ -116,7 +114,6 @@ def update_event(event_id: str, data: dict) -> Event | None:
 
 def set_event_active(event_id: str, active: bool) -> bool:
     event = get_event(event_id)
-
     if not event:
         return False
 
@@ -130,11 +127,7 @@ def set_event_active(event_id: str, active: bool) -> bool:
 
 
 def set_registration_open(event_id: str, open_: bool) -> bool:
-    """The coordinator-facing "close registration" switch — separate from
-    `active` (admin's show/hide-the-whole-event switch). Closing this stops
-    new registrations without hiding the event from listings."""
     event = get_event(event_id)
-
     if not event:
         return False
 
@@ -147,13 +140,25 @@ def set_registration_open(event_id: str, open_: bool) -> bool:
         raise
 
 
+def _delete_local_poster(url: str | None) -> None:
+    if not url or not url.startswith("/uploads/posters/"):
+        return
+
+    path = config.UPLOAD_DIR / url.rsplit("/", 1)[-1]
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
 def delete_event(event_id: str) -> bool:
     event = get_event(event_id)
-
     if not event:
         return False
 
     old_poster_url = event.poster_url
+    old_poster_url_2 = event.poster_url_2
 
     try:
         db.session.delete(event)
@@ -162,38 +167,22 @@ def delete_event(event_id: str) -> bool:
         db.session.rollback()
         raise
 
-    # Clean up physical poster file after DB commit succeeds
-    if old_poster_url and old_poster_url.startswith("/uploads/posters/"):
-        old_path = config.UPLOAD_DIR / old_poster_url.rsplit("/", 1)[-1]
-
-        if old_path.exists():
-            try:
-                old_path.unlink()
-            except OSError:
-                pass
-
+    _delete_local_poster(old_poster_url)
+    _delete_local_poster(old_poster_url_2)
     return True
 
 
-def save_poster(event: Event, file_storage) -> str:
-    """Validate and save an uploaded event poster.
+def _save_poster_to_field(event: Event, file_storage, field_name: str) -> str:
+    """Validate and save a poster into the requested Event URL field."""
+    if field_name not in ("poster_url", "poster_url_2"):
+        raise ValueError("invalid poster destination")
 
-    Returns the public poster URL.
-
-    Raises:
-        ValueError: For invalid uploads or server-side file save failures.
-
-    Notes:
-        The upload directory is created on demand so fresh Render instances
-        do not fail when the posters directory does not exist yet.
-    """
     filename = file_storage.filename or ""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
     if ext not in config.ALLOWED_POSTER_EXTENSIONS:
         raise ValueError(f"unsupported file type: .{ext}")
 
-    # Determine file size without permanently consuming the stream.
     try:
         file_storage.stream.seek(0, os.SEEK_END)
         size = file_storage.stream.tell()
@@ -205,75 +194,62 @@ def save_poster(event: Event, file_storage) -> str:
         raise ValueError("file too large (max 5 MB)")
 
     try:
-        # First pass: verify that the uploaded bytes are really an image.
         with Image.open(file_storage.stream) as img:
             img.verify()
 
         file_storage.stream.seek(0)
 
-        # Second pass: fully load and normalize the image before saving.
         with Image.open(file_storage.stream) as img:
             img.load()
-            normalized = (
-                img.convert("RGB")
-                if img.mode not in ("RGB", "RGBA")
-                else img.copy()
-            )
+            normalized = img.convert("RGB") if img.mode not in ("RGB", "RGBA") else img.copy()
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise ValueError("file is not a valid image") from exc
 
     safe_name = secure_filename(f"{uuid.uuid4().hex}.{ext}")
 
-    # IMPORTANT FOR RENDER / FRESH DEPLOYMENTS:
-    # The directory may not exist yet, so create it before writing the file.
     try:
         config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise ValueError(f"could not create poster upload directory: {str(exc)}") from exc
 
     dest = config.UPLOAD_DIR / safe_name
-
     save_format = "JPEG" if ext in ("jpg", "jpeg") else ext.upper()
 
     if save_format == "JPEG" and normalized.mode == "RGBA":
         normalized = normalized.convert("RGB")
 
-    # Convert filesystem/image write errors into ValueError so admin_api.py
-    # can return a useful 422 response instead of an unexplained 500.
     try:
         normalized.save(dest, format=save_format)
     except (OSError, ValueError) as exc:
         raise ValueError(f"could not save poster file: {str(exc)}") from exc
 
-    old_poster_url = event.poster_url
+    old_url = getattr(event, field_name)
 
     try:
-        event.poster_url = f"/uploads/posters/{safe_name}"
+        new_url = f"/uploads/posters/{safe_name}"
+        setattr(event, field_name, new_url)
         db.session.commit()
         db.session.refresh(event)
     except Exception:
-        # If DB commit fails, delete newly uploaded poster and revert/raise.
         if dest.exists():
             try:
                 dest.unlink()
             except OSError:
                 pass
-
         db.session.rollback()
         raise
 
-    # Remove the previous poster file only AFTER DB commit succeeds.
-    if (
-        old_poster_url
-        and old_poster_url.startswith("/uploads/posters/")
-        and old_poster_url != event.poster_url
-    ):
-        old_path = config.UPLOAD_DIR / old_poster_url.rsplit("/", 1)[-1]
+    if old_url and old_url != getattr(event, field_name):
+        _delete_local_poster(old_url)
 
-        if old_path.exists():
-            try:
-                old_path.unlink()
-            except OSError:
-                pass
+    return getattr(event, field_name)
 
-    return event.poster_url
+
+def save_poster(event: Event, file_storage) -> str:
+    """Save the primary event poster."""
+    return _save_poster_to_field(event, file_storage, "poster_url")
+
+
+def save_second_poster(event: Event, file_storage) -> str:
+    """Save the optional second poster used by the Events-page slider."""
+    return _save_poster_to_field(event, file_storage, "poster_url_2")
