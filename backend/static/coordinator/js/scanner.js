@@ -2,56 +2,190 @@
   "use strict";
 
   var eventId = window.EVENT_ID;
-  var CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').content : "";
+
+  var csrfMeta = document.querySelector(
+    'meta[name="csrf-token"]'
+  );
+
+  var CSRF_TOKEN = csrfMeta
+    ? csrfMeta.content
+    : "";
+
   var html5QrCode = null;
   var isScanning = false;
+  var cameraStarted = false;
+  var cameraStarting = false;
   var autoResetTimer = null;
+
+  function el(id) {
+    return document.getElementById(id);
+  }
 
   function escapeHtml(str) {
     var div = document.createElement("div");
-    div.textContent = str == null ? "" : String(str);
+
+    div.textContent =
+      str == null
+        ? ""
+        : String(str);
+
     return div.innerHTML;
   }
 
+  function setStatus(text, bg, color) {
+    var bar = el("scanner-status-bar");
+
+    if (!bar) return;
+
+    bar.style.background = bg;
+    bar.style.color = color;
+    bar.innerHTML = text;
+  }
+
+  function showCameraError(title, detail) {
+    el("reader").style.display = "none";
+    el("camera-fallback-msg").style.display = "block";
+
+    el("camera-error-title").textContent = title;
+    el("camera-error-detail").textContent = detail;
+
+    setStatus(
+      "✕ CAMERA UNAVAILABLE",
+      "rgba(239,68,68,.18)",
+      "#ef4444"
+    );
+  }
+
+  function hideCameraError() {
+    el("camera-fallback-msg").style.display = "none";
+    el("reader").style.display = "block";
+  }
+
+  function cameraErrorText(err) {
+    var name =
+      err && err.name
+        ? err.name
+        : "";
+
+    var msg =
+      err && err.message
+        ? err.message
+        : String(err || "");
+
+    if (!window.isSecureContext) {
+      return [
+        "SECURE CONNECTION REQUIRED",
+        "Open this scanner using HTTPS. Camera access will not work on normal HTTP."
+      ];
+    }
+
+    if (
+      name === "NotAllowedError" ||
+      /permission|denied|not allowed/i.test(msg)
+    ) {
+      return [
+        "CAMERA PERMISSION BLOCKED",
+        "Open Site Settings → Camera → Allow, then tap RETRY CAMERA."
+      ];
+    }
+
+    if (
+      name === "NotFoundError" ||
+      /not found|no camera/i.test(msg)
+    ) {
+      return [
+        "NO CAMERA FOUND",
+        "No usable camera was detected on this device."
+      ];
+    }
+
+    if (
+      name === "NotReadableError" ||
+      /in use|not readable|could not start/i.test(msg)
+    ) {
+      return [
+        "CAMERA IS BUSY",
+        "Close other apps or browser tabs using the camera, then retry."
+      ];
+    }
+
+    return [
+      "CAMERA COULD NOT START",
+      "Tap RETRY CAMERA and choose Allow when the browser asks for camera access."
+    ];
+  }
+
   function apiCheckIn(payload) {
-    return fetch("/coordinator/api/events/" + encodeURIComponent(eventId) + "/check-in", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-CSRFToken": CSRF_TOKEN
-      },
-      body: JSON.stringify(payload)
-    }).then(function (res) {
+    return fetch(
+      "/coordinator/api/events/" +
+        encodeURIComponent(eventId) +
+        "/check-in",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": CSRF_TOKEN
+        },
+
+        credentials: "same-origin",
+
+        body: JSON.stringify(payload)
+      }
+    ).then(function (res) {
       return res.json().then(function (body) {
-        return { ok: res.ok, status: res.status, body: body };
+        return {
+          ok: res.ok,
+          status: res.status,
+          body: body
+        };
       });
     });
   }
 
   function updateLiveCount() {
-    fetch("/coordinator/api/events/" + encodeURIComponent(eventId))
-      .then(function (res) { return res.json(); })
+    fetch(
+      "/coordinator/api/events/" +
+        encodeURIComponent(eventId),
+      {
+        credentials: "same-origin"
+      }
+    )
+      .then(function (res) {
+        return res.json();
+      })
       .then(function (data) {
         if (data.attendance_stats) {
-          document.getElementById("scanner-present-count").textContent = data.attendance_stats.present || 0;
+          el("scanner-present-count").textContent =
+            data.attendance_stats.present || 0;
         }
-      }).catch(function () {});
+      })
+      .catch(function () {});
   }
 
   function processScanResult(qrString) {
     if (!qrString || isScanning) return;
+
     isScanning = true;
 
-    if (html5QrCode && html5QrCode.isScanning) {
-      try { html5QrCode.pause(true); } catch (e) {}
+    if (
+      html5QrCode &&
+      html5QrCode.isScanning
+    ) {
+      try {
+        html5QrCode.pause(true);
+      } catch (e) {}
     }
 
-    var statusBar = document.getElementById("scanner-status-bar");
-    statusBar.style.background = "rgba(255, 255, 255, 0.1)";
-    statusBar.style.color = "#ffffff";
-    statusBar.innerHTML = "⏳ VALIDATING TICKET...";
+    setStatus(
+      "⏳ VALIDATING TICKET...",
+      "rgba(255,255,255,.1)",
+      "#fff"
+    );
 
-    apiCheckIn({ qr_data: qrString })
+    apiCheckIn({
+      qr_data: qrString
+    })
       .then(function (res) {
         displayResult(res.body);
         updateLiveCount();
@@ -60,181 +194,454 @@
         displayResult({
           success: false,
           status: "ERROR",
-          message: err.message || "Failed to validate ticket"
+          message:
+            err.message ||
+            "Failed to validate ticket"
         });
       });
   }
 
   function displayResult(res) {
-    var card = document.getElementById("scan-result-card");
-    var badge = document.getElementById("result-badge");
-    var title = document.getElementById("result-title");
-    var details = document.getElementById("result-details");
-    var statusBar = document.getElementById("scanner-status-bar");
+    var card =
+      el("scan-result-card");
+
+    var badge =
+      el("result-badge");
+
+    var title =
+      el("result-title");
+
+    var details =
+      el("result-details");
 
     card.style.display = "block";
 
-    var pName = (res.participant && res.participant.name) || res.participant_name || "—";
-    var pEmail = (res.participant && res.participant.email) || res.participant_email || "—";
-    var eName = res.event || res.event_name || "";
-    var timeStr = res.checked_in_at || "Just now";
-    var checkedBy = res.checked_in_by || "Coordinator";
+    var pName =
+      (res.participant &&
+        res.participant.name) ||
+      res.participant_name ||
+      "—";
 
-    if (res.success && (res.status === "PRESENT" || res.status === "VALID")) {
-      statusBar.style.background = "rgba(16, 185, 129, 0.2)";
-      statusBar.style.color = "#10b981";
-      statusBar.innerHTML = "✓ ATTENDANCE MARKED";
+    var pEmail =
+      (res.participant &&
+        res.participant.email) ||
+      res.participant_email ||
+      "—";
 
-      badge.style.background = "rgba(16, 185, 129, 0.2)";
-      badge.style.color = "#10b981";
-      badge.style.border = "1px solid #10b981";
-      badge.textContent = "ATTENDANCE MARKED — PRESENT";
+    var eName =
+      res.event ||
+      res.event_name ||
+      "";
 
-      title.style.color = "#10b981";
-      title.textContent = "✓ ATTENDANCE MARKED";
+    var timeStr =
+      res.checked_in_at ||
+      "Just now";
 
-      details.innerHTML =
-        '<dt style="color:#a8a8b3;">Student Name:</dt><dd><strong>' + escapeHtml(pName) + '</strong></dd>' +
-        (pEmail ? '<dt style="color:#a8a8b3;">Email:</dt><dd>' + escapeHtml(pEmail) + '</dd>' : '') +
-        '<dt style="color:#a8a8b3;">Event Name:</dt><dd>' + escapeHtml(eName) + '</dd>' +
-        '<dt style="color:#a8a8b3;">Status:</dt><dd><strong style="color:#10b981;">PRESENT</strong></dd>' +
-        '<dt style="color:#a8a8b3;">Time:</dt><dd>' + escapeHtml(timeStr) + '</dd>';
-    } else if (res.status === "ALREADY_PRESENT" || res.status === "ALREADY_CHECKED_IN") {
-      statusBar.style.background = "rgba(245, 158, 11, 0.2)";
-      statusBar.style.color = "#f59e0b";
-      statusBar.innerHTML = "⚠ ALREADY PRESENT";
+    var checkedBy =
+      res.checked_in_by ||
+      "Coordinator";
 
-      badge.style.background = "rgba(245, 158, 11, 0.2)";
-      badge.style.color = "#f59e0b";
-      badge.style.border = "1px solid #f59e0b";
-      badge.textContent = "ALREADY PRESENT";
+    if (
+      res.success &&
+      (
+        res.status === "PRESENT" ||
+        res.status === "VALID"
+      )
+    ) {
+      setStatus(
+        "✓ ATTENDANCE MARKED",
+        "rgba(16,185,129,.2)",
+        "#10b981"
+      );
 
-      title.style.color = "#f59e0b";
-      title.textContent = "⚠ ALREADY PRESENT";
+      badge.style.background =
+        "rgba(16,185,129,.2)";
 
-      details.innerHTML =
-        '<dt style="color:#a8a8b3;">Student Name:</dt><dd><strong>' + escapeHtml(pName) + '</strong></dd>' +
-        '<dt style="color:#a8a8b3;">Message:</dt><dd style="color:#f59e0b;">This student has already been marked present.</dd>' +
-        '<dt style="color:#a8a8b3;">Check-in Time:</dt><dd>' + escapeHtml(timeStr) + '</dd>' +
-        '<dt style="color:#a8a8b3;">Checked By:</dt><dd>' + escapeHtml(checkedBy) + '</dd>';
-    } else if (res.status === "WRONG_EVENT") {
-      statusBar.style.background = "rgba(239, 68, 68, 0.2)";
-      statusBar.style.color = "#ef4444";
-      statusBar.innerHTML = "✕ WRONG EVENT";
+      badge.style.color =
+        "#10b981";
 
-      badge.style.background = "rgba(239, 68, 68, 0.2)";
-      badge.style.color = "#ef4444";
-      badge.style.border = "1px solid #ef4444";
-      badge.textContent = "WRONG EVENT";
+      badge.style.border =
+        "1px solid #10b981";
 
-      title.style.color = "#ef4444";
-      title.textContent = "✕ WRONG EVENT";
+      badge.textContent =
+        "ATTENDANCE MARKED — PRESENT";
 
-      details.innerHTML =
-        '<dt style="color:#a8a8b3;">Message:</dt><dd style="color:#ef4444;">This QR ticket belongs to another event.</dd>';
-    } else if (res.status === "PAYMENT_NOT_VERIFIED") {
-      statusBar.style.background = "rgba(239, 68, 68, 0.2)";
-      statusBar.style.color = "#ef4444";
-      statusBar.innerHTML = "✕ PAYMENT NOT VERIFIED";
+      title.style.color =
+        "#10b981";
 
-      badge.style.background = "rgba(239, 68, 68, 0.2)";
-      badge.style.color = "#ef4444";
-      badge.style.border = "1px solid #ef4444";
-      badge.textContent = "PAYMENT NOT VERIFIED";
-
-      title.style.color = "#ef4444";
-      title.textContent = "✕ PAYMENT NOT VERIFIED";
+      title.textContent =
+        "✓ ATTENDANCE MARKED";
 
       details.innerHTML =
-        '<dt style="color:#a8a8b3;">Message:</dt><dd style="color:#ef4444;">' + escapeHtml(res.message || "Registration payment verification is pending.") + '</dd>';
-    } else if (res.status === "REGISTRATION_REJECTED") {
-      statusBar.style.background = "rgba(239, 68, 68, 0.2)";
-      statusBar.style.color = "#ef4444";
-      statusBar.innerHTML = "✕ REGISTRATION REJECTED";
+        '<dt style="color:#a8a8b3;">Student Name:</dt>' +
+        '<dd><strong>' +
+        escapeHtml(pName) +
+        "</strong></dd>" +
 
-      badge.style.background = "rgba(239, 68, 68, 0.2)";
-      badge.style.color = "#ef4444";
-      badge.style.border = "1px solid #ef4444";
-      badge.textContent = "REGISTRATION REJECTED";
+        '<dt style="color:#a8a8b3;">Email:</dt>' +
+        "<dd>" +
+        escapeHtml(pEmail) +
+        "</dd>" +
 
-      title.style.color = "#ef4444";
-      title.textContent = "✕ REGISTRATION REJECTED";
+        '<dt style="color:#a8a8b3;">Event Name:</dt>' +
+        "<dd>" +
+        escapeHtml(eName) +
+        "</dd>" +
+
+        '<dt style="color:#a8a8b3;">Status:</dt>' +
+        '<dd><strong style="color:#10b981;">PRESENT</strong></dd>' +
+
+        '<dt style="color:#a8a8b3;">Time:</dt>' +
+        "<dd>" +
+        escapeHtml(timeStr) +
+        "</dd>";
+
+    } else if (
+      res.status === "ALREADY_PRESENT" ||
+      res.status === "ALREADY_CHECKED_IN"
+    ) {
+      setStatus(
+        "⚠ ALREADY PRESENT",
+        "rgba(245,158,11,.2)",
+        "#f59e0b"
+      );
+
+      badge.style.background =
+        "rgba(245,158,11,.2)";
+
+      badge.style.color =
+        "#f59e0b";
+
+      badge.style.border =
+        "1px solid #f59e0b";
+
+      badge.textContent =
+        "ALREADY PRESENT";
+
+      title.style.color =
+        "#f59e0b";
+
+      title.textContent =
+        "⚠ ALREADY PRESENT";
 
       details.innerHTML =
-        '<dt style="color:#a8a8b3;">Message:</dt><dd style="color:#ef4444;">' + escapeHtml(res.message || "Registration has been rejected.") + '</dd>';
+        '<dt style="color:#a8a8b3;">Student Name:</dt>' +
+        '<dd><strong>' +
+        escapeHtml(pName) +
+        "</strong></dd>" +
+
+        '<dt style="color:#a8a8b3;">Message:</dt>' +
+        '<dd style="color:#f59e0b;">' +
+        "This student has already been marked present." +
+        "</dd>" +
+
+        '<dt style="color:#a8a8b3;">Check-in Time:</dt>' +
+        "<dd>" +
+        escapeHtml(timeStr) +
+        "</dd>" +
+
+        '<dt style="color:#a8a8b3;">Checked By:</dt>' +
+        "<dd>" +
+        escapeHtml(checkedBy) +
+        "</dd>";
+
     } else {
-      var msg = res.message || "Invalid ticket code";
-      statusBar.style.background = "rgba(239, 68, 68, 0.2)";
-      statusBar.style.color = "#ef4444";
-      statusBar.innerHTML = "✕ INVALID TICKET";
+      var msg =
+        res.message ||
+        "Invalid ticket code";
 
-      badge.style.background = "rgba(239, 68, 68, 0.2)";
-      badge.style.color = "#ef4444";
-      badge.style.border = "1px solid #ef4444";
-      badge.textContent = "INVALID TICKET";
+      var label =
+        (res.status ||
+          "INVALID_TICKET")
+          .replace(/_/g, " ");
 
-      title.style.color = "#ef4444";
-      title.textContent = "✕ INVALID TICKET";
+      setStatus(
+        "✕ " + label,
+        "rgba(239,68,68,.2)",
+        "#ef4444"
+      );
 
-      details.innerHTML = '<dt style="color:#a8a8b3;">Error Detail:</dt><dd style="color:#ef4444;">' + escapeHtml(msg) + '</dd>';
+      badge.style.background =
+        "rgba(239,68,68,.2)";
+
+      badge.style.color =
+        "#ef4444";
+
+      badge.style.border =
+        "1px solid #ef4444";
+
+      badge.textContent =
+        label;
+
+      title.style.color =
+        "#ef4444";
+
+      title.textContent =
+        "✕ " + label;
+
+      details.innerHTML =
+        '<dt style="color:#a8a8b3;">Message:</dt>' +
+        '<dd style="color:#ef4444;">' +
+        escapeHtml(msg) +
+        "</dd>";
     }
 
-    if (autoResetTimer) clearTimeout(autoResetTimer);
-    autoResetTimer = setTimeout(resetToReady, 5000);
+    if (autoResetTimer) {
+      clearTimeout(autoResetTimer);
+    }
+
+    autoResetTimer =
+      setTimeout(
+        resetToReady,
+        5000
+      );
   }
 
   function resetToReady() {
-    if (autoResetTimer) clearTimeout(autoResetTimer);
+    if (autoResetTimer) {
+      clearTimeout(autoResetTimer);
+    }
+
     autoResetTimer = null;
     isScanning = false;
 
-    document.getElementById("scan-result-card").style.display = "none";
-    var statusBar = document.getElementById("scanner-status-bar");
-    statusBar.style.background = "rgba(0,240,255,0.1)";
-    statusBar.style.color = "#00f0ff";
-    statusBar.innerHTML = "● READY TO SCAN";
+    el("scan-result-card").style.display =
+      "none";
 
-    if (html5QrCode && html5QrCode.isScanning) {
-      try { html5QrCode.resume(); } catch (e) {}
+    setStatus(
+      cameraStarted
+        ? "● READY TO SCAN"
+        : "● CAMERA NOT STARTED",
+
+      "rgba(0,240,255,.1)",
+      "#00f0ff"
+    );
+
+    if (
+      html5QrCode &&
+      html5QrCode.isScanning
+    ) {
+      try {
+        html5QrCode.resume();
+      } catch (e) {}
     }
   }
 
-  document.getElementById("btn-next-scan").addEventListener("click", resetToReady);
-
-  // Manual Scan Form Handler
-  document.getElementById("manual-scan-form").addEventListener("submit", function (e) {
-    e.preventDefault();
-    var val = document.getElementById("manual-ticket-input").value.trim();
-    if (val) {
-      processScanResult(val);
-      document.getElementById("manual-ticket-input").value = "";
-    }
-  });
-
-  // Initialize Camera QR Scanner
   function startCameraScanner() {
-    if (typeof Html5Qrcode === "undefined") {
-      console.warn("Html5Qrcode library not loaded.");
-      document.getElementById("camera-fallback-msg").style.display = "block";
+    if (
+      cameraStarting ||
+      cameraStarted
+    ) {
       return;
     }
 
-    html5QrCode = new Html5Qrcode("reader");
-    var config = { fps: 10, qrbox: { width: 240, height: 240 } };
+    if (!window.isSecureContext) {
+      showCameraError(
+        "SECURE CONNECTION REQUIRED",
+        "Open this scanner using HTTPS. Camera access will not work on normal HTTP."
+      );
 
-    html5QrCode.start(
-      { facingMode: "environment" },
-      config,
-      function onScanSuccess(decodedText) {
-        processScanResult(decodedText);
+      return;
+    }
+
+    if (
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia
+    ) {
+      showCameraError(
+        "CAMERA API NOT AVAILABLE",
+        "Try the latest Chrome or Safari on this phone."
+      );
+
+      return;
+    }
+
+    if (
+      typeof Html5Qrcode === "undefined"
+    ) {
+      showCameraError(
+        "QR SCANNER LIBRARY FAILED TO LOAD",
+        "The scanner library did not load. Refresh the page and try again."
+      );
+
+      return;
+    }
+
+    cameraStarting = true;
+
+    hideCameraError();
+
+    el("btn-start-camera").disabled =
+      true;
+
+    el("btn-start-camera").textContent =
+      "STARTING CAMERA...";
+
+    el("btn-retry-camera").disabled =
+      true;
+
+    setStatus(
+      "⏳ REQUESTING CAMERA ACCESS...",
+      "rgba(255,255,255,.1)",
+      "#fff"
+    );
+
+    if (!html5QrCode) {
+      html5QrCode =
+        new Html5Qrcode("reader");
+    }
+
+    var config = {
+      fps: 10,
+
+      qrbox: function (w, h) {
+        var size =
+          Math.floor(
+            Math.min(w, h) * 0.72
+          );
+
+        size =
+          Math.max(
+            180,
+            Math.min(
+              size,
+              280
+            )
+          );
+
+        return {
+          width: size,
+          height: size
+        };
       },
-      function onScanError(err) {}
-    ).catch(function (err) {
-      console.warn("Camera start failed:", err);
-      document.getElementById("camera-fallback-msg").style.display = "block";
-    });
+
+      disableFlip: false
+    };
+
+    html5QrCode
+      .start(
+        {
+          facingMode: {
+            ideal: "environment"
+          }
+        },
+
+        config,
+
+        function (decodedText) {
+          processScanResult(
+            decodedText
+          );
+        },
+
+        function () {}
+      )
+      .then(function () {
+        cameraStarted = true;
+        cameraStarting = false;
+
+        el("btn-start-camera").style.display =
+          "none";
+
+        el("btn-start-camera").disabled =
+          false;
+
+        el("btn-retry-camera").disabled =
+          false;
+
+        setStatus(
+          "● READY TO SCAN",
+          "rgba(0,240,255,.1)",
+          "#00f0ff"
+        );
+      })
+      .catch(function (err) {
+        cameraStarted = false;
+        cameraStarting = false;
+
+        el("btn-start-camera").style.display =
+          "block";
+
+        el("btn-start-camera").disabled =
+          false;
+
+        el("btn-start-camera").textContent =
+          "📷 START CAMERA";
+
+        el("btn-retry-camera").disabled =
+          false;
+
+        console.warn(
+          "Camera start failed:",
+          err
+        );
+
+        var explained =
+          cameraErrorText(err);
+
+        showCameraError(
+          explained[0],
+          explained[1]
+        );
+      });
   }
 
+  el("btn-next-scan")
+    .addEventListener(
+      "click",
+      resetToReady
+    );
+
+  el("manual-scan-form")
+    .addEventListener(
+      "submit",
+      function (e) {
+        e.preventDefault();
+
+        var val =
+          el("manual-ticket-input")
+            .value
+            .trim();
+
+        if (val) {
+          processScanResult(val);
+
+          el("manual-ticket-input").value =
+            "";
+        }
+      }
+    );
+
+  el("btn-start-camera")
+    .addEventListener(
+      "click",
+      startCameraScanner
+    );
+
+  el("btn-retry-camera")
+    .addEventListener(
+      "click",
+      startCameraScanner
+    );
+
+  window.addEventListener(
+    "pagehide",
+    function () {
+      if (
+        html5QrCode &&
+        html5QrCode.isScanning
+      ) {
+        try {
+          html5QrCode.stop();
+        } catch (e) {}
+      }
+    }
+  );
+
   updateLiveCount();
-  startCameraScanner();
+
+  // IMPORTANT:
+  // Do not auto-start on mobile.
+  // User must tap START CAMERA so browser
+  // can show permission prompt reliably.
 })();
