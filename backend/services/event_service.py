@@ -176,28 +176,42 @@ def delete_event(event_id: str) -> bool:
 
 
 def save_poster(event: Event, file_storage) -> str:
-    """Validates and saves an uploaded poster, returns its public URL.
-    Raises ValueError on anything that fails validation.
-    Performs atomic file retention on failure."""
+    """Validate and save an uploaded event poster.
+
+    Returns the public poster URL.
+
+    Raises:
+        ValueError: For invalid uploads or server-side file save failures.
+
+    Notes:
+        The upload directory is created on demand so fresh Render instances
+        do not fail when the posters directory does not exist yet.
+    """
     filename = file_storage.filename or ""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
     if ext not in config.ALLOWED_POSTER_EXTENSIONS:
         raise ValueError(f"unsupported file type: .{ext}")
 
-    file_storage.stream.seek(0, os.SEEK_END)
-    size = file_storage.stream.tell()
-    file_storage.stream.seek(0)
+    # Determine file size without permanently consuming the stream.
+    try:
+        file_storage.stream.seek(0, os.SEEK_END)
+        size = file_storage.stream.tell()
+        file_storage.stream.seek(0)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"could not read uploaded file: {str(exc)}") from exc
 
     if size > config.MAX_POSTER_SIZE_BYTES:
         raise ValueError("file too large (max 5 MB)")
 
     try:
+        # First pass: verify that the uploaded bytes are really an image.
         with Image.open(file_storage.stream) as img:
             img.verify()
 
         file_storage.stream.seek(0)
 
+        # Second pass: fully load and normalize the image before saving.
         with Image.open(file_storage.stream) as img:
             img.load()
             normalized = (
@@ -205,10 +219,18 @@ def save_poster(event: Event, file_storage) -> str:
                 if img.mode not in ("RGB", "RGBA")
                 else img.copy()
             )
-    except (UnidentifiedImageError, OSError, ValueError):
-        raise ValueError("file is not a valid image")
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise ValueError("file is not a valid image") from exc
 
     safe_name = secure_filename(f"{uuid.uuid4().hex}.{ext}")
+
+    # IMPORTANT FOR RENDER / FRESH DEPLOYMENTS:
+    # The directory may not exist yet, so create it before writing the file.
+    try:
+        config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ValueError(f"could not create poster upload directory: {str(exc)}") from exc
+
     dest = config.UPLOAD_DIR / safe_name
 
     save_format = "JPEG" if ext in ("jpg", "jpeg") else ext.upper()
@@ -216,7 +238,12 @@ def save_poster(event: Event, file_storage) -> str:
     if save_format == "JPEG" and normalized.mode == "RGBA":
         normalized = normalized.convert("RGB")
 
-    normalized.save(dest, format=save_format)
+    # Convert filesystem/image write errors into ValueError so admin_api.py
+    # can return a useful 422 response instead of an unexplained 500.
+    try:
+        normalized.save(dest, format=save_format)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"could not save poster file: {str(exc)}") from exc
 
     old_poster_url = event.poster_url
 
@@ -225,7 +252,7 @@ def save_poster(event: Event, file_storage) -> str:
         db.session.commit()
         db.session.refresh(event)
     except Exception:
-        # If DB commit fails, delete newly uploaded poster and revert/raise
+        # If DB commit fails, delete newly uploaded poster and revert/raise.
         if dest.exists():
             try:
                 dest.unlink()
@@ -235,7 +262,7 @@ def save_poster(event: Event, file_storage) -> str:
         db.session.rollback()
         raise
 
-    # Remove the previous poster file only AFTER DB commit succeeds
+    # Remove the previous poster file only AFTER DB commit succeeds.
     if (
         old_poster_url
         and old_poster_url.startswith("/uploads/posters/")
