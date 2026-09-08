@@ -6,7 +6,7 @@ import gsap from 'gsap'
 import { Navbar } from '@/components/navbar'
 import { Events as ArenasSection } from '@/components/events'
 
-const HELP_EMAIL = process.env.NEXT_PUBLIC_HELP_EMAIL || 'cybercarnival.help@srmist.edu.in'
+const HELP_EMAIL = process.env.NEXT_PUBLIC_HELP_EMAIL || 'cybercarnivalsrmrmp@gmail.com'
 
 export function AboutClient() {
   const heroRef = useRef<HTMLDivElement>(null)
