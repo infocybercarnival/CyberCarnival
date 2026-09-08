@@ -9,6 +9,19 @@ import {
   type ParticipantDetail
 } from '@/lib/api'
 
+const PAPER_PRESENTATION_THEMES = [
+  'AI & Cybersecurity',
+  'Quantum Computing & Future Security',
+  'Blockchain, Web3 & Digital Identity',
+  'Ethical Hacking & Modern Threats',
+  'Cyber Warfare & National Security',
+  'Cybercrime & Digital Forensics',
+  'Deepfakes, Misinformation & Digital Trust',
+  'Privacy & Data Protection',
+  'Social Engineering: The Art of Human Hacking',
+  'The Next Big Cyber Threat (Open Theme)',
+]
+
 type Props = { eventId: string | null; eventName: string; onClose: () => void }
 
 type Status = 'idle' | 'submitting' | 'done' | 'error'
@@ -23,6 +36,7 @@ type TeammateDetail = {
 
 export function RegistrationModal({ eventId, eventName, onClose }: Props) {
   const router = useRouter()
+  const isPaperPresentation = eventName.trim().toUpperCase().includes('PAPER PRESENTATION')
   const [me, setMe] = useState<PublicUser | null | 'loading'>('loading')
   const [event, setEvent] = useState<ApiEvent | null>(null)
   const [mode, setMode] = useState<'individual' | 'team'>('individual')
@@ -263,6 +277,44 @@ export function RegistrationModal({ eventId, eventName, onClose }: Props) {
               <p className="font-mono text-xs tracking-[.3em] text-primary">EVENT REGISTRATION & CERTIFICATE DETAILS</p>
               <h3 className="mt-2 text-2xl font-bold">{eventName}</h3>
             </div>
+
+            {isPaperPresentation && (
+              <section className="overflow-hidden rounded-2xl border-2 border-primary/60 bg-primary/[0.07] shadow-[0_0_30px_rgba(168,85,247,0.12)]">
+                <div className="border-b border-primary/30 bg-primary/10 px-5 py-4 sm:px-6">
+                  <p className="font-mono text-[10px] font-bold uppercase tracking-[0.28em] text-primary">
+                    PAPER PRESENTATION
+                  </p>
+                  <h4 className="mt-1 text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
+                    PRESENTATION THEMES
+                  </h4>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    Choose a topic from any one of the following themes for your paper presentation.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6">
+                  {PAPER_PRESENTATION_THEMES.map((theme, index) => (
+                    <div
+                      key={theme}
+                      className="group flex min-h-[78px] items-start gap-3 rounded-xl border border-border/80 bg-background/50 p-4 transition-all hover:border-primary/60 hover:bg-primary/[0.06]"
+                    >
+                      <span className="flex h-7 min-w-7 items-center justify-center rounded-md border border-primary/40 bg-primary/10 font-mono text-[10px] font-bold text-primary">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span className="text-sm font-semibold leading-relaxed text-foreground sm:text-[15px]">
+                        {theme}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-primary/20 bg-background/30 px-5 py-3 sm:px-6">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    OPEN THEME allows emerging cyber-security topics beyond the listed categories.
+                  </p>
+                </div>
+              </section>
+            )}
             {event?.confirmation_queue_full && (
               <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-left font-mono">
                 <div className="flex items-center gap-2 text-amber-400 font-bold text-xs tracking-[0.15em] mb-1">
