@@ -498,16 +498,25 @@ def create_event():
     coordinators.sync_event_coordinators(record.id, faculty_ids, student_ids)
 
     poster = request.files.get("poster")
-    if poster and poster.filename:
-        try:
+    poster_2 = request.files.get("poster_2")
+
+    try:
+        if poster and poster.filename:
             events.save_poster(record, poster)
-        except ValueError as e:
-            # Atomic cleanup: if poster fails validation, delete DB event record
-            events.delete_event(record.id)
-            return jsonify({"error": f"Poster validation failed: {str(e)}"}), 422
+
+        if poster_2 and poster_2.filename:
+            events.save_second_poster(record, poster_2)
+
+    except ValueError as e:
+        events.delete_event(record.id)
+        return jsonify({"error": f"Poster validation failed: {str(e)}"}), 422
 
     audit_service.log_action(_actor(), "EVENT_CREATED", f"event {record.id} ({name})", _ip())
-    return jsonify(record.to_admin_dict()), 201
+    return jsonify({
+        "ok": True,
+        "event_id": record.id,
+        "message": "Event created successfully"
+    }), 201
 
 
 @bp.put("/events/<event_id>")
@@ -648,6 +657,33 @@ def edit_event(event_id):
     else:
         logger.info("EVENT EDIT NO POSTER event_id=%s", event_id)
 
+    # STEP 4: Save optional second poster.
+    poster_2 = request.files.get("poster_2")
+
+    if poster_2 and poster_2.filename:
+        logger.info(
+            "POSTER 2 UPLOAD START event_id=%s filename=%s content_type=%s",
+            event_id,
+            poster_2.filename,
+            poster_2.content_type,
+        )
+
+        try:
+            poster_url_2 = events.save_second_poster(record, poster_2)
+            logger.info("POSTER 2 UPLOAD SUCCESS event_id=%s url=%s", event_id, poster_url_2)
+
+        except ValueError as e:
+            logger.exception("POSTER 2 VALIDATION/SAVE ERROR event_id=%s", event_id)
+            return jsonify({"error": f"Second poster upload failed: {str(e)}"}), 422
+
+        except Exception as e:
+            logger.exception("POSTER 2 UNEXPECTED ERROR event_id=%s", event_id)
+            return jsonify({
+                "error": f"Second poster upload server error: {type(e).__name__}: {str(e)}"
+            }), 500
+    else:
+        logger.info("EVENT EDIT NO SECOND POSTER event_id=%s", event_id)
+
     changed_fields = list(data.keys())
 
     try:
@@ -662,7 +698,11 @@ def edit_event(event_id):
         logger.exception("EVENT AUDIT LOG ERROR event_id=%s", event_id)
 
     logger.info("EVENT EDIT SUCCESS event_id=%s", event_id)
-    return jsonify(record.to_admin_dict())
+    return jsonify({
+        "ok": True,
+        "event_id": record.id,
+        "message": "Event updated successfully"
+    })
 
 
 @bp.post("/events/<event_id>/toggle")
@@ -869,4 +909,3 @@ def admin_api_logout():
         revoke_session(sid)
     session.clear()
     return jsonify({"success": True, "ok": True, "message": "Logged out successfully"})
-
