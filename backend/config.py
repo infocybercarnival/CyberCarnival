@@ -35,13 +35,6 @@ LOGIN_ATTEMPTS_FILE = DATA_DIR / "login_attempts.json"
 ALLOWED_ORIGINS = [
     o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()
 ]
-if not ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:5000",
-        "http://127.0.0.1:5000",
-    ]
 
 
 SITE_URL = os.environ.get("SITE_URL", "http://127.0.0.1:5000").rstrip("/")
@@ -50,14 +43,16 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "") or f"{SITE_URL}/api/auth/google/callback"
 ALLOWED_EMAIL_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "").strip().lower()
-ADMIN_GOOGLE_EMAIL = os.environ.get("ADMIN_GOOGLE_EMAIL", "info.cybercarnival@gmail.com").strip().lower()
-ADMIN_NOTIFICATION_EMAIL = os.environ.get("ADMIN_NOTIFICATION_EMAIL", os.environ.get("ADMIN_GOOGLE_EMAIL", "info.cybercarnival@gmail.com")).strip()
 
 # --- CAPTCHA (Cloudflare Turnstile) -----------------------------------------
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 
+
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
 
 PAYMENT_SESSION_MINUTES = int(os.environ.get("PAYMENT_SESSION_MINUTES", "10"))
 
@@ -73,27 +68,14 @@ RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
 
 DATABASE_URL_ENV = os.environ.get("DATABASE_URL")
 if DATABASE_URL_ENV:
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL_ENV.strip()
-    # SQLAlchemy's bare postgresql:// URL defaults to psycopg2. This project
-    # deploys with psycopg v3, so make the driver explicit for Render/Supabase.
-    if SQLALCHEMY_DATABASE_URI.startswith("postgresql://"):
-        SQLALCHEMY_DATABASE_URI = "postgresql+psycopg://" + SQLALCHEMY_DATABASE_URI[len("postgresql://"):]
-    elif SQLALCHEMY_DATABASE_URI.startswith("postgres://"):
-        SQLALCHEMY_DATABASE_URI = "postgresql+psycopg://" + SQLALCHEMY_DATABASE_URI[len("postgres://"):]
+    SQLALCHEMY_DATABASE_URI = DATABASE_URL_ENV
+    if SQLALCHEMY_DATABASE_URI.startswith("mysql://"):
+        SQLALCHEMY_DATABASE_URI = "mysql+pymysql://" + SQLALCHEMY_DATABASE_URI[len("mysql://"):]
 else:
-    if IS_PRODUCTION:
-        raise RuntimeError(
-            "DATABASE_URL environment variable is missing. Refusing to start in production without PostgreSQL. "
-            "Set DATABASE_URL in your deployment environment (e.g., Render/Supabase)."
-        )
-    # Local-only development fallback
+    # Use SQLite for local development fallback if MySQL is not explicitly configured
     SQLALCHEMY_DATABASE_URI = f"sqlite:///{DATA_DIR / 'cybercarnival.db'}"
 
 SQLALCHEMY_TRACK_MODIFICATIONS = False
-SQLALCHEMY_ENGINE_OPTIONS = {
-    "pool_pre_ping": True,
-    "pool_recycle": 280,
-}
 
 
 EMAIL_DEV_MODE = os.environ.get("EMAIL_DEV_MODE", "true").strip().lower() == "true"
@@ -115,23 +97,17 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MAX_POSTER_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 ALLOWED_POSTER_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
-PAYMENT_PROOF_DIR = DATA_DIR / "uploads" / "payment_proofs"
-PAYMENT_PROOF_DIR.mkdir(parents=True, exist_ok=True)
-MAX_PAYMENT_PROOF_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
-ALLOWED_PAYMENT_PROOF_EXTENSIONS = {"png", "jpg", "jpeg"}
-ALLOWED_PAYMENT_PROOF_MIMES = {"image/png", "image/jpeg", "image/jpg", "image/pjpeg"}
-
 
 FRONTEND_DIST_DIR = Path(
     os.environ.get("FRONTEND_DIST_DIR", str(BASE_DIR.parent / "frontend" / "out"))
 ).resolve()
 
 
-MAX_CONTENT_LENGTH = 6 * 1024 * 1024  # 6 MB
-SESSION_COOKIE_NAME = "cybercarnival_session"
+MAX_CONTENT_LENGTH = 12 * 1024 * 1024  # 12 MB: two 5 MB posters + multipart overhead
+
 SESSION_COOKIE_SECURE = IS_PRODUCTION
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = "None" if IS_PRODUCTION else "Lax"
+SESSION_COOKIE_SAMESITE = "Lax"
 PERMANENT_SESSION_LIFETIME_SECONDS = 60 * 60 * 4  
 
 
