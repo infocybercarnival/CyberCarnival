@@ -198,6 +198,18 @@
         <input type="text" id="coord-username" name="username" required style="width:100%; padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);" />
       </div>
       <div class="form-group" style="margin-bottom: 12px;">
+        <label for="coord-phone" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted);">PHONE NUMBER</label>
+        <input
+          type="tel"
+          id="coord-phone"
+          name="phone"
+          inputmode="tel"
+          maxlength="20"
+          placeholder="e.g. +91 98765 43210"
+          style="width:100%; padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);"
+        />
+      </div>
+      <div class="form-group" style="margin-bottom: 12px;">
         <label for="coord-password" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted);" id="coord-password-label">PASSWORD</label>
         <input type="password" id="coord-password" name="password" style="width:100%; padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);" placeholder="Min 6 chars" />
       </div>
@@ -225,5 +237,5 @@
   </div>
 </div>
 
-<script src="/static/admin/js/admin.js?v=1.2.0"></script>
+<script src="/static/admin/js/admin.js?v=1.2.1"></script>
 {% endblock %}
