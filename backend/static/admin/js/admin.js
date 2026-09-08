@@ -1254,14 +1254,23 @@
           '<button type="button" id="btn-add-student-coord" class="reg-btn" style="padding: 6px 12px; font-size: 11px; margin-top: 4px;">+ ADD STUDENT COORDINATOR</button>' +
         '</div>' +
 
-        '<div class="form-section-title">6. Event Poster / Media Image</div>' +
+        '<div class="form-section-title">6. Event Poster / Media Images</div>' +
         '<div class="form-field-group">' +
-          '<label>Upload New Poster (.jpg, .jpeg, .png, .webp — Max 5 MB)</label>' +
+          '<label>Poster 1 (Primary) — .jpg, .jpeg, .png, .webp — Max 5 MB</label>' +
           '<input type="file" name="poster" id="input-event-poster" accept=".png,.jpg,.jpeg,.webp" />' +
           '<div id="poster-preview-area" class="poster-preview-box"' + (ev && ev.poster_url ? "" : ' style="display: none;"') + '>' +
-            '<img id="poster-preview-img" src="' + escapeHtml(ev && ev.poster_url ? ev.poster_url : "") + '" class="poster-preview-thumb" alt="Poster Preview" />' +
-            '<div id="poster-preview-info" class="poster-preview-info">' + (ev && ev.poster_url ? "Current Poster Image" : "") + '</div>' +
+            '<img id="poster-preview-img" src="' + escapeHtml(ev && ev.poster_url ? ev.poster_url : "") + '" class="poster-preview-thumb" alt="Poster 1 Preview" />' +
+            '<div id="poster-preview-info" class="poster-preview-info">' + (ev && ev.poster_url ? "Current Poster 1" : "") + '</div>' +
           '</div>' +
+        '</div>' +
+        '<div class="form-field-group" id="poster-2-field" style="display:none;">' +
+          '<label>Poster 2 (Optional Slider Image) — Paper Presentation / Workshop</label>' +
+          '<input type="file" name="poster_2" id="input-event-poster-2" accept=".png,.jpg,.jpeg,.webp" />' +
+          '<div id="poster-preview-area-2" class="poster-preview-box"' + (ev && ev.poster_url_2 ? "" : ' style="display: none;"') + '>' +
+            '<img id="poster-preview-img-2" src="' + escapeHtml(ev && ev.poster_url_2 ? ev.poster_url_2 : "") + '" class="poster-preview-thumb" alt="Poster 2 Preview" />' +
+            '<div id="poster-preview-info-2" class="poster-preview-info">' + (ev && ev.poster_url_2 ? "Current Poster 2" : "") + '</div>' +
+          '</div>' +
+          '<div style="margin-top:6px;font-size:10px;color:#8b8b99;">When Poster 2 exists, the Events page automatically slides between Poster 1 and Poster 2 every 5 seconds.</div>' +
         '</div>' +
 
         '<div id="event-modal-error" style="display: none; color: #ef4444; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); padding: 10px; border-radius: 4px; margin-top: 14px; font-size: 12px; font-weight: bold;"></div>' +
@@ -1310,11 +1319,29 @@
 
     var formEl = modal.querySelector('#event-modal-form');
     var fileInput = modal.querySelector('#input-event-poster');
+    var fileInput2 = modal.querySelector('#input-event-poster-2');
     var previewArea = modal.querySelector('#poster-preview-area');
     var previewImg = modal.querySelector('#poster-preview-img');
     var previewInfo = modal.querySelector('#poster-preview-info');
+    var previewArea2 = modal.querySelector('#poster-preview-area-2');
+    var previewImg2 = modal.querySelector('#poster-preview-img-2');
+    var previewInfo2 = modal.querySelector('#poster-preview-info-2');
+    var poster2Field = modal.querySelector('#poster-2-field');
+    var nameInput = modal.querySelector('input[name="name"]');
+    var categorySelect = modal.querySelector('select[name="category"]');
     var errBox = modal.querySelector('#event-modal-error');
     var saveBtn = modal.querySelector('#btn-save-event');
+
+    function updatePoster2Visibility() {
+      var eventName = (nameInput && nameInput.value ? nameInput.value : '').trim().toUpperCase();
+      var category = (categorySelect && categorySelect.value ? categorySelect.value : '').trim().toUpperCase();
+      var shouldShow = eventName.indexOf('PAPER PRESENTATION') !== -1 || category === 'WORKSHOP';
+      if (poster2Field) poster2Field.style.display = shouldShow ? 'block' : 'none';
+    }
+
+    if (nameInput) nameInput.addEventListener('input', updatePoster2Visibility);
+    if (categorySelect) categorySelect.addEventListener('change', updatePoster2Visibility);
+    updatePoster2Visibility();
 
     // Live file preview listener
     fileInput.addEventListener('change', function() {
@@ -1335,6 +1362,29 @@
           previewArea.style.display = 'flex';
         };
         reader.readAsDataURL(f);
+      }
+    });
+
+    fileInput2.addEventListener('change', function() {
+      if (fileInput2.files && fileInput2.files[0]) {
+        var f2 = fileInput2.files[0];
+        var sizeMB2 = (f2.size / (1024 * 1024)).toFixed(2);
+
+        if (f2.size > 5 * 1024 * 1024) {
+          errBox.style.display = 'block';
+          errBox.textContent = 'Poster 2 exceeds the 5 MB limit (' + sizeMB2 + ' MB).';
+          fileInput2.value = '';
+          return;
+        }
+
+        errBox.style.display = 'none';
+        var reader2 = new FileReader();
+        reader2.onload = function(e) {
+          previewImg2.src = e.target.result;
+          previewInfo2.innerHTML = '<strong>Selected:</strong> ' + escapeHtml(f2.name) + '<br/>Size: ' + sizeMB2 + ' MB';
+          previewArea2.style.display = 'flex';
+        };
+        reader2.readAsDataURL(f2);
       }
     });
 
