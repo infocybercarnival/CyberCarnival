@@ -15,6 +15,19 @@ if (typeof window !== 'undefined') {
   gsap.registerPlugin(TextPlugin)
 }
 
+const PAPER_PRESENTATION_THEMES = [
+  'AI & Cybersecurity',
+  'Quantum Computing & Future Security',
+  'Blockchain, Web3 & Digital Identity',
+  'Ethical Hacking & Modern Threats',
+  'Cyber Warfare & National Security',
+  'Cybercrime & Digital Forensics',
+  'Deepfakes, Misinformation & Digital Trust',
+  'Privacy & Data Protection',
+  'Social Engineering: The Art of Human Hacking',
+  'The Next Big Cyber Threat (Open Theme)',
+]
+
 function formatTeamSize(min: number | null, max: number | null): string | null {
   if (min && max && min === max) return `${min} MEMBER${min > 1 ? 'S' : ''}`
   if (min && max) return `${min}–${max} MEMBERS`
@@ -103,6 +116,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   ) || staticFallback
 
   const eventName = event?.name || matchingStatic?.name || ''
+  const isPaperPresentation = eventName.trim().toUpperCase().includes('PAPER PRESENTATION')
 
   // GSAP Title Decode animation hook
   useEffect(() => {
@@ -499,6 +513,39 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
                 ))}
               </div>
             </div>
+
+            {/* Paper Presentation Themes */}
+            {isPaperPresentation && (
+              <section className="reveal-on-scroll opacity-0 translate-y-6 transition-all duration-700 w-full overflow-hidden rounded-[12px] border-2 border-primary/60 bg-card shadow-[0_0_28px_rgba(168,85,247,0.14)] order-7 lg:order-none">
+                <div className="border-b border-primary/30 bg-primary/10 px-6 py-5 md:px-8">
+                  <p className="font-mono text-[10px] font-bold tracking-[0.28em] text-primary">
+                    PAPER PRESENTATION
+                  </p>
+                  <h2 className="mt-2 text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">
+                    PRESENTATION THEMES
+                  </h2>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    Choose any one of the following themes for your paper presentation.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 md:p-7">
+                  {PAPER_PRESENTATION_THEMES.map((theme, index) => (
+                    <div
+                      key={theme}
+                      className="group flex min-h-[82px] items-start gap-3 rounded-[8px] border border-border/70 bg-background/50 p-4 transition-all hover:border-primary/60 hover:bg-primary/[0.06]"
+                    >
+                      <span className="flex h-8 min-w-8 items-center justify-center rounded-md border border-primary/40 bg-primary/10 font-mono text-[10px] font-bold text-primary">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                      <span className="text-sm font-semibold leading-relaxed text-foreground md:text-[15px]">
+                        {theme}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* 4. Event Coordinators Section (Mobile Order: 7) */}
             <div className="reveal-on-scroll opacity-0 translate-y-6 transition-all duration-700 w-full border border-border/80 bg-card p-6 md:p-8 rounded-[10px] order-7 lg:order-none">
