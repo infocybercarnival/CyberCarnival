@@ -41,7 +41,6 @@ export default function EventsPage() {
 
   const staticByName = useMemo(() => new Map(EVENTS.map((e) => [e.name, e])), [])
 
-  // Filter backend or fallback events based on category and search query
   const chromaItems: ChromaGridItem[] = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
 
@@ -63,6 +62,7 @@ export default function EventsPage() {
         category: event.tag === 'NON-TECHNICAL' ? 'NON-TECHNICAL' : 'TECHNICAL',
         description: event.desc,
         posterSrc: event.poster,
+        posterSrc2: null,
         posterAlt: event.posterAlt || `${event.name} poster`,
         fee: event.details.fee,
         date: event.details.date,
@@ -107,6 +107,7 @@ export default function EventsPage() {
           category: event.category || 'TECHNICAL',
           description,
           posterSrc,
+          posterSrc2: event.poster_url_2 || null,
           posterAlt: fallback?.posterAlt || `${event.name} poster`,
           fee: event.fee || 'FREE',
           date: event.date || 'TBA',
@@ -126,7 +127,6 @@ export default function EventsPage() {
       <main className="mx-auto max-w-[1440px] px-4 sm:px-6 pb-32 pt-28 sm:pt-36 lg:px-12">
         <p className="font-mono text-[11px] tracking-[0.3em] text-primary font-bold">EVENTS / {EVENT_DATES}</p>
 
-        {/* Heading & Active Count Indicator */}
         <div className="mt-6 flex flex-wrap items-baseline justify-between gap-4">
           <h1 className="font-display text-[clamp(2.5rem,6vw,5rem)] font-bold leading-none tracking-tight text-foreground">
             ALL EVENTS
@@ -144,9 +144,7 @@ export default function EventsPage() {
           </p>
         )}
 
-        {/* Controls Bar: Search & Category Filter */}
         <div className="mt-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          {/* Category Filter Bar */}
           <div className="flex flex-wrap gap-3">
             {(['ALL', 'TECHNICAL', 'NON-TECHNICAL'] as CategoryFilter[]).map((c) => (
               <button
@@ -163,7 +161,6 @@ export default function EventsPage() {
             ))}
           </div>
 
-          {/* Cyberpunk Search Field */}
           <div className="relative w-full max-w-md">
             <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-primary font-mono text-xs font-bold">
               &gt;
@@ -190,7 +187,6 @@ export default function EventsPage() {
           </div>
         </div>
 
-        {/* ChromaGrid Events Presentation */}
         <div className="mt-12">
           {chromaItems.length === 0 ? (
             <div className="flex min-h-[300px] flex-col items-center justify-center border border-border/60 bg-card/30 p-12 text-center font-mono">
