@@ -133,6 +133,10 @@ export function PaymentClient(props: Props) {
           has_proof: true,
         })
       }
+
+      // Payment proof was saved successfully.
+      // My Events is the dashboard itself, so redirect there immediately.
+      router.replace('/dashboard')
     } catch (err) {
       if (err instanceof ApiValidationError) {
         setSubmitError(err.message)
