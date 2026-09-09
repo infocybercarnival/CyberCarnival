@@ -18,11 +18,39 @@ export function getApiUrl(): string {
 
 export const API_URL = getApiUrl()
 
+async function fetchCsrfToken(baseUrl: string): Promise<string> {
+  const res = await fetch(`${baseUrl}/api/auth/csrf-token`, {
+    method: 'GET',
+    credentials: 'include',
+    cache: 'no-store',
+  })
+
+  if (!res.ok) {
+    throw new Error(`Could not obtain CSRF token (${res.status})`)
+  }
+
+  const data = await res.json()
+  if (!data?.csrf_token) {
+    throw new Error('CSRF token missing from server response')
+  }
+
+  return data.csrf_token as string
+}
+
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const baseUrl = getApiUrl()
+  const method = (options.method || 'GET').toUpperCase()
+  const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes(method)
+  const headers = new Headers(options.headers || {})
+
+  if (unsafe) {
+    const csrfToken = await fetchCsrfToken(baseUrl)
+    headers.set('X-CSRFToken', csrfToken)
+  }
 
   return fetch(`${baseUrl}${path}`, {
     ...options,
+    headers,
     credentials: 'include',
   })
 }
