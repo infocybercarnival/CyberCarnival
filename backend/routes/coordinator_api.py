@@ -8,10 +8,7 @@ from flask import Blueprint, jsonify, session, Response, request
 
 from extensions import limiter, db
 from models import EventRegistration
-from services.coordinator_service import (
-    get_coordinator, coordinator_owns_event, event_registrations_detail,
-    event_attendance_summary, get_coordinator_event_role
-)
+from services.coordinator_service import event_registrations_detail, event_attendance_summary
 from services.event_service import get_event, set_registration_open
 from services.audit_service import log_action
 from services.registration_service import (
@@ -23,14 +20,18 @@ from utils.auth import coordinator_login_required
 bp = Blueprint("coordinator_api", __name__, url_prefix="/coordinator/api")
 
 
-def _coordinator():
-    cid = session.get("coordinator_id")
-    if not cid:
+def _event():
+    event_id = session.get("coordinator_event_id")
+    if not event_id:
         return None
-    coord = get_coordinator(cid)
-    if not coord or not coord.is_active:
+    event = get_event(event_id)
+    if not event or not event.coordinator_login_active:
         return None
-    return coord
+    return event
+
+
+def _owns_event(event_id: str) -> bool:
+    return bool(event_id and session.get("coordinator_event_id") == event_id)
 
 
 def _actor():
@@ -40,24 +41,18 @@ def _actor():
 @bp.get("/me")
 @coordinator_login_required
 def me():
-    coord = _coordinator()
-    if not coord:
+    event = _event()
+    if not event:
         session.clear()
         return jsonify({"error": "authentication required"}), 401
-
-    events_data = []
-    for e in coord.events:
-        d = e.to_admin_dict()
-        d["attendance_stats"] = event_attendance_summary(e.id)
-        d["coordinator_role"] = get_coordinator_event_role(coord.id, e.id)
-        events_data.append(d)
-
+    d = event.to_admin_dict()
+    d["attendance_stats"] = event_attendance_summary(event.id)
+    d["coordinator_role"] = "EVENT TEAM"
     return jsonify({
-        "id": coord.id,
-        "username": coord.username,
-        "full_name": coord.full_name,
-        "email": coord.email,
-        "events": events_data
+        "username": event.coordinator_username,
+        "event_id": event.id,
+        "event": d,
+        "events": [d],
     })
 
 
@@ -65,61 +60,42 @@ def me():
 @bp.get("/my-events")
 @coordinator_login_required
 def my_events():
-    coord = _coordinator()
-    if not coord:
+    event = _event()
+    if not event:
         session.clear()
         return jsonify({"error": "authentication required"}), 401
-
-    events_data = []
-    for e in coord.events:
-        d = e.to_admin_dict()
-        d["attendance_stats"] = event_attendance_summary(e.id)
-        d["coordinator_role"] = get_coordinator_event_role(coord.id, e.id)
-        events_data.append(d)
-
-    return jsonify(events_data)
+    d = event.to_admin_dict()
+    d["attendance_stats"] = event_attendance_summary(event.id)
+    d["coordinator_role"] = "EVENT TEAM"
+    return jsonify([d])
 
 
 @bp.get("/events/<event_id>")
 @coordinator_login_required
 def get_event_detail(event_id):
-    coord = _coordinator()
-    if not coord:
-        session.clear()
-        return jsonify({"error": "authentication required"}), 401
-
-    if not coordinator_owns_event(coord, event_id):
+    if not _owns_event(event_id):
         return jsonify({"error": "not authorized for this event"}), 403
-
-    event = get_event(event_id)
+    event = _event()
     if not event:
         return jsonify({"error": "event not found"}), 404
-
     d = event.to_admin_dict()
     d["attendance_stats"] = event_attendance_summary(event_id)
-    d["coordinator_role"] = get_coordinator_event_role(coord.id, event_id)
+    d["coordinator_role"] = "EVENT TEAM"
     return jsonify(d)
 
 
 @bp.get("/events/<event_id>/participants")
 @coordinator_login_required
 def event_participants(event_id):
-    coord = _coordinator()
-    if not coord:
-        session.clear()
-        return jsonify({"error": "authentication required"}), 401
-
-    if not coordinator_owns_event(coord, event_id):
+    if not _owns_event(event_id):
         return jsonify({"error": "not authorized for this event"}), 403
-
-    event = get_event(event_id)
+    event = _event()
     if not event:
         return jsonify({"error": "event not found"}), 404
-
     return jsonify({
         "event": event.to_admin_dict(),
         "attendance_stats": event_attendance_summary(event_id),
-        "registrations": event_registrations_detail(event_id)
+        "registrations": event_registrations_detail(event_id),
     })
 
 
@@ -164,21 +140,13 @@ def _parse_qr_or_input(body_data: dict):
 @coordinator_login_required
 @limiter.limit("60 per minute")
 def event_check_in_ticket(event_id=None):
-    coord = _coordinator()
-    if not coord:
-        return jsonify({"error": "authentication required"}), 401
-
-    primary_event = coord.get_primary_event()
+    primary_event = _event()
     if not primary_event:
-        return jsonify({
-            "success": False,
-            "status": "WRONG_EVENT",
-            "message": "This QR ticket belongs to another event"
-        }), 403
+        return jsonify({"error": "authentication required"}), 401
 
     # Server-side event isolation:
     # If an event_id parameter was provided in the route URL, it MUST match the coordinator's assigned primary event
-    if event_id and (event_id != primary_event.id or not coordinator_owns_event(coord, event_id)):
+    if event_id and event_id != primary_event.id:
         return jsonify({
             "success": False,
             "status": "WRONG_EVENT",
@@ -263,7 +231,7 @@ def event_check_in_ticket(event_id=None):
     # Double Scan Protection
     if reg.checked_in:
         checked_in_at_str = reg.checked_in_at.strftime("%Y-%m-%d %H:%M:%S UTC") if reg.checked_in_at else "Earlier"
-        actor_name = reg.checked_in_by or coord.username
+        actor_name = reg.checked_in_by or (primary_event.coordinator_username or "Coordinator")
         return jsonify({
             "success": False,
             "status": "ALREADY_PRESENT",
@@ -281,11 +249,11 @@ def event_check_in_ticket(event_id=None):
         }), 200
 
     # Execute check-in
-    actor_str = coord.username
+    actor_str = primary_event.coordinator_username or "Coordinator"
     res = check_in_ticket(registration_id=reg.id, token=token, actor=actor_str)
     res["attendance_stats"] = event_attendance_summary(assigned_event.id)
 
-    log_action(f"coordinator:{coord.username}", "TICKET_CHECK_IN", f"event={assigned_event.id} reg_id={reg.id} status={res['status']}", request.remote_addr or "unknown")
+    log_action(f"coordinator:{primary_event.coordinator_username or 'unknown'}", "TICKET_CHECK_IN", f"event={assigned_event.id} reg_id={reg.id} status={res['status']}", request.remote_addr or "unknown")
     return jsonify(res), 200
 
 
@@ -293,11 +261,7 @@ def event_check_in_ticket(event_id=None):
 @coordinator_login_required
 @limiter.limit("30 per minute")
 def close_registration(event_id):
-    coord = _coordinator()
-    if not coord:
-        session.clear()
-        return jsonify({"error": "authentication required"}), 401
-    if not coordinator_owns_event(coord, event_id):
+    if not _owns_event(event_id):
         return jsonify({"error": "not authorized for this event"}), 403
 
     ok = set_registration_open(event_id, False)
@@ -312,11 +276,7 @@ def close_registration(event_id):
 @coordinator_login_required
 @limiter.limit("30 per minute")
 def reopen_registration(event_id):
-    coord = _coordinator()
-    if not coord:
-        session.clear()
-        return jsonify({"error": "authentication required"}), 401
-    if not coordinator_owns_event(coord, event_id):
+    if not _owns_event(event_id):
         return jsonify({"error": "not authorized for this event"}), 403
 
     ok = set_registration_open(event_id, True)
@@ -331,11 +291,7 @@ def reopen_registration(event_id):
 @coordinator_login_required
 @limiter.limit("20 per minute")
 def export_registrations_csv(event_id):
-    coord = _coordinator()
-    if not coord:
-        session.clear()
-        return jsonify({"error": "authentication required"}), 401
-    if not coordinator_owns_event(coord, event_id):
+    if not _owns_event(event_id):
         return jsonify({"error": "not authorized for this event"}), 403
 
     event = get_event(event_id)
