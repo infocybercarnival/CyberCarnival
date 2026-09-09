@@ -483,7 +483,57 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
             raise DuplicateTransactionError(txn_clean)
         raise
 
+    # Payment proof is now safely committed and the registration has moved to
+    # pending_verification. Notify every registered participant with the same
+    # CyberCarnival card-style "under admin review" email.
+    _send_pending_verification_emails(reg, event)
+
     return reg
+
+
+def _send_pending_verification_emails(registration, event) -> None:
+    from utils.email import send_registration_pending_email
+
+    sent_to = set()
+
+    for member in registration.members:
+        email = (
+            member.participant_email
+            or (member.user.email if member.user else "")
+            or ""
+        ).strip().lower()
+
+        if not email or email in sent_to:
+            continue
+
+        sent_to.add(email)
+
+        recipient_name = (
+            member.participant_name
+            or (member.user.full_name if member.user else None)
+            or (member.user.username if member.user else None)
+            or "Participant"
+        )
+
+        try:
+            send_registration_pending_email(
+                email,
+                recipient_name=recipient_name,
+                event_name=event.name,
+                registration_id=registration.id,
+                team_name=registration.team_name,
+                event_date=event.event_date,
+                event_time=event.event_time,
+                venue=event.venue,
+                transaction_id=registration.transaction_id,
+            )
+        except Exception:
+            logger.exception(
+                "failed to send pending-verification email "
+                "to=%s registration=%s",
+                email,
+                registration.id,
+            )
 
 
 class RegistrationAlreadyVerifiedError(Exception): pass
