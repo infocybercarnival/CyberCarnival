@@ -322,7 +322,7 @@ def export_registrations_csv(event_id):
     )
 
 
-@bp.route("/logout", methods=["GET", "POST"])
+@bp.post("/logout")
 def coordinator_api_logout():
     from services.session_service import revoke_session
     cname = session.get("coordinator_username")
