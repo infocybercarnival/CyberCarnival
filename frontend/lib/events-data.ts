@@ -214,6 +214,8 @@ export const EVENTS: EventInfo[] = [
     desc: 'Showcase your research, innovative ideas, and technical expertise through an engaging Paper Presentation competition. Participants are invited to present original concepts, research findings, emerging technologies, case studies, or problem-solving approaches across various domains of Computer Science and related fields.\n\nThe event provides a platform to demonstrate analytical thinking, technical knowledge, communication skills, and creativity while presenting ideas before a panel of judges. Teams will be evaluated based on the quality of their research, presentation skills, innovation, and ability to respond to technical questions.',
     poster: '/assets/posters/aa55ba4e2d454774a1b225461491b9b5.jpg',
     posterAlt: 'Paper Presentation official event poster',
+    extraPoster: '/assets/posters/aa55ba4e2d454774a1b225461491b9b52.jpg',
+    extraPosterAlt: 'Paper Presentation themes poster',
     details: {
       date: EVENT_DATES,
       time: '09:00 AM ONWARDS',
@@ -344,9 +346,9 @@ export const EVENTS: EventInfo[] = [
     tag: 'HANDS-ON',
     desc: 'Guided deep-dives with Supraja Technologies and Algorand. Bring a laptop, leave with a skillset.',
     poster: '/assets/posters/59aa5974fea3439798728cbbedbf5257.jpg',
-    posterAlt: 'Supraja Technologies workshop official poster',
-    extraPoster: '/assets/posters/4b5ea92f89724932ab0c9759680cd482.jpg',
-    extraPosterAlt: 'Algorand workshop official poster',
+    posterAlt: 'Cybersecurity workshop official poster',
+    extraPoster: '/assets/posters/59aa5974fea3439798728cbbedbf52572.jpg',
+    extraPosterAlt: 'Cybersecurity workshop details poster',
     details: {
       date: '7 OCTOBER',
       time: '10:00 — 1:00',
