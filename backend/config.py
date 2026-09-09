@@ -150,7 +150,7 @@ UPI_DUMMY_MODE = (
 RATELIMIT_STORAGE_URI = os.environ.get(
     "RATELIMIT_STORAGE_URI",
     "memory://",
-)
+).strip() or "memory://"
 
 
 # --- Trusted Reverse Proxy --------------------------------------------------
@@ -301,9 +301,17 @@ SESSION_COOKIE_NAME = "cybercarnival_session"
 SESSION_COOKIE_SECURE = IS_PRODUCTION
 SESSION_COOKIE_HTTPONLY = True
 
+CROSS_SITE_FRONTEND = (
+    os.environ.get(
+        "CROSS_SITE_FRONTEND",
+        "true" if IS_PRODUCTION else "false",
+    ).strip().lower()
+    == "true"
+)
+
 SESSION_COOKIE_SAMESITE = (
     "None"
-    if IS_PRODUCTION
+    if IS_PRODUCTION and CROSS_SITE_FRONTEND
     else "Lax"
 )
 
