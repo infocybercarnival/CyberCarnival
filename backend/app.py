@@ -78,6 +78,7 @@ def create_app() -> Flask:
         },
         supports_credentials=True,
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "X-CSRFToken"],
     )
 
     @app.before_request
@@ -152,12 +153,6 @@ def create_app() -> Flask:
     app.register_blueprint(coordinator_auth_bp)
     app.register_blueprint(coordinator_pages_bp)
     app.register_blueprint(coordinator_api_bp)
-
-    csrf.exempt(registration_bp)
-    csrf.exempt(auth_bp)
-    csrf.exempt(coordinator_auth_bp)
-    csrf.exempt(coordinator_api_bp)
-    csrf.exempt(admin_api_bp)
 
     @app.get("/")
     def root():
