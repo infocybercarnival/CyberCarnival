@@ -75,6 +75,7 @@ export default function WorkshopsPage() {
         category: 'WORKSHOP',
         description: event.desc,
         posterSrc: event.poster,
+        posterSrc2: event.extraPoster || null,
         posterAlt: event.posterAlt || `${event.name} poster`,
         fee: event.details.fee,
         date: event.details.date,
@@ -129,7 +130,8 @@ export default function WorkshopsPage() {
 
     return finalEventsList.map((event) => {
       const fallback = staticByName.get(event.name)
-      const posterSrc = event.poster_url || fallback?.poster || null
+      // Prefer repo-bundled workshop posters so they never depend on runtime uploads.
+      const posterSrc = fallback?.poster || event.poster_url || null
       const description = event.description || fallback?.desc || ''
       const teamSize =
         formatTeamSize(event.min_team_size ?? null, event.max_team_size ?? null) ||
@@ -144,6 +146,7 @@ export default function WorkshopsPage() {
         category: 'WORKSHOP',
         description,
         posterSrc,
+        posterSrc2: fallback?.extraPoster || null,
         posterAlt: fallback?.posterAlt || `${event.name} poster`,
         fee: event.fee || 'FREE',
         date: event.date || '7 OCTOBER',
