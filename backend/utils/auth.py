@@ -55,12 +55,11 @@ def user_login_required(view):
 
 def coordinator_login_required(view):
     """Same pattern as login_required, for event-coordinator accounts.
-    Separate session key (coordinator_id) from both admin_username and
-    user_id, so a coordinator session can't be confused with or escalated
-    into either of those — three genuinely distinct roles, three keys."""
+    Separate event-scoped session key (coordinator_event_id) from admin/user
+    sessions. The credential belongs to an event, not an individual person."""
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if _check_revoked() or not session.get("coordinator_id"):
+        if _check_revoked() or not session.get("coordinator_event_id"):
             if request.path.startswith("/coordinator/api/"):
                 return jsonify({"error": "authentication required"}), 401
             return redirect(url_for("coordinator_auth.login_page", next=request.path))
