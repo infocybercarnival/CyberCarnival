@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import gsap from 'gsap'
@@ -213,8 +212,8 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   }, [loading])
 
   // Remaining derived fields
-  const posterSrc = event?.poster_url || matchingStatic?.poster || null
-  const extraPosterSrc = matchingStatic?.extraPoster || null
+  const posterSrc = matchingStatic?.poster || event?.poster_url || null
+  const extraPosterSrc = matchingStatic?.extraPoster || event?.poster_url_2 || null
   const tag = event?.tag || matchingStatic?.tag || 'COMPETITION'
   const category = event?.category || (matchingStatic?.tag === 'NON-TECHNICAL' ? 'NON-TECHNICAL' : 'TECHNICAL')
   const description = event?.description || matchingStatic?.desc || 'Event description coming soon.'
@@ -433,13 +432,11 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
               {/* Natural Aspect Ratio Uncropped Poster Stage (QR Code 100% Visible & Readable) */}
               <div className="relative w-full h-auto overflow-hidden rounded-[8px] bg-[rgba(10,5,22,0.95)] border border-[rgba(160,80,255,0.25)]">
                 {posterSrc ? (
-                  <Image
+                  <img
                     src={posterSrc}
                     alt={matchingStatic?.posterAlt || `${eventName} official poster`}
-                    width={750}
-                    height={1000}
                     className="block h-auto w-full object-contain rounded-[7px] transition-transform duration-500 group-hover:scale-[1.015]"
-                    priority
+                    loading="eager"
                   />
                 ) : (
                   <div className="flex aspect-[3/4] w-full flex-col items-center justify-center gap-2 p-6 text-center font-mono text-[11px] tracking-[0.2em] text-muted-foreground bg-[radial-gradient(ellipse_at_center,rgba(155,77,255,0.15),rgba(5,0,8,0.95))]">
@@ -455,12 +452,11 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
             {extraPosterSrc && (
               <div className="group relative z-20 h-auto w-full rounded-[14px] border border-[rgba(168,85,247,0.4)] bg-[linear-gradient(155deg,rgba(20,10,35,0.96),rgba(7,3,14,0.98))] p-4 sm:p-5 lg:p-6 backdrop-blur-md shadow-xl order-2 lg:order-none">
                 <div className="relative w-full h-auto overflow-hidden rounded-[8px] bg-[rgba(10,5,22,0.95)] border border-[rgba(160,80,255,0.25)]">
-                  <Image
+                  <img
                     src={extraPosterSrc}
                     alt={matchingStatic?.extraPosterAlt || `${eventName} secondary poster`}
-                    width={750}
-                    height={1000}
                     className="block h-auto w-full object-contain rounded-[7px]"
+                    loading="lazy"
                   />
                 </div>
               </div>
