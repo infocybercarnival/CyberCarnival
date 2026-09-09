@@ -23,6 +23,7 @@ export function LoginClient() {
 
   const [turnstileToken, setTurnstileToken] = useState('')
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
+  const googleLoginInFlightRef = useRef(false)
 
   const [status, setStatus] = useState<'idle' | 'authenticating' | 'verifying_otp' | 'resending_otp' | 'google_connecting' | 'success'>('idle')
   const [error, setError] = useState('')
@@ -143,22 +144,53 @@ export function LoginClient() {
   }
 
   const handleGoogleClick = async () => {
+    // Turnstile tokens are one-time tokens. A very fast double click can
+    // submit the same token twice before React has finished updating status.
+    if (googleLoginInFlightRef.current) return
+
     if (!turnstileToken) {
       setError('PLEASE COMPLETE THE SECURITY VERIFICATION')
       return
     }
+
+    googleLoginInFlightRef.current = true
     setStatus('google_connecting')
     setError('')
+
     try {
       const authUrl = await initiateGoogleLogin(turnstileToken, 'login')
-      window.location.href = authUrl
+
+      if (!authUrl) {
+        throw new Error('Google authentication URL was not returned by the server')
+      }
+
+      // At this point the backend has already verified Turnstile and created
+      // the short-lived OAuth state. Do not run or reset Turnstile again.
+      window.location.assign(authUrl)
     } catch (err) {
+      googleLoginInFlightRef.current = false
       setStatus('idle')
-      turnstileRef.current?.reset()
-      setTurnstileToken('')
+
       const errMsg = err instanceof ApiValidationError
         ? err.message
         : (err instanceof Error ? err.message : 'Google authentication initiation failed')
+
+      const normalizedError = errMsg.toLowerCase()
+
+      // Only force a fresh challenge when the CAPTCHA itself is the problem.
+      // CSRF/CORS/OAuth/server errors should be shown without throwing the
+      // user back into an unnecessary Verify -> Google -> Verify loop.
+      const captchaNeedsReset =
+        normalizedError.includes('security verification') ||
+        normalizedError.includes('turnstile') ||
+        normalizedError.includes('captcha') ||
+        normalizedError.includes('expired')
+
+      if (captchaNeedsReset) {
+        turnstileRef.current?.reset()
+        setTurnstileToken('')
+      }
+
       setError(errMsg.toUpperCase())
     }
   }
@@ -261,9 +293,18 @@ export function LoginClient() {
                 {/* CAPTCHA — gates both the password submit and the Google button below */}
                 <TurnstileWidget
                   ref={turnstileRef}
-                  onSuccess={(token) => setTurnstileToken(token)}
-                  onExpire={() => setTurnstileToken('')}
-                  onError={() => setTurnstileToken('')}
+                  onSuccess={(token) => {
+                    setTurnstileToken(token)
+                    setError('')
+                  }}
+                  onExpire={() => {
+                    setTurnstileToken('')
+                    googleLoginInFlightRef.current = false
+                  }}
+                  onError={() => {
+                    setTurnstileToken('')
+                    googleLoginInFlightRef.current = false
+                  }}
                 />
 
                 {/* Submit Password Button */}
