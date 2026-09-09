@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, session, redirect
+from flask_wtf.csrf import generate_csrf
 import base64
 import hashlib
 import secrets
@@ -30,6 +31,12 @@ from utils.logger import get_logger
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = get_logger("auth")
+
+
+@bp.get("/csrf-token")
+def csrf_token():
+    """Issue a session-bound CSRF token for the separate frontend."""
+    return jsonify({"csrf_token": generate_csrf()})
 
 def generate_pkce():
     verifier = secrets.token_urlsafe(64)
@@ -95,16 +102,12 @@ def verify_turnstile_token(token: str, remote_ip: str | None = None) -> tuple[bo
         return False, "Security verification service unavailable. Please try again."
 
 
-@bp.route("/google/login", methods=["GET", "POST"])
+@bp.post("/google/login")
 @limiter.limit("10 per minute")
 def google_login():
     payload = request.get_json(silent=True) or {}
-    turnstile_token = str(
-        request.args.get("turnstile_token") or payload.get("turnstile_token") or ""
-    ).strip()
-    source = str(
-        request.args.get("source") or payload.get("source") or "login"
-    ).strip().lower()
+    turnstile_token = str(payload.get("turnstile_token") or "").strip()
+    source = str(payload.get("source") or "login").strip().lower()
 
     if source not in ("login", "register"):
         source = "login"
@@ -113,19 +116,13 @@ def google_login():
         turnstile_token, request.remote_addr
     )
     if not is_valid_captcha:
-        if request.method == "POST" or request.args.get("format") == "json":
-            return jsonify({"error": captcha_error}), 400
-        frontend_base = get_frontend_base()
-        return redirect(f"{frontend_base}/{source}?error=captcha_failed")
+        return jsonify({"error": captcha_error}), 400
 
     if not config.GOOGLE_CLIENT_ID or not config.GOOGLE_CLIENT_SECRET:
         logger.error(
             "Google OAuth is missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET configuration"
         )
-        if request.method == "POST" or request.args.get("format") == "json":
-            return jsonify({"error": "Google OAuth is not configured on the server"}), 500
-        frontend_base = get_frontend_base()
-        return redirect(f"{frontend_base}/{source}?error=config_missing")
+        return jsonify({"error": "Google OAuth is not configured on the server"}), 500
 
     from models import OAuthFlow
 
@@ -154,9 +151,7 @@ def google_login():
 
     auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
-    if request.method == "POST" or request.args.get("format") == "json":
-        return jsonify({"auth_url": auth_url})
-    return redirect(auth_url)
+    return jsonify({"auth_url": auth_url})
 
 
 @bp.get("/google/callback")
@@ -461,7 +456,7 @@ def change_password():
 
 
 
-@bp.route("/logout", methods=["GET", "POST"])
+@bp.post("/logout")
 def logout():
     sid = session.get("sid")
     if sid:
