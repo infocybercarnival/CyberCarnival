@@ -178,64 +178,64 @@
 
 <!-- Coordinator Create/Edit Modal -->
 <div id="coordinator-modal-backdrop" class="member-modal-backdrop" style="display:none;">
-  <div class="member-modal-card" style="max-width: 520px; width: 90%;">
+  <div class="member-modal-card" style="max-width: 560px; width: 92%; max-height:90vh; overflow-y:auto;">
     <button type="button" class="member-modal-close" id="coordinator-modal-close" aria-label="Close">×</button>
-    <h3 id="coordinator-modal-title">Create Coordinator</h3>
+    <h3 id="coordinator-modal-title">Add Coordinator Person</h3>
     <form id="coordinator-form">
       <input type="hidden" id="coord-id" name="id" value="" />
-      <div class="form-group" style="margin-bottom: 12px;">
-        <label for="coord-event-select" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--primary);">ASSIGNED EVENT (REQUIRED)</label>
-        <select id="coord-event-select" name="event_id" required style="width:100%; padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg); font-weight:bold;">
-          <!-- Dynamically populated options -->
-        </select>
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label for="coord-event-select" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--primary);">ASSIGNED EVENT (REQUIRED)</label>
+        <select id="coord-event-select" name="event_id" required style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);font-weight:bold;"></select>
       </div>
-      <div class="form-group" style="margin-bottom: 12px;">
-        <label for="coord-fullname" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted);">COORDINATOR FULL NAME</label>
-        <input type="text" id="coord-fullname" name="full_name" required style="width:100%; padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);" />
-      </div>
-      <div class="form-group" style="margin-bottom: 12px;">
-        <label for="coord-username" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted);">USERNAME</label>
-        <input type="text" id="coord-username" name="username" required style="width:100%; padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);" />
-      </div>
-      <div class="form-group" style="margin-bottom: 12px;">
-        <label for="coord-phone" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted);">PHONE NUMBER</label>
-        <input
-          type="tel"
-          id="coord-phone"
-          name="phone"
-          inputmode="tel"
-          maxlength="20"
-          placeholder="e.g. +91 98765 43210"
-          style="width:100%; padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);"
-        />
-      </div>
-      <div class="form-group" style="margin-bottom: 12px;">
-        <label for="coord-password" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted);" id="coord-password-label">PASSWORD</label>
-        <input type="password" id="coord-password" name="password" style="width:100%; padding:8px 12px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);" placeholder="Min 6 chars" />
-      </div>
-      <div class="form-group" style="display:flex; gap:16px; margin-bottom: 16px;">
-        <div style="flex:1;">
-          <label for="coord-role" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted);">ROLE</label>
-          <select id="coord-role" name="role" style="width:100%; padding:8px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);">
-            <option value="STUDENT">STUDENT</option>
-            <option value="FACULTY">FACULTY</option>
-          </select>
+
+      <div style="padding:12px;border:1px solid rgba(168,85,247,.35);background:rgba(168,85,247,.06);border-radius:8px;margin-bottom:14px;">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.12em;color:var(--primary);margin-bottom:10px;">SHARED EVENT LOGIN — SAME FOR ALL COORDINATORS OF THIS EVENT</div>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label for="coord-event-login-username" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--muted);">EVENT LOGIN USERNAME</label>
+          <input type="text" id="coord-event-login-username" maxlength="64" required style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);" />
         </div>
-        <div style="flex:1;">
-          <label for="coord-active" style="display:block; font-size:12px; font-weight:700; margin-bottom:4px; color:var(--muted);">ACTIVE STATUS</label>
-          <select id="coord-active" name="is_active" style="width:100%; padding:8px; border-radius:6px; background:var(--bg); border:1px solid var(--border); color:var(--fg);">
-            <option value="true">YES (ACTIVE)</option>
-            <option value="false">NO (INACTIVE)</option>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label for="coord-event-login-password" id="coord-event-login-password-label" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--muted);">EVENT LOGIN PASSWORD</label>
+          <input type="password" id="coord-event-login-password" placeholder="Min 6 chars" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);" />
+        </div>
+        <div class="form-group">
+          <label for="coord-event-login-active" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--muted);">EVENT LOGIN STATUS</label>
+          <select id="coord-event-login-active" style="width:100%;padding:8px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);">
+            <option value="true">ACTIVE</option><option value="false">DISABLED</option>
           </select>
         </div>
       </div>
-      <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:16px;">
+
+      <div class="form-group" style="margin-bottom:12px;">
+        <label for="coord-fullname" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--muted);">COORDINATOR FULL NAME</label>
+        <input type="text" id="coord-fullname" name="full_name" required style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);" />
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label for="coord-phone" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--muted);">PHONE NUMBER</label>
+        <input type="tel" id="coord-phone" maxlength="20" placeholder="e.g. +91 98765 43210" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);" />
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label for="coord-email" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--muted);">EMAIL (OPTIONAL)</label>
+        <input type="email" id="coord-email" maxlength="255" style="width:100%;padding:8px 12px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);" />
+      </div>
+      <div class="form-group" style="display:flex;gap:16px;margin-bottom:16px;">
+        <div style="flex:1;">
+          <label for="coord-role" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--muted);">ROLE</label>
+          <select id="coord-role" style="width:100%;padding:8px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);"><option value="STUDENT">STUDENT</option><option value="FACULTY">FACULTY</option></select>
+        </div>
+        <div style="flex:1;">
+          <label for="coord-active" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;color:var(--muted);">PERSON STATUS</label>
+          <select id="coord-active" style="width:100%;padding:8px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--fg);"><option value="true">ACTIVE</option><option value="false">INACTIVE</option></select>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:16px;">
         <button type="button" class="btn-ghost" id="coordinator-modal-cancel">Cancel</button>
-        <button type="submit" class="btn-primary" id="coordinator-modal-submit">SAVE COORDINATOR CREDENTIALS</button>
+        <button type="submit" class="btn-primary" id="coordinator-modal-submit">SAVE COORDINATOR</button>
       </div>
     </form>
   </div>
 </div>
 
-<script src="/static/admin/js/admin.js?v=1.3.0"></script>
+<script src="/static/admin/js/admin.js?v=1.4.0"></script>
 {% endblock %}
