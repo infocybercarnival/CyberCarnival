@@ -15,7 +15,7 @@ logger = get_logger("coordinator_auth")
 
 @bp.get("/login")
 def login_page():
-    if session.get("coordinator_id"):
+    if session.get("coordinator_event_id"):
         return redirect(url_for("coordinator_pages.dashboard"))
     return render_template("coordinator/login.html")
 
@@ -38,12 +38,12 @@ def login_submit():
         flash("Too many failed attempts. Try again later.", "error")
         return redirect(url_for("coordinator_auth.login_page"))
 
-    coord = verify_coordinator_credentials(username, creds["password"])
-    if coord:
+    event = verify_coordinator_credentials(username, creds["password"])
+    if event:
         clear_failed_logins(lockout_key, ip)
         session.clear()
-        session["coordinator_id"] = coord.id
-        session["coordinator_username"] = coord.username
+        session["coordinator_event_id"] = event.id
+        session["coordinator_username"] = event.coordinator_username
         session["sid"] = generate_sid()
         session.permanent = True
         log_action(f"coordinator:{username}", "login", "successful coordinator login", ip)
