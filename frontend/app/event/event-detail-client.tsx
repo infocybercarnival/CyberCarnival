@@ -236,7 +236,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
     : matchingStatic?.studentCoordinators
   const customRules = matchingStatic?.rules
   const prerequisites = matchingStatic?.prerequisites
-  const prizesList = matchingStatic?.prizesList
+  
   const evaluationCriteria = matchingStatic?.evaluationCriteria
   const eventRounds = matchingStatic?.eventRounds
   const toolsRequired = matchingStatic?.toolsRequired
@@ -819,22 +819,7 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
               </div>
             </div>
 
-            {/* 3. Prize Breakdown (if prizesList provided) (Mobile Order: 10) */}
-            {prizesList && prizesList.length > 0 && (
-              <div className="reveal-on-scroll opacity-0 translate-y-6 transition-all duration-700 w-full border border-emerald-500/40 bg-card p-6 md:p-8 rounded-[10px] shadow-[0_0_20px_rgba(16,185,129,0.08)] order-10 lg:order-none">
-                <h2 className="font-mono text-xs tracking-[0.25em] text-emerald-400 font-bold">
-                  PRIZE DETAILS
-                </h2>
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
-                  {prizesList.map((p) => (
-                    <div key={p.rank} className="flex items-center justify-between border border-emerald-500/30 bg-emerald-950/20 p-3.5 rounded-sm">
-                      <span className="font-bold text-foreground">{p.rank}</span>
-                      <span className="font-extrabold text-emerald-400 text-sm">{p.amount}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            
 
             {/* 4. Event Rules & Regulations (Mobile Order: 11) */}
             <div className="reveal-on-scroll opacity-0 translate-y-6 transition-all duration-700 w-full border border-border/80 bg-card p-6 md:p-8 rounded-[10px] order-11 lg:order-none">
