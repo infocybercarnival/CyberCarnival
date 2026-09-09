@@ -20,8 +20,8 @@ class Admin(db.Model):
     __tablename__ = "admins"
 
     id = db.Column(db.String(36), primary_key=True, default=new_uuid)
-    username = db.Column(db.String(64), nullable=False, unique=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+    username = db.Column(db.String(64), nullable=True, unique=True)
+    password_hash = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.now())
 
 
@@ -132,6 +132,14 @@ class Event(db.Model):
     # just stops accepting new teams. Defaults open; coordinators/admins close
     # it explicitly once they've got enough entries or the deadline passes.
     registration_open = db.Column(db.Boolean, nullable=False, default=True)
+
+    # One shared coordinator login per event. Every faculty/student coordinator
+    # assigned to this event uses the same credential. Password hashes are never
+    # exposed through public/admin serializers.
+    coordinator_username = db.Column(db.String(64), nullable=True, unique=True, index=True)
+    coordinator_password_hash = db.Column(db.String(255), nullable=True)
+    coordinator_login_active = db.Column(db.Boolean, nullable=False, default=True)
+
     created_at = db.Column(db.DateTime, default=db.func.now())
     updated_at = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
 
@@ -184,11 +192,12 @@ class Event(db.Model):
             coord = db.session.get(Coordinator, ce.coordinator_id)
             if not coord:
                 continue
-            email_val = getattr(coord, "email", None) or (coord.username if "@" in coord.username else f"{coord.username}@srmist.edu.in")
+            email_val = getattr(coord, "email", None) or ""
             info = {
                 "id": coord.id,
-                "name": coord.full_name or coord.username,
-                "username": coord.username,
+                "name": coord.full_name or "Coordinator",
+                # Never expose the shared event login username on the public event API.
+                "username": "",
                 "email": email_val,
                 "phone": coord.phone or "",
                 "is_active": coord.is_active,
@@ -239,17 +248,24 @@ class Event(db.Model):
         d = self.to_public_dict()
         d["active"] = self.active
         d["created_at"] = self.created_at.timestamp() if self.created_at else None
+        d["coordinator_username"] = self.coordinator_username or ""
+        d["coordinator_login_active"] = bool(self.coordinator_login_active)
+        d["coordinator_credentials_configured"] = bool(self.coordinator_username and self.coordinator_password_hash)
         return d
 
 
 class Coordinator(db.Model):
-    """A per-event login credential for an event coordinator. Scoped strictly
-    to exactly ONE assigned event — never sees or accesses anything outside that event."""
+    """A coordinator PERSON assigned to an event.
+
+    Login credentials belong to Event, not to this row. Multiple faculty/student
+    coordinator people can therefore share the one event-level login safely.
+    Legacy username/password_hash columns remain nullable during migration.
+    """
     __tablename__ = "coordinators"
 
     id = db.Column(db.String(36), primary_key=True, default=new_uuid)
-    username = db.Column(db.String(64), nullable=False, unique=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+    username = db.Column(db.String(64), nullable=True, unique=True)
+    password_hash = db.Column(db.String(255), nullable=True)
     full_name = db.Column(db.String(120), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
     email = db.Column(db.String(255), nullable=True)
@@ -279,12 +295,13 @@ class Coordinator(db.Model):
         return None
 
     def to_admin_dict(self):
-        email_val = self.email or (self.username if "@" in self.username else f"{self.username}@srmist.edu.in")
+        email_val = self.email or ""
         pe = self.get_primary_event()
         return {
             "id": self.id,
-            "username": self.username,
-            "full_name": self.full_name or self.username,
+            # Admin UI displays the event-level shared login, not a per-person login.
+            "username": (pe.coordinator_username if pe else "") or "",
+            "full_name": self.full_name or "Coordinator",
             "email": email_val,
             "phone": self.phone or "",
             "is_active": self.is_active,
