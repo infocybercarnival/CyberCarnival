@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% block title %}Admin Login — CyberCarnival{% endblock %}
+{% block body %}
+<div class="auth-wrap">
+  <form class="auth-card" method="post" action="{{ url_for('admin_auth.login_submit') }}" autocomplete="off">
+    <div class="auth-brand">CYBERCARNIVAL<span>/ ADMIN</span></div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" maxlength="64" required autofocus />
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" maxlength="256" required />
+
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+{% endblock %}
