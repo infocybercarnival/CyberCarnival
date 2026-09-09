@@ -103,6 +103,7 @@ def create_app() -> Flask:
             if value and value.strip()
         }
 
+        # Backend-rendered admin/coordinator pages are same-origin.
         allowed_origins.add(request.host_url.rstrip("/"))
 
         if origin:
@@ -154,6 +155,26 @@ def create_app() -> Flask:
     app.register_blueprint(coordinator_pages_bp)
     app.register_blueprint(coordinator_api_bp)
 
+    # ------------------------------------------------------------------
+    # CSRF deployment mode
+    # ------------------------------------------------------------------
+    # CURRENT TEST/DEPLOYMENT:
+    #   Vercel frontend -> Render backend = cross-site.
+    #   Browser third-party cookie restrictions can prevent Flask-WTF's
+    #   session-bound CSRF token from round-tripping reliably. In this mode,
+    #   API blueprints use the strict Origin/Sec-Fetch-Site validation above.
+    #
+    # FINAL OFFICE SERVER:
+    #   Set CROSS_SITE_FRONTEND=false when frontend/backend are same-site.
+    #   These exemptions are then NOT applied and Flask-WTF CSRF protects
+    #   the routes normally.
+    if config.CROSS_SITE_FRONTEND:
+        csrf.exempt(registration_bp)
+        csrf.exempt(auth_bp)
+        csrf.exempt(coordinator_auth_bp)
+        csrf.exempt(coordinator_api_bp)
+        csrf.exempt(admin_api_bp)
+
     @app.get("/")
     def root():
         return jsonify({
@@ -187,6 +208,17 @@ def create_app() -> Flask:
     def handle_csrf_error(e):
         if request.path == "/admin/logout" and not session.get("admin_username"):
             return redirect(get_frontend_login_url())
+
+        # Return JSON for API callers so the frontend sees the real reason.
+        if (
+            request.path.startswith("/api/")
+            or request.path.startswith("/admin/api/")
+            or request.path.startswith("/coordinator/api/")
+        ):
+            return jsonify({
+                "error": "CSRF validation failed",
+                "detail": e.description,
+            }), 400
 
         return (
             "<!doctype html><html lang=en>"
@@ -235,3 +267,4 @@ if __name__ == "__main__":
         port=port,
         debug=not config.IS_PRODUCTION
     )
+
