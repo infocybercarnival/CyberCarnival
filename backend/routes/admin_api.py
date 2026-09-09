@@ -783,8 +783,6 @@ def list_admin_coordinators():
 @limiter.limit("30 per minute")
 def create_admin_coordinator():
     body = request.get_json(silent=True) or (request.form.to_dict() if request.form else {})
-    username = (body.get("username") or "").strip()
-    password = (body.get("password") or "").strip()
     full_name = (body.get("full_name") or "").strip()
     phone = (body.get("phone") or "").strip()
     email = (body.get("email") or "").strip()
@@ -793,26 +791,25 @@ def create_admin_coordinator():
     if isinstance(is_active, str):
         is_active = is_active.lower() in ("true", "1", "yes", "on")
     event_id = (body.get("event_id") or "").strip()
-    if not event_id and body.get("event_ids"):
-        eids = body.get("event_ids")
-        if isinstance(eids, list) and len(eids) > 0:
-            event_id = eids[0]
+
+    login_username = body.get("event_login_username")
+    login_password = body.get("event_login_password")
+    login_active = body.get("event_login_active")
+    if isinstance(login_active, str):
+        login_active = login_active.lower() in ("true", "1", "yes", "on")
 
     try:
+        coordinators.set_event_coordinator_credentials(
+            event_id, username=login_username, plain_password=login_password, is_active=login_active
+        )
         coord = coordinators.create_coordinator(
-            username=username,
-            plain_password=password,
-            full_name=full_name,
-            phone=phone,
-            email=email,
-            event_id=event_id,
-            role=role,
-            is_active=is_active,
+            full_name=full_name, phone=phone, email=email, event_id=event_id,
+            role=role, is_active=is_active,
         )
     except ValueError as e:
         return jsonify({"error": str(e)}), 422
 
-    audit_service.log_action(_actor(), "COORDINATOR_CREATED", f"coordinator {coord.id} ({coord.username})", _ip())
+    audit_service.log_action(_actor(), "COORDINATOR_CREATED", f"coordinator person {coord.id} for event {event_id}", _ip())
     return jsonify(coord.to_admin_dict()), 201
 
 
@@ -821,8 +818,6 @@ def create_admin_coordinator():
 @limiter.limit("30 per minute")
 def update_admin_coordinator(coordinator_id):
     body = request.get_json(silent=True) or (request.form.to_dict() if request.form else {})
-    username = body.get("username")
-    password = body.get("password")
     full_name = body.get("full_name")
     phone = body.get("phone")
     email = body.get("email")
@@ -830,28 +825,27 @@ def update_admin_coordinator(coordinator_id):
     is_active = body.get("is_active")
     if isinstance(is_active, str):
         is_active = is_active.lower() in ("true", "1", "yes", "on")
-    event_id = body.get("event_id")
-    if not event_id and body.get("event_ids"):
-        eids = body.get("event_ids")
-        if isinstance(eids, list) and len(eids) > 0:
-            event_id = eids[0]
+    event_id = (body.get("event_id") or "").strip()
+
+    login_username = body.get("event_login_username")
+    login_password = body.get("event_login_password")
+    login_active = body.get("event_login_active")
+    if isinstance(login_active, str):
+        login_active = login_active.lower() in ("true", "1", "yes", "on")
 
     try:
+        if event_id:
+            coordinators.set_event_coordinator_credentials(
+                event_id, username=login_username, plain_password=login_password, is_active=login_active
+            )
         coord = coordinators.update_coordinator(
-            coordinator_id=coordinator_id,
-            username=username,
-            full_name=full_name,
-            phone=phone,
-            email=email,
-            plain_password=password,
-            is_active=is_active,
-            event_id=event_id,
-            role=role,
+            coordinator_id=coordinator_id, full_name=full_name, phone=phone, email=email,
+            is_active=is_active, event_id=event_id or None, role=role,
         )
     except ValueError as e:
         return jsonify({"error": str(e)}), 422
 
-    audit_service.log_action(_actor(), "COORDINATOR_UPDATED", f"coordinator {coordinator_id}", _ip())
+    audit_service.log_action(_actor(), "COORDINATOR_UPDATED", f"coordinator person {coordinator_id}", _ip())
     return jsonify(coord.to_admin_dict())
 
 
