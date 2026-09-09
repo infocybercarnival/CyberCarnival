@@ -150,10 +150,8 @@ export function LoginClient() {
     setStatus('google_connecting')
     setError('')
     try {
-      window.location.href =
-        `https://cybercarnival.onrender.com/api/auth/google/login` +
-        `?turnstile_token=${encodeURIComponent(turnstileToken)}` +
-        `&source=login`
+      const authUrl = await initiateGoogleLogin(turnstileToken, 'login')
+      window.location.href = authUrl
     } catch (err) {
       setStatus('idle')
       turnstileRef.current?.reset()
