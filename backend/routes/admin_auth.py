@@ -106,7 +106,7 @@ def login_submit():
     return render_template("admin/login.html")
 
 
-@bp.route("/logout", methods=["GET", "POST"])
+@bp.post("/logout")
 def logout():
     username = session.get("admin_username", "unknown")
 
