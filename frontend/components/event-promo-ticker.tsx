@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
 import { EVENTS } from '@/lib/events-data'
 import { fetchEvents, type ApiEvent } from '@/lib/api'
@@ -74,7 +73,7 @@ export function EventPromoTicker() {
             tag: e.tag || fallback?.tag || 'COMPETITION',
             fee: e.fee || fallback?.details.fee || 'FREE',
             venue: e.venue || fallback?.details.venue || 'SRM RAMAPURAM',
-            poster: getSafePoster(e.poster_url || fallback?.poster),
+            poster: getSafePoster(fallback?.poster || e.poster_url),
           }
         })
     }
@@ -92,6 +91,20 @@ export function EventPromoTicker() {
       poster: getSafePoster(e.poster),
     }))
   }, [currentEventId, backendEvents])
+
+  // Backend data can replace the initial static fallback list after page load.
+  // If the old slide index is now outside the new list length, the carousel
+  // would translate to an empty position and look like it disappeared.
+  useEffect(() => {
+    if (promoEvents.length === 0) {
+      setCurrentIndex(0)
+      return
+    }
+
+    setCurrentIndex((prev) =>
+      prev >= promoEvents.length ? 0 : prev
+    )
+  }, [promoEvents.length])
 
   // 2-Second Display Pause Timer with Discrete Slide
   useEffect(() => {
@@ -194,12 +207,11 @@ export function EventPromoTicker() {
                   onClick={() => handleEventClick(item.id)}
                   className="relative flex h-[48px] w-[70px] sm:h-[68px] sm:w-[110px] shrink-0 items-center justify-center cursor-pointer overflow-hidden rounded-[4px] border border-purple-500/30 bg-black/40 p-0.5 sm:p-1 shadow-[0_0_8px_rgba(168,85,247,0.2)] transition-transform duration-300 group-hover:scale-[1.025]"
                 >
-                  <Image
+                  <img
                     src={safePosterSrc}
                     alt={`${item.name} poster`}
-                    fill
-                    sizes="(max-width: 640px) 70px, 110px"
-                    className="object-contain p-0.5"
+                    className="h-full w-full object-contain p-0.5"
+                    loading="lazy"
                   />
                 </div>
 
