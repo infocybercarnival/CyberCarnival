@@ -556,6 +556,24 @@ export const EVENTS: EventInfo[] = [
       { name: 'Chandan Sai', role: 'III CS E', phone: '9668079368' },
     ],
   },
+  {
+  no: '12',
+  name: 'FREE FIRE',
+  tag: 'GAMING',
+  desc: 'Compete in an action-packed Free Fire tournament and prove your squad is the last one standing.',
+
+  poster: '/assets/posters/freefire-placeholder.jpg',
+  posterAlt: 'Free Fire official event poster',
+
+  details: {
+    date: EVENT_DATES,
+    time: TBA,
+    venue: 'SRM RAMAPURAM',
+    teamSize: TBA,
+    fee: TBA,
+    prize: TBA,
+  },
+}
 ]
 
 
