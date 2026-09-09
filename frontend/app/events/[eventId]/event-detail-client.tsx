@@ -196,8 +196,8 @@ export function EventDetailClient({ eventId }: EventDetailClientProps) {
   }, [loading])
 
   // Remaining derived fields
-  const posterSrc = event?.poster_url || matchingStatic?.poster || null
-  const extraPosterSrc = matchingStatic?.extraPoster || null
+  const posterSrc = matchingStatic?.poster || event?.poster_url || null
+  const extraPosterSrc = matchingStatic?.extraPoster || event?.poster_url_2 || null
   const tag = event?.tag || matchingStatic?.tag || 'COMPETITION'
   const category = event?.category || (matchingStatic?.tag === 'NON-TECHNICAL' ? 'NON-TECHNICAL' : 'TECHNICAL')
   const description = event?.description || matchingStatic?.desc || 'Event description coming soon.'
