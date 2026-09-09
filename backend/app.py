@@ -1,9 +1,16 @@
 import os
 
-from pathlib import Path
-
-from flask import Flask, jsonify, render_template, send_from_directory, abort, request, redirect, session
+from flask import (
+    Flask,
+    jsonify,
+    send_from_directory,
+    abort,
+    request,
+    redirect,
+    session,
+)
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
 from extensions import limiter, csrf, db
@@ -27,6 +34,14 @@ logger = get_logger("app")
 
 def create_app() -> Flask:
     app = Flask(__name__)
+
+    if config.TRUST_PROXY_HOPS > 0:
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=config.TRUST_PROXY_HOPS,
+            x_proto=config.TRUST_PROXY_HOPS,
+            x_host=config.TRUST_PROXY_HOPS,
+        )
 
     app.config["SECRET_KEY"] = config.SECRET_KEY
     app.config["SESSION_COOKIE_NAME"] = config.SESSION_COOKIE_NAME
@@ -65,38 +80,78 @@ def create_app() -> Flask:
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     )
 
-    # API routes
+    @app.before_request
+    def validate_credentialed_api_origin():
+        if request.method in {"GET", "HEAD", "OPTIONS"}:
+            return None
+
+        protected_prefixes = (
+            "/api/",
+            "/admin/api/",
+            "/coordinator/api/",
+        )
+
+        if not request.path.startswith(protected_prefixes):
+            return None
+
+        origin = (request.headers.get("Origin") or "").strip().rstrip("/")
+
+        allowed_origins = {
+            value.strip().rstrip("/")
+            for value in (config.ALLOWED_ORIGINS or [])
+            if value and value.strip()
+        }
+
+        allowed_origins.add(request.host_url.rstrip("/"))
+
+        if origin:
+            if origin not in allowed_origins:
+                logger.warning(
+                    "blocked unsafe request method=%s path=%s origin=%s ip=%s",
+                    request.method,
+                    request.path,
+                    origin,
+                    request.remote_addr,
+                )
+                return jsonify({
+                    "error": "request origin not allowed"
+                }), 403
+
+            return None
+
+        sec_fetch_site = (
+            request.headers.get("Sec-Fetch-Site", "")
+            .strip()
+            .lower()
+        )
+
+        if sec_fetch_site == "cross-site":
+            logger.warning(
+                "blocked cross-site request without trusted origin "
+                "method=%s path=%s ip=%s",
+                request.method,
+                request.path,
+                request.remote_addr,
+            )
+            return jsonify({
+                "error": "cross-site request rejected"
+            }), 403
+
+        return None
+
     app.register_blueprint(health_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(speakers_bp)
     app.register_blueprint(registration_bp)
     app.register_blueprint(auth_bp)
 
-    # Admin routes
     app.register_blueprint(admin_auth_bp)
     app.register_blueprint(admin_pages_bp)
     app.register_blueprint(admin_api_bp)
 
-    # Coordinator routes
     app.register_blueprint(coordinator_auth_bp)
     app.register_blueprint(coordinator_pages_bp)
     app.register_blueprint(coordinator_api_bp)
-
-    # Frontend is hosted separately on Vercel.
-    # Do NOT register frontend_bp here.
-
-    # Temporary route debugging
-    @app.before_request
-    def debug_request_route():
-        print(
-            f"[ROUTE DEBUG] "
-            f"method={request.method} "
-            f"path={request.path} "
-            f"endpoint={request.endpoint} "
-            f"host={request.host} "
-            f"url={request.url}",
-            flush=True
-        )
 
     csrf.exempt(registration_bp)
     csrf.exempt(auth_bp)
@@ -137,27 +192,17 @@ def create_app() -> Flask:
     def handle_csrf_error(e):
         if request.path == "/admin/logout" and not session.get("admin_username"):
             return redirect(get_frontend_login_url())
-        return f"<!doctype html><html lang=en><title>400 Bad Request</title><h1>Bad Request</h1><p>{e.description}</p>", 400
+
+        return (
+            "<!doctype html><html lang=en>"
+            "<title>400 Bad Request</title>"
+            "<h1>Bad Request</h1>"
+            f"<p>{e.description}</p>",
+            400,
+        )
 
     @app.errorhandler(404)
     def not_found(e):
-        print(
-            f"[404 DEBUG] "
-            f"path={request.path} "
-            f"endpoint={request.endpoint} "
-            f"url={request.url}",
-            flush=True
-        )
-
-        print("[REGISTERED ADMIN ROUTES]", flush=True)
-
-        for rule in app.url_map.iter_rules():
-            if "admin" in str(rule).lower():
-                print(
-                    f"  {rule} -> {rule.endpoint}",
-                    flush=True
-                )
-
         return jsonify({
             "error": "not found"
         }), 404
