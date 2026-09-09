@@ -37,7 +37,6 @@ LOG_DIR = BASE_DIR / "logs"
 DATA_DIR.mkdir(exist_ok=True)
 LOG_DIR.mkdir(exist_ok=True)
 
-
 LOGIN_ATTEMPTS_FILE = DATA_DIR / "login_attempts.json"
 
 
@@ -111,27 +110,12 @@ TURNSTILE_VERIFY_URL = (
 
 # --- Razorpay ---------------------------------------------------------------
 
-RAZORPAY_KEY_ID = os.environ.get(
-    "RAZORPAY_KEY_ID",
-    "",
-)
-
-RAZORPAY_KEY_SECRET = os.environ.get(
-    "RAZORPAY_KEY_SECRET",
-    "",
-)
-
-RAZORPAY_WEBHOOK_SECRET = os.environ.get(
-    "RAZORPAY_WEBHOOK_SECRET",
-    "",
-)
-
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "")
 
 PAYMENT_SESSION_MINUTES = int(
-    os.environ.get(
-        "PAYMENT_SESSION_MINUTES",
-        "10",
-    )
+    os.environ.get("PAYMENT_SESSION_MINUTES", "10")
 )
 
 
@@ -166,6 +150,16 @@ UPI_DUMMY_MODE = (
 RATELIMIT_STORAGE_URI = os.environ.get(
     "RATELIMIT_STORAGE_URI",
     "memory://",
+)
+
+
+# --- Trusted Reverse Proxy --------------------------------------------------
+
+TRUST_PROXY_HOPS = int(
+    os.environ.get(
+        "TRUST_PROXY_HOPS",
+        "1" if IS_PRODUCTION else "0",
+    )
 )
 
 
@@ -217,10 +211,7 @@ SQLALCHEMY_ENGINE_OPTIONS = {
 # --- Email ------------------------------------------------------------------
 
 EMAIL_DEV_MODE = (
-    os.environ.get(
-        "EMAIL_DEV_MODE",
-        "true",
-    )
+    os.environ.get("EMAIL_DEV_MODE", "true")
     .strip()
     .lower()
     == "true"
@@ -231,15 +222,8 @@ EMAIL_SMTP_URL = os.environ.get(
     "smtp.gmail.com:587",
 )
 
-EMAIL_SMTP_USER = os.environ.get(
-    "EMAIL_SMTP_USER",
-    "",
-)
-
-EMAIL_SMTP_PASSWORD = os.environ.get(
-    "EMAIL_SMTP_PASSWORD",
-    "",
-)
+EMAIL_SMTP_USER = os.environ.get("EMAIL_SMTP_USER", "")
+EMAIL_SMTP_PASSWORD = os.environ.get("EMAIL_SMTP_PASSWORD", "")
 
 EMAIL_FROM = (
     os.environ.get("EMAIL_FROM", "")
@@ -263,11 +247,7 @@ OTP_RESEND_COOLDOWN_SECONDS = 60
 # --- Event Poster Uploads ---------------------------------------------------
 
 UPLOAD_DIR = DATA_DIR / "uploads" / "posters"
-
-UPLOAD_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_POSTER_SIZE_BYTES = 5 * 1024 * 1024
 
@@ -282,11 +262,7 @@ ALLOWED_POSTER_EXTENSIONS = {
 # --- Payment Proof Uploads --------------------------------------------------
 
 PAYMENT_PROOF_DIR = DATA_DIR / "uploads" / "payment_proofs"
-
-PAYMENT_PROOF_DIR.mkdir(
-    parents=True,
-    exist_ok=True,
-)
+PAYMENT_PROOF_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_PAYMENT_PROOF_SIZE_BYTES = 5 * 1024 * 1024
 
@@ -304,45 +280,34 @@ ALLOWED_PAYMENT_PROOF_MIMES = {
 }
 
 
-# --- Frontend Build Directory -----------------------------------------------
+# --- Frontend Build Directory ----------------------------------------------
 
 FRONTEND_DIST_DIR = Path(
     os.environ.get(
         "FRONTEND_DIST_DIR",
-        str(
-            BASE_DIR.parent
-            / "frontend"
-            / "out"
-        ),
+        str(BASE_DIR.parent / "frontend" / "out"),
     )
 ).resolve()
 
 
 # --- Request Size -----------------------------------------------------------
 
-# Supports two event poster uploads up to 5 MB each
-# plus multipart/form-data overhead.
 MAX_CONTENT_LENGTH = 12 * 1024 * 1024
 
 
-# --- Session / Cookie Security ----------------------------------------------
+# --- Session / Cookie Security ---------------------------------------------
 
 SESSION_COOKIE_NAME = "cybercarnival_session"
-
 SESSION_COOKIE_SECURE = IS_PRODUCTION
-
 SESSION_COOKIE_HTTPONLY = True
 
-# Vercel frontend -> Render backend requires cross-site session cookies.
 SESSION_COOKIE_SAMESITE = (
     "None"
     if IS_PRODUCTION
     else "Lax"
 )
 
-PERMANENT_SESSION_LIFETIME_SECONDS = (
-    60 * 60 * 4
-)
+PERMANENT_SESSION_LIFETIME_SECONDS = 60 * 60 * 4
 
 
 # --- CSRF -------------------------------------------------------------------
@@ -355,5 +320,4 @@ CSRF_TOKEN_LIFETIME_SECONDS = (
 # --- Login Protection -------------------------------------------------------
 
 MAX_FAILED_LOGIN_ATTEMPTS = 5
-
 LOGIN_LOCKOUT_SECONDS = 15 * 60
