@@ -109,7 +109,7 @@ def login_submit():
     return redirect(url_for("coordinator_auth.login_page"))
 
 
-@bp.route("/logout", methods=["GET", "POST"])
+@bp.post("/logout")
 def logout():
     username = session.get(
         "coordinator_username",
