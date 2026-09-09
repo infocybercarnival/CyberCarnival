@@ -1597,77 +1597,75 @@
   var currentCoordinators = [];
 
   function loadCoordinators() {
-    return api("/admin/api/coordinators").then(function (data) {
-      currentCoordinators = data || [];
+    return Promise.all([api("/admin/api/coordinators"), ensureEventsLoaded()]).then(function (results) {
+      currentCoordinators = results[0] || [];
       renderCoordinators();
     });
+  }
+
+  function eventById(id) {
+    return (currentEvents || []).filter(function (e) { return e.id === id; })[0] || null;
   }
 
   function renderCoordinators() {
     var tbody = document.querySelector("#coordinators-table tbody");
     if (!tbody) return;
-    if (!currentCoordinators || !currentCoordinators.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state">No coordinators created yet.</td></tr>';
+    if (!currentCoordinators.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="table-empty-state">No coordinator people added yet.</td></tr>';
       return;
     }
-
     tbody.innerHTML = currentCoordinators.map(function (c) {
-      var eventName = c.event_name || (c.event_names && c.event_names.length ? c.event_names[0] : "Unassigned");
-      var statusBadge = c.is_active
-        ? '<span class="status-pill status-verified">ACTIVE</span>'
-        : '<span class="status-pill status-declined">INACTIVE</span>';
-      var roleBadge = '<span class="token-chip">' + escapeHtml(c.role || "STUDENT") + '</span>';
-
+      var eventName = c.event_name || "Unassigned";
+      var statusBadge = c.is_active ? '<span class="status-pill status-verified">ACTIVE</span>' : '<span class="status-pill status-declined">INACTIVE</span>';
       return '<tr>' +
-        '<td><strong style="color: var(--primary);">' + escapeHtml(eventName) + '</strong></td>' +
-        '<td><strong>' + escapeHtml(c.full_name || c.username) + '</strong></td>' +
-        '<td><code>' + escapeHtml(c.username) + '</code></td>' +
-        '<td>' + roleBadge + '</td>' +
+        '<td><strong style="color:var(--primary);">' + escapeHtml(eventName) + '</strong></td>' +
+        '<td><strong>' + escapeHtml(c.full_name || "Coordinator") + '</strong></td>' +
+        '<td><code>' + escapeHtml(c.username || "NOT CONFIGURED") + '</code></td>' +
+        '<td><span class="token-chip">' + escapeHtml(c.role || "STUDENT") + '</span></td>' +
         '<td>' + statusBadge + '</td>' +
-        '<td>' +
-          '<button type="button" class="btn-ghost coord-edit-btn" data-id="' + escapeHtml(c.id) + '" style="margin-right: 6px;">Edit</button>' +
-          '<button type="button" class="btn-danger coord-delete-btn" data-id="' + escapeHtml(c.id) + '">Delete</button>' +
-        '</td>' +
+        '<td><button type="button" class="btn-ghost coord-edit-btn" data-id="' + escapeHtml(c.id) + '" style="margin-right:6px;">Edit</button>' +
+        '<button type="button" class="btn-danger coord-delete-btn" data-id="' + escapeHtml(c.id) + '">Delete</button></td>' +
       '</tr>';
     }).join("");
+  }
+
+  function populateSharedEventCredentialFields(eventId) {
+    var ev = eventById(eventId);
+    var usernameInput = document.getElementById("coord-event-login-username");
+    var passwordInput = document.getElementById("coord-event-login-password");
+    var passwordLabel = document.getElementById("coord-event-login-password-label");
+    var activeSelect = document.getElementById("coord-event-login-active");
+    if (!usernameInput || !passwordInput || !activeSelect) return;
+
+    usernameInput.value = ev ? (ev.coordinator_username || "") : "";
+    passwordInput.value = "";
+    activeSelect.value = (!ev || ev.coordinator_login_active !== false) ? "true" : "false";
+    if (passwordLabel) {
+      passwordLabel.textContent = ev && ev.coordinator_credentials_configured
+        ? "EVENT LOGIN PASSWORD (LEAVE BLANK TO KEEP CURRENT)"
+        : "EVENT LOGIN PASSWORD (REQUIRED FIRST TIME)";
+    }
+    passwordInput.required = !(ev && ev.coordinator_credentials_configured);
   }
 
   function openCoordinatorModal(coord) {
     var modal = document.getElementById("coordinator-modal-backdrop");
     if (!modal) return;
-    var title = document.getElementById("coordinator-modal-title");
     var form = document.getElementById("coordinator-form");
-    var passwordLabel = document.getElementById("coord-password-label");
-
     form.reset();
+
     document.getElementById("coord-id").value = coord ? coord.id : "";
     document.getElementById("coord-fullname").value = coord ? (coord.full_name || "") : "";
-    document.getElementById("coord-username").value = coord ? coord.username : "";
-    document.getElementById("coord-username").readOnly = !!coord;
     document.getElementById("coord-phone").value = coord ? (coord.phone || "") : "";
-    document.getElementById("coord-password").value = "";
+    document.getElementById("coord-email").value = coord ? (coord.email || "") : "";
     document.getElementById("coord-role").value = coord ? (coord.role || "STUDENT") : "STUDENT";
     document.getElementById("coord-active").value = coord ? (coord.is_active ? "true" : "false") : "true";
+    document.getElementById("coordinator-modal-title").textContent = coord ? "Edit Coordinator Person" : "Add Coordinator Person";
 
-    title.textContent = coord ? "Edit Coordinator" : "Create Coordinator";
-    if (passwordLabel) {
-      passwordLabel.textContent = coord ? "CHANGE PASSWORD (OPTIONAL)" : "PASSWORD";
-    }
-
-    // Populate events dropdown
     var select = document.getElementById("coord-event-select");
-    if (select) {
-      var assignedId = coord ? (coord.event_id || (coord.event_ids && coord.event_ids.length ? coord.event_ids[0] : "")) : "";
-      if (!currentEvents || !currentEvents.length) {
-        api("/admin/api/events").then(function(evs) {
-          currentEvents = evs || [];
-          renderEventDropdownOptions(select, currentEvents, assignedId);
-        });
-      } else {
-        renderEventDropdownOptions(select, currentEvents, assignedId);
-      }
-    }
-
+    var assignedId = coord ? (coord.event_id || "") : "";
+    renderEventDropdownOptions(select, currentEvents || [], assignedId);
+    populateSharedEventCredentialFields(assignedId || select.value);
     modal.style.display = "flex";
   }
 
@@ -1676,12 +1674,9 @@
       select.innerHTML = '<option value="">-- No events available --</option>';
       return;
     }
-    var opts = '<option value="">-- Select Event --</option>';
-    opts += eventsList.map(function(ev) {
-      var sel = (ev.id === selectedId) ? 'selected' : '';
-      return '<option value="' + escapeHtml(ev.id) + '" ' + sel + '>' + escapeHtml(ev.name) + ' (' + escapeHtml(ev.category) + ')</option>';
+    select.innerHTML = '<option value="">-- Select Event --</option>' + eventsList.map(function (ev) {
+      return '<option value="' + escapeHtml(ev.id) + '"' + (ev.id === selectedId ? ' selected' : '') + '>' + escapeHtml(ev.name) + '</option>';
     }).join("");
-    select.innerHTML = opts;
   }
 
   function closeCoordinatorModal() {
@@ -1689,77 +1684,88 @@
     if (modal) modal.style.display = "none";
   }
 
-  var btnAddCoord = document.getElementById("btn-open-add-coordinator");
-  if (btnAddCoord) {
-    btnAddCoord.addEventListener("click", function() {
-      openCoordinatorModal(null);
+  var coordEventSelect = document.getElementById("coord-event-select");
+  if (coordEventSelect) {
+    coordEventSelect.addEventListener("change", function () {
+      populateSharedEventCredentialFields(coordEventSelect.value);
     });
   }
 
+  var btnAddCoord = document.getElementById("btn-open-add-coordinator");
+  if (btnAddCoord) btnAddCoord.addEventListener("click", function () {
+    ensureEventsLoaded().then(function () { openCoordinatorModal(null); });
+  });
+
   var btnCloseCoord = document.getElementById("coordinator-modal-close");
   if (btnCloseCoord) btnCloseCoord.addEventListener("click", closeCoordinatorModal);
-
   var btnCancelCoord = document.getElementById("coordinator-modal-cancel");
   if (btnCancelCoord) btnCancelCoord.addEventListener("click", closeCoordinatorModal);
 
   var coordForm = document.getElementById("coordinator-form");
   if (coordForm) {
-    coordForm.addEventListener("submit", function(e) {
+    coordForm.addEventListener("submit", function (e) {
       e.preventDefault();
       var id = document.getElementById("coord-id").value;
       var eventId = document.getElementById("coord-event-select").value;
       var fullName = document.getElementById("coord-fullname").value.trim();
-      var username = document.getElementById("coord-username").value.trim();
       var phone = document.getElementById("coord-phone").value.trim();
-      var password = document.getElementById("coord-password").value.trim();
+      var email = document.getElementById("coord-email").value.trim();
       var role = document.getElementById("coord-role").value;
       var isActive = document.getElementById("coord-active").value === "true";
+      var loginUsername = document.getElementById("coord-event-login-username").value.trim();
+      var loginPassword = document.getElementById("coord-event-login-password").value.trim();
+      var loginActive = document.getElementById("coord-event-login-active").value === "true";
 
-      if (!eventId) {
-        showError(new Error("Please select an assigned event."));
-        return;
+      if (!eventId) return showError(new Error("Please select an assigned event."));
+      if (!fullName) return showError(new Error("Coordinator full name is required."));
+      if (!loginUsername) return showError(new Error("Shared event login username is required."));
+
+      var ev = eventById(eventId);
+      if ((!ev || !ev.coordinator_credentials_configured) && loginPassword.length < 6) {
+        return showError(new Error("Set a shared event password of at least 6 characters."));
+      }
+      if (loginPassword && loginPassword.length < 6) {
+        return showError(new Error("Shared event password must be at least 6 characters."));
       }
 
       var payload = {
         event_id: eventId,
         full_name: fullName,
-        username: username,
         phone: phone,
+        email: email,
         role: role,
         is_active: isActive,
-        event_ids: [eventId]
+        event_login_username: loginUsername,
+        event_login_active: loginActive
       };
-      if (password) payload.password = password;
+      if (loginPassword) payload.event_login_password = loginPassword;
 
       var method = id ? "PATCH" : "POST";
       var url = id ? ("/admin/api/coordinators/" + encodeURIComponent(id)) : "/admin/api/coordinators";
-
-      api(url, {
-        method: method,
-        body: JSON.stringify(payload)
-      }).then(function() {
-        closeCoordinatorModal();
-        loadCoordinators();
-      }).catch(showError);
+      api(url, { method: method, body: JSON.stringify(payload) })
+        .then(function () {
+          closeCoordinatorModal();
+          currentEvents = [];
+          return ensureEventsLoaded();
+        })
+        .then(loadCoordinators)
+        .catch(showError);
     });
   }
 
   var coordsTbody = document.querySelector("#coordinators-table tbody");
   if (coordsTbody) {
-    coordsTbody.addEventListener("click", function(e) {
+    coordsTbody.addEventListener("click", function (e) {
       var btn = e.target.closest("button");
       if (!btn) return;
       var id = btn.dataset.id;
-      var coord = currentCoordinators.filter(function(c) { return c.id === id; })[0];
+      var coord = currentCoordinators.filter(function (c) { return c.id === id; })[0];
       if (!coord) return;
-
       if (btn.classList.contains("coord-edit-btn")) {
-        openCoordinatorModal(coord);
+        ensureEventsLoaded().then(function () { openCoordinatorModal(coord); });
       } else if (btn.classList.contains("coord-delete-btn")) {
-        if (confirm("Deactivate/Delete coordinator '" + (coord.full_name || coord.username) + "'?")) {
-          api("/admin/api/coordinators/" + encodeURIComponent(id), { method: "DELETE" })
-            .then(function() { loadCoordinators(); })
-            .catch(showError);
+        if (confirm("Delete coordinator person '" + (coord.full_name || "Coordinator") + "'? The shared event login will NOT be deleted.")) {
+          api("/admin/api/coordinators/" + encodeURIComponent(id), { method: "DELETE" }).then(loadCoordinators).catch(showError);
         }
       }
     });
