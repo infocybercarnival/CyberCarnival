@@ -9,6 +9,7 @@ Run: python seed_admin.py
 import getpass
 import os
 import sys
+import re
 
 from app import app
 from services.admin_service import create_admin, get_admin_by_username
@@ -21,8 +22,22 @@ if __name__ == "__main__":
         print("Username and password are required.")
         sys.exit(1)
 
-    if len(password) < 3:
-        print("Refusing to create an admin with a password under 3 characters.")
+    password_errors = []
+    if len(password) < 12:
+        password_errors.append("at least 12 characters")
+    if not re.search(r"[A-Z]", password):
+        password_errors.append("an uppercase letter")
+    if not re.search(r"[a-z]", password):
+        password_errors.append("a lowercase letter")
+    if not re.search(r"[0-9]", password):
+        password_errors.append("a number")
+    if not re.search(r"[^A-Za-z0-9]", password):
+        password_errors.append("a special character")
+    if username.lower() in password.lower():
+        password_errors.append("a password that does not contain the admin username")
+
+    if password_errors:
+        print("Refusing to create admin. Password must contain " + ", ".join(password_errors) + ".")
         sys.exit(1)
 
     with app.app_context():
