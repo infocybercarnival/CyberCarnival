@@ -892,7 +892,7 @@ def remove_admin_coordinator_event(coordinator_id, event_id):
     return jsonify(coord.to_admin_dict())
 
 
-@bp.route("/logout", methods=["GET", "POST"])
+@bp.post("/logout")
 def admin_api_logout():
     from services.session_service import revoke_session
     username = session.get("admin_username", "unknown")
