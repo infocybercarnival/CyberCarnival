@@ -62,7 +62,7 @@ export default function EventsPage() {
         category: event.tag === 'NON-TECHNICAL' ? 'NON-TECHNICAL' : 'TECHNICAL',
         description: event.desc,
         posterSrc: event.poster,
-        posterSrc2: null,
+        posterSrc2: event.extraPoster || null,
         posterAlt: event.posterAlt || `${event.name} poster`,
         fee: event.details.fee,
         date: event.details.date,
@@ -94,7 +94,9 @@ export default function EventsPage() {
       })
       .map((event, idx) => {
         const fallback = staticByName.get(event.name)
-        const posterSrc = event.poster_url || fallback?.poster || null
+        // Official posters are bundled with the frontend so they survive server restarts.
+        // Backend poster_url is only a fallback for events that do not have a repo asset.
+        const posterSrc = fallback?.poster || event.poster_url || null
         const description = event.description || fallback?.desc || ''
         const teamSize = formatTeamSize(event.min_team_size, event.max_team_size) || fallback?.details.teamSize || null
         const { label: seatsStatus, ratio: seatsRatio } = seatStatus(event.max_teams, event.teams_registered)
@@ -107,7 +109,7 @@ export default function EventsPage() {
           category: event.category || 'TECHNICAL',
           description,
           posterSrc,
-          posterSrc2: event.poster_url_2 || null,
+          posterSrc2: fallback?.extraPoster || null,
           posterAlt: fallback?.posterAlt || `${event.name} poster`,
           fee: event.fee || 'FREE',
           date: event.date || 'TBA',
