@@ -47,7 +47,24 @@ export const TurnstileWidget = forwardRef<
     if (!siteKey) {
       return (
         <div className="w-full font-mono text-xs">
-          <div className="flex w-full items-center justify-center rounded-sm border border-destructive/40 bg-destructive/10 px-4 py-4 text-center text-[10px] tracking-[0.1em] text-destructive">
+          <div
+            className="
+              flex
+              w-full
+              items-center
+              justify-center
+              rounded-sm
+              border
+              border-destructive/40
+              bg-destructive/10
+              px-4
+              py-4
+              text-center
+              text-[10px]
+              tracking-[0.1em]
+              text-destructive
+            "
+          >
             CLOUDFLARE TURNSTILE SITE KEY IS NOT CONFIGURED
           </div>
         </div>
@@ -55,36 +72,66 @@ export const TurnstileWidget = forwardRef<
     }
 
     return (
-      <div className="flex w-full items-center justify-center">
-        <Turnstile
-          ref={turnstileRef}
-          siteKey={siteKey}
+      <div className="w-full font-mono text-xs">
 
-          onSuccess={(token) => {
-            onSuccess(token)
-          }}
+        <label
+          className="
+            mb-2
+            block
+            text-[10px]
+            font-bold
+            uppercase
+            tracking-[0.2em]
+            text-primary
+          "
+        >
+          SECURITY VERIFICATION
+        </label>
 
-          onExpire={() => {
-            onExpire?.()
-          }}
+        <div
+          className="
+            flex
+            w-full
+            items-center
+            justify-center
+          "
+        >
+          <Turnstile
+            ref={turnstileRef}
+            siteKey={siteKey}
 
-          onError={() => {
-            onError?.()
-          }}
+            onSuccess={(token) => {
+              onSuccess(token)
+            }}
 
-          options={{
-            theme: 'dark',
-            size: 'normal',
-            execution: 'render',
-            appearance: 'always',
-            refreshExpired: 'auto',
-          }}
+            onExpire={() => {
+              onExpire?.()
+            }}
 
-          style={{
-            width: '100%',
-            maxWidth: '300px',
-          }}
-        />
+            onError={() => {
+              onError?.()
+            }}
+
+            options={{
+              theme: 'dark',
+              size: 'normal',
+
+              // Cloudflare widget starts normally
+              execution: 'render',
+
+              // Cloudflare box stays visible
+              appearance: 'always',
+
+              refreshExpired: 'auto',
+            }}
+
+            style={{
+              width: '100%',
+              maxWidth: '300px',
+            }}
+          />
+        </div>
+
       </div>
     )
   }
