@@ -9,7 +9,7 @@ export function getApiUrl(): string {
     const hostname = window.location.hostname
 
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://127.0.0.1:5000'
+      return `http://${hostname}:5000`
     }
 
     // Office-server / same-origin fallback.

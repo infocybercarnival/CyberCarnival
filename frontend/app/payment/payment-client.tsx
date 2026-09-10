@@ -5,11 +5,11 @@ import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import {
-  fetchPaymentDetails, submitPaymentProof, ApiValidationError,
+  fetchPaymentDetails, submitPaymentProof, ApiValidationError, getApiUrl,
   type PaymentPageData
 } from '@/lib/api'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cybercarnival.onrender.com'
+const API_URL = getApiUrl()
 
 type Props = {
   eventId?: string

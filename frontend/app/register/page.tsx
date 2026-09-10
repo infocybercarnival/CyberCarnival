@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { Navbar } from '@/components/navbar'
 
@@ -13,10 +14,13 @@ import {
   initiateGoogleLogin,
   requestOtp,
   verifyOtp,
+  fetchMe,
   ApiValidationError,
 } from '@/lib/api'
 
 export default function RegisterPage() {
+  const router = useRouter()
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
@@ -30,6 +34,28 @@ export default function RegisterPage() {
   const [otpSent, setOtpSent] = useState(false)
 
   const [loading, setLoading] = useState(false)
+
+  // Session Check on Mount — Auth State Machine
+  useEffect(() => {
+    let isMounted = true
+    fetchMe()
+      .then((user) => {
+        if (!isMounted) return
+        if (user) {
+          const params = new URLSearchParams(window.location.search)
+          const redirectUrl = params.get('redirect') || '/dashboard'
+          router.replace(redirectUrl)
+        } else {
+          setCheckingAuth(false)
+        }
+      })
+      .catch(() => {
+        if (isMounted) setCheckingAuth(false)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [router])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -65,12 +91,6 @@ export default function RegisterPage() {
       )
     }
   }, [])
-
-  function handleTurnstileVerify() {
-    setError('')
-    setMessage('')
-    turnstileRef.current?.execute()
-  }
 
   async function handleGoogleClick() {
     if (!turnstileToken) {
@@ -191,6 +211,22 @@ export default function RegisterPage() {
     }
   }
 
+  if (checkingAuth) {
+    return (
+      <>
+        <Navbar />
+        <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 py-32">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="h-8 w-8 animate-spin border-2 border-primary border-t-transparent" />
+            <p className="font-mono text-xs tracking-[0.25em] text-muted-foreground">
+              INITIALIZING REGISTRATION DOSSIER...
+            </p>
+          </div>
+        </main>
+      </>
+    )
+  }
+
   return (
     <>
       <Navbar />
@@ -223,24 +259,7 @@ export default function RegisterPage() {
           </div>
         )}
 
-        <div className="mt-6 flex flex-col gap-3">
-          {!turnstileToken && (
-            <button
-              type="button"
-              onClick={handleTurnstileVerify}
-              disabled={googleLoading || loading}
-              className="w-full rounded-sm border border-primary/50 bg-primary/10 px-5 py-3 font-mono text-[10px] font-bold tracking-[0.22em] text-primary transition-all hover:border-primary hover:bg-primary/20 hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              VERIFY HUMAN →
-            </button>
-          )}
-
-          {turnstileToken && (
-            <div className="rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-center font-mono text-[10px] font-bold tracking-[0.18em] text-emerald-300">
-              ✓ SECURITY VERIFIED
-            </div>
-          )}
-
+        <div className="mt-6">
           <TurnstileWidget
             ref={turnstileRef}
             onSuccess={(token) => {
@@ -252,7 +271,6 @@ export default function RegisterPage() {
             }}
             onError={() => {
               setTurnstileToken('')
-              setError('Security verification failed. Please try again.')
             }}
           />
         </div>

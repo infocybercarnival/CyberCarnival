@@ -1,9 +1,9 @@
 import sys
-import os
-import json
-import uuid
+from pathlib import Path
 
-sys.path.insert(0, r"c:\Resume Projects\cybercarnival\cyber_carnival_deploy\CyberCarnival\backend")
+backend_dir = str(Path(__file__).resolve().parent.parent)
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
 from app import create_app
 from extensions import db

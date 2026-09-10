@@ -65,6 +65,7 @@ class TestLogoutSecurityFlow(unittest.TestCase):
             self.admin_username = self.admin.username
             self.coord_id = self.coord.id
             self.coord_username = self.coord.username
+            self.event_id = self.event.id
 
     def test_participant_logout_flow(self):
         # 1. Login user by setting session
@@ -119,6 +120,7 @@ class TestLogoutSecurityFlow(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["coordinator_id"] = self.coord_id
             sess["coordinator_username"] = self.coord_username
+            sess["coordinator_event_id"] = self.event_id
 
         # Verify access to coordinator /me
         coord_me = self.client.get("/coordinator/api/me")
@@ -137,6 +139,7 @@ class TestLogoutSecurityFlow(unittest.TestCase):
         with self.client.session_transaction() as sess:
             sess["coordinator_id"] = self.coord_id
             sess["coordinator_username"] = self.coord_username
+            sess["coordinator_event_id"] = self.event_id
 
         logout_resp = self.client.post("/coordinator/api/logout")
         self.assertEqual(logout_resp.status_code, 200)

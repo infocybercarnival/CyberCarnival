@@ -5,12 +5,13 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/turnstile-widget'
-import { initiateGoogleLogin, loginWithPassword, verifyLoginOtp, resendLoginOtp, ApiValidationError, API_URL } from '@/lib/api'
+import { initiateGoogleLogin, loginWithPassword, verifyLoginOtp, resendLoginOtp, fetchMe, ApiValidationError, API_URL } from '@/lib/api'
 
 export function LoginClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const [step, setStep] = useState<'credentials' | 'otp'>('credentials')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -27,6 +28,27 @@ export function LoginClient() {
 
   const [status, setStatus] = useState<'idle' | 'authenticating' | 'verifying_otp' | 'resending_otp' | 'google_connecting' | 'success'>('idle')
   const [error, setError] = useState('')
+
+  // Session Check on Mount — Auth State Machine
+  useEffect(() => {
+    let isMounted = true
+    fetchMe()
+      .then((user) => {
+        if (!isMounted) return
+        if (user) {
+          const redirectUrl = searchParams.get('redirect') || '/dashboard'
+          router.replace(redirectUrl)
+        } else {
+          setCheckingAuth(false)
+        }
+      })
+      .catch(() => {
+        if (isMounted) setCheckingAuth(false)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [router, searchParams])
 
   // Handle URL Query error parameters from Google OAuth Callback / Server
   useEffect(() => {
@@ -143,11 +165,6 @@ export function LoginClient() {
     }
   }
 
-  const handleTurnstileVerify = () => {
-    setError('')
-    turnstileRef.current?.execute()
-  }
-
   const handleGoogleClick = async () => {
     // Turnstile tokens are one-time tokens. A very fast double click can
     // submit the same token twice before React has finished updating status.
@@ -198,6 +215,22 @@ export function LoginClient() {
 
       setError(errMsg.toUpperCase())
     }
+  }
+
+  if (checkingAuth) {
+    return (
+      <>
+        <Navbar />
+        <main className="mx-auto flex min-h-[70vh] max-w-7xl flex-col items-center justify-center px-6 pt-36">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="h-8 w-8 animate-spin border-2 border-primary border-t-transparent" />
+            <p className="font-mono text-xs tracking-[0.25em] text-muted-foreground">
+              VERIFYING ACCESS CREDS...
+            </p>
+          </div>
+        </main>
+      </>
+    )
   }
 
   return (
@@ -295,42 +328,22 @@ export function LoginClient() {
                   </button>
                 </div>
 
-                {/* Manual Cloudflare security verification */}
-                <div className="flex flex-col gap-3">
-                  {!turnstileToken && (
-                    <button
-                      type="button"
-                      onClick={handleTurnstileVerify}
-                      disabled={status !== 'idle'}
-                      className="w-full rounded-[3px] border border-primary/50 bg-primary/10 px-5 py-3 font-mono text-[10px] font-bold tracking-[0.22em] text-primary transition-all hover:border-primary hover:bg-primary/20 hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      VERIFY HUMAN →
-                    </button>
-                  )}
-
-                  {turnstileToken && (
-                    <div className="rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-center font-mono text-[10px] font-bold tracking-[0.18em] text-emerald-300">
-                      ✓ SECURITY VERIFIED
-                    </div>
-                  )}
-
-                  <TurnstileWidget
-                    ref={turnstileRef}
-                    onSuccess={(token) => {
-                      setTurnstileToken(token)
-                      setError('')
-                    }}
-                    onExpire={() => {
-                      setTurnstileToken('')
-                      googleLoginInFlightRef.current = false
-                    }}
-                    onError={() => {
-                      setTurnstileToken('')
-                      googleLoginInFlightRef.current = false
-                      setError('SECURITY VERIFICATION FAILED. PLEASE TRY AGAIN.')
-                    }}
-                  />
-                </div>
+                {/* CAPTCHA — gates both the password submit and the Google button below */}
+                <TurnstileWidget
+                  ref={turnstileRef}
+                  onSuccess={(token) => {
+                    setTurnstileToken(token)
+                    setError('')
+                  }}
+                  onExpire={() => {
+                    setTurnstileToken('')
+                    googleLoginInFlightRef.current = false
+                  }}
+                  onError={() => {
+                    setTurnstileToken('')
+                    googleLoginInFlightRef.current = false
+                  }}
+                />
 
                 {/* Submit Password Button */}
                 <button

@@ -133,6 +133,7 @@ def google_login():
         state=state,
         code_verifier=code_verifier,
         source=source,
+        frontend_base=get_frontend_base(),
         expires_at=datetime.utcnow() + timedelta(minutes=10),
     )
     db.session.add(flow)
@@ -165,25 +166,28 @@ def google_callback():
     state = str(request.args.get("state") or "").strip()
     code = str(request.args.get("code") or "").strip()
 
-    frontend_base = config.SITE_URL.rstrip("/")
-    origin_page = "login"
+    frontend_base = get_frontend_base()
+    flow = OAuthFlow.query.filter_by(state=state).first() if state else None
+
+    if flow and flow.frontend_base:
+        frontend_base = flow.frontend_base.rstrip("/")
+
+    oauth_source = flow.source if (flow and flow.source in ("login", "register")) else "login"
+    origin_page = "login" if oauth_source == "login" else "register"
     error_redirect_base = f"{frontend_base}/{origin_page}"
 
     if oauth_error:
+        if flow:
+            db.session.delete(flow)
+            db.session.commit()
         return redirect(f"{error_redirect_base}?error=oauth_cancelled")
-    if not state:
-        return redirect(f"{error_redirect_base}?error=invalid_state")
-    if not code:
-        return redirect(f"{error_redirect_base}?error=invalid_callback")
-
-    flow = OAuthFlow.query.filter_by(state=state).first()
-    if not flow:
+    if not state or not flow:
         logger.warning("[OAUTH_TRACE_ERROR] state_not_found")
         return redirect(f"{error_redirect_base}?error=invalid_state")
-
-    oauth_source = flow.source if flow.source in ("login", "register") else "login"
-    origin_page = "login" if oauth_source == "login" else "register"
-    error_redirect_base = f"{frontend_base}/{origin_page}"
+    if not code:
+        db.session.delete(flow)
+        db.session.commit()
+        return redirect(f"{error_redirect_base}?error=invalid_callback")
 
     if flow.expires_at and flow.expires_at < datetime.utcnow():
         db.session.delete(flow)

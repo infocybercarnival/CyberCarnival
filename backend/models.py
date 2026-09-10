@@ -53,6 +53,7 @@ class OAuthFlow(db.Model):
     state = db.Column(db.String(128), nullable=False, unique=True, index=True)
     code_verifier = db.Column(db.String(255), nullable=False)
     source = db.Column(db.String(16), nullable=False, default="login")
+    frontend_base = db.Column(db.String(255), nullable=True)
     expires_at = db.Column(db.DateTime, nullable=False, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
 

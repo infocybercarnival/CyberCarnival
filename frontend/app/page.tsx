@@ -5,6 +5,7 @@ import { Hero } from '@/components/hero'
 const Intro = dynamic(() => import('@/components/intro').then((m) => m.Intro))
 const Events = dynamic(() => import('@/components/events').then((m) => m.Events))
 const FeaturedEvent = dynamic(() => import('@/components/featured-event').then((m) => m.FeaturedEvent))
+const Rewards = dynamic(() => import('@/components/rewards').then((m) => m.Rewards))
 const Stats = dynamic(() => import('@/components/stats').then((m) => m.Stats))
 const FinalCta = dynamic(() => import('@/components/final-cta').then((m) => m.FinalCta))
 
@@ -17,6 +18,7 @@ export default function Page() {
         <Intro />
         <Events />
         <FeaturedEvent />
+        <Rewards />
         <Stats />
         <FinalCta />
       </main>

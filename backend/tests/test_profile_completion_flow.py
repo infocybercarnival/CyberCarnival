@@ -3,8 +3,10 @@ import sys
 import unittest
 from datetime import datetime
 
+from pathlib import Path
+
 # Set backend root path
-backend_dir = r"c:\Resume Projects\cybercarnival\cyber_carnival_deploy\CyberCarnival\backend"
+backend_dir = str(Path(__file__).resolve().parent.parent)
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
@@ -18,6 +20,7 @@ class TestProfileCompletionFlow(unittest.TestCase):
     def setUp(self):
         self.app = create_app()
         self.app.config['TESTING'] = True
+        self.app.config['WTF_CSRF_ENABLED'] = False
         self.client = self.app.test_client()
         self.app_context = self.app.app_context()
         self.app_context.push()
@@ -25,11 +28,7 @@ class TestProfileCompletionFlow(unittest.TestCase):
     def tearDown(self):
         db.session.rollback()
         # Clean up any test users created during test cases
-        test_emails = [
-            'test_prof1@example.com', 'test_prof2@example.com',
-            'test_prof_dup@example.com', 'test_reg_flow@example.com'
-        ]
-        users = User.query.filter(User.email.in_(test_emails)).all()
+        users = User.query.filter(User.email.like("%@example.com")).all()
         for u in users:
             # Clean up registrations/members
             regs = EventRegistration.query.filter_by(leader_user_id=u.id).all()
@@ -197,14 +196,14 @@ class TestProfileCompletionFlow(unittest.TestCase):
     def test_11_user_ownership_security(self):
         """11. Authenticated user can only update their own profile"""
         u1 = User(
-            email='test_prof1@example.com',
-            username='user_sec1',
+            email='test_prof_sec1_unique@example.com',
+            username='user_sec11_uniq',
             password_hash='test_hash',
             full_name='Owner',
             phone='9876543210',
             college='College 1',
             profile_completed=True,
-            cybercarnival_token='TOKEN_SEC1'
+            cybercarnival_token='TOKEN_SEC11_UNIQ'
         )
         db.session.add(u1)
         db.session.commit()
