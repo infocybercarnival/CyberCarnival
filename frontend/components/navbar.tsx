@@ -9,8 +9,9 @@ import { fetchMe, logout, type PublicUser } from '@/lib/api'
 const LINKS = [
   { label: 'HOME', href: '/#home' },
   { label: 'EVENTS', href: '/events' },
-  { label: 'SCHEDULE', href: '/schedule' },
   { label: 'WORKSHOPS', href: '/workshops' },
+  { label: 'SCHEDULE', href: '/schedule' },
+  
   
   {
     label: 'PORTFOLIO',
