@@ -23,8 +23,7 @@ export function LoginClient() {
   const [cooldown, setCooldown] = useState(0)
 
   const [turnstileToken, setTurnstileToken] = useState('')
-  const [humanCheckStarted, setHumanCheckStarted] = useState(false)
-  const [humanVerified, setHumanVerified] = useState(false)
+  
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
   const googleLoginInFlightRef = useRef(false)
 
@@ -169,14 +168,7 @@ export function LoginClient() {
     }
   }
 
-  const handleTurnstileVerify = () => {
-    if (humanCheckStarted || humanVerified) return
-
-    setError('')
-    setHumanCheckStarted(true)
-    turnstileRef.current?.execute()
-  }
-
+ 
   const handleGoogleClick = async () => {
     // Turnstile tokens are one-time tokens. A very fast double click can
     // submit the same token twice before React has finished updating status.
