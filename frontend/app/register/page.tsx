@@ -25,6 +25,8 @@ export default function RegisterPage() {
   const [message, setMessage] = useState('')
 
   const [turnstileToken, setTurnstileToken] = useState('')
+  const [humanCheckStarted, setHumanCheckStarted] = useState(false)
+  const [humanVerified, setHumanVerified] = useState(false)
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
 
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -93,8 +95,11 @@ export default function RegisterPage() {
   }, [])
 
   function handleTurnstileVerify() {
+    if (humanCheckStarted || humanVerified) return
+
     setError('')
     setMessage('')
+    setHumanCheckStarted(true)
     turnstileRef.current?.execute()
   }
 
@@ -128,6 +133,8 @@ export default function RegisterPage() {
 
       turnstileRef.current?.reset()
       setTurnstileToken('')
+      setHumanVerified(false)
+      setHumanCheckStarted(false)
       setGoogleLoading(false)
     }
   }
@@ -177,6 +184,8 @@ export default function RegisterPage() {
 
       turnstileRef.current?.reset()
       setTurnstileToken('')
+      setHumanVerified(false)
+      setHumanCheckStarted(false)
     } finally {
       setLoading(false)
     }
@@ -266,33 +275,64 @@ export default function RegisterPage() {
         )}
 
         <div className="mt-6 flex flex-col gap-3">
-          {!turnstileToken && (
-            <button
-              type="button"
-              onClick={handleTurnstileVerify}
-              disabled={googleLoading || loading}
-              className="w-full rounded-sm border border-primary/50 bg-primary/10 px-5 py-3 font-mono text-[10px] font-bold tracking-[0.22em] text-primary transition-all hover:border-primary hover:bg-primary/20 hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              VERIFY HUMAN →
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleTurnstileVerify}
+            disabled={humanCheckStarted || humanVerified || googleLoading || loading}
+            className="flex w-full items-center justify-between rounded-[4px] border border-primary/40 bg-background/60 px-4 py-4 transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-default"
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] border font-mono text-sm font-bold transition-all ${
+                  humanVerified
+                    ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300'
+                    : humanCheckStarted
+                      ? 'border-primary bg-primary/10'
+                      : 'border-primary/60 bg-background'
+                }`}
+              >
+                {humanVerified ? '✓' : humanCheckStarted ? <span className="animate-pulse">•</span> : ''}
+              </div>
+
+              <div className="text-left">
+                <div className="font-mono text-[11px] font-bold tracking-[0.15em] text-foreground">
+                  {humanVerified
+                    ? 'HUMAN VERIFIED'
+                    : humanCheckStarted
+                      ? 'VERIFYING HUMAN...'
+                      : 'I AM HUMAN'}
+                </div>
+                <div className="mt-1 font-mono text-[8px] tracking-[0.12em] text-muted-foreground">
+                  CLOUDFLARE SECURITY
+                </div>
+              </div>
+            </div>
+
+            <div className="font-mono text-[9px] tracking-[0.12em] text-muted-foreground">
+              {humanVerified ? 'VERIFIED' : 'SECURE'}
+            </div>
+          </button>
 
           <TurnstileWidget
             ref={turnstileRef}
             onSuccess={(token) => {
               setTurnstileToken(token)
+              setHumanVerified(true)
+              setHumanCheckStarted(false)
               setError('')
             }}
             onExpire={() => {
               setTurnstileToken('')
+              setHumanVerified(false)
+              setHumanCheckStarted(false)
             }}
             onError={() => {
               setTurnstileToken('')
+              setHumanVerified(false)
+              setHumanCheckStarted(false)
               setError('Security verification failed. Please try again.')
             }}
           />
-
-         
         </div>
 
         <button
