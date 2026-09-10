@@ -103,7 +103,7 @@ export const TurnstileWidget = forwardRef<
             siteKey={siteKey}
 
             onSuccess={(token) => {
-              setShowChallenge(false)
+              
               onSuccess(token)
             }}
 
