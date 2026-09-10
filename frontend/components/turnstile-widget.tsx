@@ -151,7 +151,7 @@ export const TurnstileWidget = forwardRef<
             style={{
               width: '100%',
               maxWidth: '300px',
-              minHeight: '65px',
+              
               overflow: 'visible',
             }}
           />
