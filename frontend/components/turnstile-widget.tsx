@@ -53,10 +53,6 @@ export const TurnstileWidget = forwardRef<
       execute: () => {
         setShowChallenge(true)
 
-        /*
-         * Wait until React makes the Turnstile container visible,
-         * then start Cloudflare verification.
-         */
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             turnstileRef.current?.execute()
@@ -68,20 +64,6 @@ export const TurnstileWidget = forwardRef<
     if (!siteKey) {
       return (
         <div className="w-full font-mono text-xs">
-          <label
-            className="
-              mb-1.5
-              block
-              text-[10px]
-              font-bold
-              uppercase
-              tracking-[0.2em]
-              text-primary
-            "
-          >
-            SECURITY VERIFICATION
-          </label>
-
           <div
             className="
               flex
@@ -109,115 +91,52 @@ export const TurnstileWidget = forwardRef<
     return (
       <div className="w-full">
 
-        {showChallenge && (
-          <div className="w-full font-mono text-xs">
+        <div
+          className={
+            showChallenge
+              ? 'flex w-full items-center justify-center'
+              : 'absolute h-px w-px overflow-hidden opacity-0 pointer-events-none'
+          }
+        >
+          <Turnstile
+            ref={turnstileRef}
+            siteKey={siteKey}
 
-            <label
-              className="
-                mb-1.5
-                block
-                text-[10px]
-                font-bold
-                uppercase
-                tracking-[0.2em]
-                text-primary
-              "
-            >
-              SECURITY VERIFICATION
-            </label>
-
-            <div
-              className="
-                flex
-                w-full
-                items-center
-                justify-center
-                rounded-sm
-                border
-                border-primary/30
-                bg-background/60
-                p-3
-                shadow-[0_0_15px_rgba(168,85,247,0.12)]
-              "
-            >
-              <Turnstile
-                ref={turnstileRef}
-                siteKey={siteKey}
-
-                onSuccess={(token) => {
-                  setShowChallenge(false)
-                  onSuccess(token)
-                }}
-
-                onExpire={() => {
-                  setShowChallenge(false)
-                  onExpire?.()
-                }}
-
-                onError={() => {
-                  setShowChallenge(false)
-                  onError?.()
-                }}
-
-                options={{
-                  theme: 'dark',
-                  size: 'normal',
-                  execution: 'execute',
-                  appearance: 'execute',
-                  refreshExpired: 'auto',
-                }}
-
-                style={{
-                  width: '100%',
-                  maxWidth: '300px',
-                  overflow: 'visible',
-                }}
-              />
-            </div>
-
-          </div>
-        )}
-
-        {!showChallenge && (
-          <div
-            style={{
-              position: 'absolute',
-              width: '1px',
-              height: '1px',
-              overflow: 'hidden',
-              opacity: 0,
-              pointerEvents: 'none',
+            onSuccess={(token) => {
+              setShowChallenge(false)
+              onSuccess(token)
             }}
-          >
-            <Turnstile
-              ref={turnstileRef}
-              siteKey={siteKey}
 
-              onSuccess={(token) => {
-                setShowChallenge(false)
-                onSuccess(token)
-              }}
+            onExpire={() => {
+              setShowChallenge(false)
+              onExpire?.()
+            }}
 
-              onExpire={() => {
-                setShowChallenge(false)
-                onExpire?.()
-              }}
+            onError={() => {
+              setShowChallenge(false)
+              onError?.()
+            }}
 
-              onError={() => {
-                setShowChallenge(false)
-                onError?.()
-              }}
+            options={{
+              theme: 'dark',
+              size: 'normal',
 
-              options={{
-                theme: 'dark',
-                size: 'normal',
-                execution: 'execute',
-                appearance: 'execute',
-                refreshExpired: 'auto',
-              }}
-            />
-          </div>
-        )}
+              // Wait for your VERIFY HUMAN button.
+              execution: 'execute',
+
+              // Show Cloudflare only once execution begins.
+              appearance: 'execute',
+
+              refreshExpired: 'auto',
+            }}
+
+            style={{
+              width: '100%',
+              maxWidth: '300px',
+              overflow: 'visible',
+            }}
+          />
+        </div>
 
       </div>
     )
