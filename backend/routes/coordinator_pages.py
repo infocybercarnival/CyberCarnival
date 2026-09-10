@@ -1,7 +1,15 @@
-from flask import Blueprint, render_template, session, redirect, url_for, abort
+from flask import (
+    Blueprint,
+    render_template,
+    session,
+    redirect,
+    url_for,
+    abort,
+)
 
 from services.event_service import get_event
 from utils.auth import coordinator_login_required
+
 
 bp = Blueprint(
     "coordinator_pages",
@@ -39,15 +47,35 @@ def _owns_event(event_id: str) -> bool:
     )
 
 
+def _build_event_page_data(event):
+    """
+    Coordinator pages only need a small subset of Event fields.
+
+    Do not call event.to_admin_dict() here because that serializer also
+    loads coordinator-person assignments and other admin-only relational
+    data. A mismatch in coordinator_events / coordinators should not make
+    the coordinator dashboard or QR scanner crash.
+    """
+
+    return {
+        "id": event.id,
+        "name": event.name,
+        "category": event.category,
+        "date": event.event_date,
+        "time": event.event_time,
+        "venue": event.venue,
+        "registration_open": event.registration_open,
+    }
+
+
 @bp.get("/")
 @coordinator_login_required
 def dashboard():
     """
     Coordinator root route.
 
-    Instead of rendering the old coordinator dashboard,
-    send the coordinator directly to the event detail /
-    participants interface.
+    Redirect the logged-in coordinator directly to the event
+    participant/dashboard interface.
     """
 
     event = _get_logged_event()
@@ -86,11 +114,13 @@ def event_detail(event_id):
             )
         )
 
+    event_data = _build_event_page_data(event)
+
     return render_template(
         "coordinator/event_detail.html",
         coordinator_username=event.coordinator_username,
         coordinator_name=f"{event.name} Coordinator Team",
-        event=event.to_admin_dict(),
+        event=event_data,
     )
 
 
@@ -111,9 +141,11 @@ def scanner(event_id):
             )
         )
 
+    event_data = _build_event_page_data(event)
+
     return render_template(
         "coordinator/scanner.html",
         coordinator_username=event.coordinator_username,
         coordinator_name=f"{event.name} Coordinator Team",
-        event=event.to_admin_dict(),
+        event=event_data,
     )
