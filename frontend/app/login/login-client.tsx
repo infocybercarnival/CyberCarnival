@@ -112,8 +112,6 @@ export function LoginClient() {
       setStatus('idle')
       turnstileRef.current?.reset()
       setTurnstileToken('')
-      setHumanVerified(false)
-      setHumanCheckStarted(false)
       if (err instanceof ApiValidationError) {
         setError(err.message.toUpperCase())
       } else {
@@ -215,9 +213,7 @@ export function LoginClient() {
       if (captchaNeedsReset) {
         turnstileRef.current?.reset()
         setTurnstileToken('')
-        setHumanVerified(false)
-        setHumanCheckStarted(false)
-      }
+          }
 
       setError(errMsg.toUpperCase())
     }
@@ -334,63 +330,19 @@ export function LoginClient() {
                   </button>
                 </div>
 
-                {/* Custom human check — Cloudflare must succeed before login actions unlock */}
-                <button
-                  type="button"
-                  onClick={handleTurnstileVerify}
-                  disabled={humanCheckStarted || humanVerified || status !== 'idle'}
-                  className="flex w-full items-center justify-between rounded-[4px] border border-primary/40 bg-background/60 px-4 py-4 transition-all hover:border-primary hover:bg-primary/5 disabled:cursor-default"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] border font-mono text-sm font-bold transition-all ${
-                        humanVerified
-                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300'
-                          : humanCheckStarted
-                            ? 'border-primary bg-primary/10'
-                            : 'border-primary/60 bg-background'
-                      }`}
-                    >
-                      {humanVerified ? '✓' : humanCheckStarted ? <span className="animate-pulse">•</span> : ''}
-                    </div>
-
-                    <div className="text-left">
-                      <div className="font-mono text-[11px] font-bold tracking-[0.15em] text-foreground">
-                        {humanVerified
-                          ? 'HUMAN VERIFIED'
-                          : humanCheckStarted
-                            ? 'VERIFYING HUMAN...'
-                            : 'I AM HUMAN'}
-                      </div>
-                      <div className="mt-1 font-mono text-[8px] tracking-[0.12em] text-muted-foreground">
-                        CLOUDFLARE SECURITY
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="font-mono text-[9px] tracking-[0.12em] text-muted-foreground">
-                    {humanVerified ? 'VERIFIED' : 'SECURE'}
-                  </div>
-                </button>
-
+                {/* Default Cloudflare Turnstile widget */}
                 <TurnstileWidget
                   ref={turnstileRef}
                   onSuccess={(token) => {
                     setTurnstileToken(token)
-                    setHumanVerified(true)
-                    setHumanCheckStarted(false)
                     setError('')
                   }}
                   onExpire={() => {
                     setTurnstileToken('')
-                    setHumanVerified(false)
-                    setHumanCheckStarted(false)
                     googleLoginInFlightRef.current = false
                   }}
                   onError={() => {
                     setTurnstileToken('')
-                    setHumanVerified(false)
-                    setHumanCheckStarted(false)
                     googleLoginInFlightRef.current = false
                     setError('SECURITY VERIFICATION FAILED. PLEASE TRY AGAIN.')
                   }}
