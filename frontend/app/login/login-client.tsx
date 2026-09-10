@@ -165,6 +165,11 @@ export function LoginClient() {
     }
   }
 
+  const handleTurnstileVerify = () => {
+    setError('')
+    turnstileRef.current?.execute()
+  }
+
   const handleGoogleClick = async () => {
     // Turnstile tokens are one-time tokens. A very fast double click can
     // submit the same token twice before React has finished updating status.
@@ -328,7 +333,18 @@ export function LoginClient() {
                   </button>
                 </div>
 
-                {/* CAPTCHA — gates both the password submit and the Google button below */}
+                {/* CAPTCHA — manually started by the user and still gates all login actions */}
+                {!turnstileToken && (
+                  <button
+                    type="button"
+                    onClick={handleTurnstileVerify}
+                    disabled={status !== 'idle'}
+                    className="w-full rounded-[3px] border border-primary/50 bg-primary/10 px-5 py-3 font-mono text-[10px] font-bold tracking-[0.22em] text-primary transition-all hover:border-primary hover:bg-primary/20 hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    VERIFY HUMAN →
+                  </button>
+                )}
+
                 <TurnstileWidget
                   ref={turnstileRef}
                   onSuccess={(token) => {
@@ -342,8 +358,15 @@ export function LoginClient() {
                   onError={() => {
                     setTurnstileToken('')
                     googleLoginInFlightRef.current = false
+                    setError('SECURITY VERIFICATION FAILED. PLEASE TRY AGAIN.')
                   }}
                 />
+
+                {turnstileToken && (
+                  <div className="rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-center font-mono text-[10px] font-bold tracking-[0.18em] text-emerald-300">
+                    ✓ SECURITY VERIFIED
+                  </div>
+                )}
 
                 {/* Submit Password Button */}
                 <button
