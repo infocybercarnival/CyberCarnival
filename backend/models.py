@@ -63,7 +63,7 @@ class User(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=new_uuid)
     cybercarnival_token = db.Column(db.String(16), nullable=False, unique=True, index=True)
     username = db.Column(db.String(32), nullable=False, unique=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=True)
     must_change_password = db.Column(db.Boolean, nullable=False, default=True)
     email = db.Column(db.String(255), nullable=False, unique=True, index=True)
     full_name = db.Column(db.String(120), nullable=True)
