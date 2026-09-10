@@ -144,7 +144,7 @@ export const TurnstileWidget = forwardRef<
               theme: 'dark',
               size: 'normal',
               execution: 'execute',
-              appearance: 'interaction-only',
+              appearance: 'always',
               refreshExpired: 'auto',
             }}
 
