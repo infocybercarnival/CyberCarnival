@@ -13,6 +13,7 @@ import {
 
 export interface TurnstileWidgetRef {
   reset: () => void
+  execute: () => void
 }
 
 interface TurnstileWidgetProps {
@@ -41,6 +42,10 @@ export const TurnstileWidget = forwardRef<
     useImperativeHandle(ref, () => ({
       reset: () => {
         turnstileRef.current?.reset()
+      },
+
+      execute: () => {
+        turnstileRef.current?.execute()
       },
     }))
 
@@ -73,8 +78,14 @@ export const TurnstileWidget = forwardRef<
           options={{
             theme: 'dark',
             size: 'normal',
-            execution: 'render',
-            appearance: 'always',
+
+            // IMPORTANT:
+            // Do not verify automatically when page loads.
+            execution: 'execute',
+
+            // Show Turnstile when execute() is called.
+            appearance: 'execute',
+
             refreshExpired: 'auto',
           }}
 
