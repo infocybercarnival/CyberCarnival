@@ -56,22 +56,11 @@ export const metadata: Metadata = {
   title: 'CyberCarnival 2026 — SRM Ramapuram',
   description:
     'CyberCarnival 2026 — the cybersecurity symposium of SRM Ramapuram. Where cybersecurity meets innovation. 7-8 October 2026.',
+
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/assets/branding/cybercarnval-lono.png',
+    shortcut: '/assets/branding/cybercarnval-lono.png',
+    apple: '/assets/branding/cybercarnval-lono.png',
   },
 }
 
