@@ -1,0 +1,26 @@
+name: Keep Render Awake
+
+on:
+  schedule:
+    # Runs every 14 minutes (Render spins down after 15 minutes of inactivity)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions UI or CLI
+
+jobs:
+  ping:
+    name: Ping Render Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Health Endpoint
+        run: |
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" -m 30 "https://cybercarnival.onrender.com/api/health")
+          echo "Render Health HTTP Status: $RESPONSE"
+          if [ "$RESPONSE" -ge 200 ] && [ "$RESPONSE" -lt 400 ]; then
+            echo "Render service is awake and healthy!"
+          else
+            echo "Warning: Received HTTP $RESPONSE. Retrying once after 10s..."
+            sleep 10
+            RETRY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -m 30 "https://cybercarnival.onrender.com/api/health")
+            echo "Retry HTTP Status: $RETRY_STATUS"
+          fi
