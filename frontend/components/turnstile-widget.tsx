@@ -11,15 +11,19 @@ import {
   type TurnstileInstance,
 } from '@marsidev/react-turnstile'
 
+
 export interface TurnstileWidgetRef {
   reset: () => void
+  execute: () => void
 }
+
 
 interface TurnstileWidgetProps {
   onSuccess: (token: string) => void
   onExpire?: () => void
   onError?: () => void
 }
+
 
 export const TurnstileWidget = forwardRef<
   TurnstileWidgetRef,
@@ -39,15 +43,22 @@ export const TurnstileWidget = forwardRef<
     const siteKey =
       process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
 
+
     useImperativeHandle(ref, () => ({
       reset: () => {
         turnstileRef.current?.reset()
       },
+
+      execute: () => {
+        turnstileRef.current?.execute()
+      },
     }))
+
 
     if (!siteKey) {
       return (
         <div className="w-full font-mono text-xs">
+
           <label
             className="
               mb-1.5
@@ -61,6 +72,7 @@ export const TurnstileWidget = forwardRef<
           >
             SECURITY VERIFICATION
           </label>
+
 
           <div
             className="
@@ -82,9 +94,11 @@ export const TurnstileWidget = forwardRef<
           >
             CLOUDFLARE TURNSTILE SITE KEY IS NOT CONFIGURED
           </div>
+
         </div>
       )
     }
+
 
     return (
       <div className="w-full font-mono text-xs">
@@ -103,6 +117,7 @@ export const TurnstileWidget = forwardRef<
           SECURITY VERIFICATION
         </label>
 
+
         <div
           className="
             flex
@@ -119,6 +134,7 @@ export const TurnstileWidget = forwardRef<
             shadow-[0_0_15px_rgba(168,85,247,0.12)]
           "
         >
+
           <Turnstile
             ref={turnstileRef}
 
@@ -139,8 +155,13 @@ export const TurnstileWidget = forwardRef<
             options={{
               theme: 'dark',
               size: 'normal',
+
+              // Do not automatically execute verification.
               execution: 'execute',
-              appearance: 'execute',
+
+              // Keep the widget visible before execution.
+              appearance: 'always',
+
               refreshExpired: 'auto',
             }}
 
@@ -151,11 +172,13 @@ export const TurnstileWidget = forwardRef<
               overflow: 'visible',
             }}
           />
+
         </div>
 
       </div>
     )
   }
 )
+
 
 TurnstileWidget.displayName = 'TurnstileWidget'
