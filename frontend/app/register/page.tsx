@@ -292,11 +292,7 @@ export default function RegisterPage() {
             }}
           />
 
-          {turnstileToken && (
-            <div className="rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-center font-mono text-[10px] font-bold tracking-[0.18em] text-emerald-300">
-              ✓ SECURITY VERIFIED
-            </div>
-          )}
+         
         </div>
 
         <button
