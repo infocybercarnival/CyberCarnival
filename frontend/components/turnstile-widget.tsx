@@ -13,7 +13,6 @@ import {
 
 export interface TurnstileWidgetRef {
   reset: () => void
-  execute: () => void
 }
 
 interface TurnstileWidgetProps {
@@ -43,50 +42,44 @@ export const TurnstileWidget = forwardRef<
       reset: () => {
         turnstileRef.current?.reset()
       },
-
-      execute: () => {
-        turnstileRef.current?.execute()
-      },
     }))
 
     if (!siteKey) {
       return (
-        <div className="w-full rounded-sm border border-destructive/40 bg-destructive/10 px-4 py-3 text-center font-mono text-[10px] tracking-[0.1em] text-destructive">
+        <div className="w-full rounded-sm border border-destructive/40 bg-destructive/10 px-4 py-3 text-center font-mono text-[10px] text-destructive">
           CLOUDFLARE TURNSTILE SITE KEY IS NOT CONFIGURED
         </div>
       )
     }
 
     return (
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          width: '1px',
-          height: '1px',
-          overflow: 'hidden',
-          opacity: 0,
-          pointerEvents: 'none',
-        }}
-      >
+      <div className="flex w-full justify-center">
         <Turnstile
           ref={turnstileRef}
           siteKey={siteKey}
+
           onSuccess={(token) => {
             onSuccess(token)
           }}
+
           onExpire={() => {
             onExpire?.()
           }}
+
           onError={() => {
             onError?.()
           }}
+
           options={{
             theme: 'dark',
             size: 'normal',
-            execution: 'execute',
-            appearance: 'interaction-only',
+            execution: 'render',
+            appearance: 'always',
             refreshExpired: 'auto',
+          }}
+
+          style={{
+            width: '300px',
           }}
         />
       </div>
