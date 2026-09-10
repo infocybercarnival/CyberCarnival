@@ -4,6 +4,7 @@ import {
   forwardRef,
   useImperativeHandle,
   useRef,
+  useState,
 } from 'react'
 
 import {
@@ -37,16 +38,30 @@ export const TurnstileWidget = forwardRef<
     const turnstileRef =
       useRef<TurnstileInstance>(null)
 
+    const [showChallenge, setShowChallenge] =
+      useState(false)
+
     const siteKey =
       process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
 
     useImperativeHandle(ref, () => ({
       reset: () => {
+        setShowChallenge(false)
         turnstileRef.current?.reset()
       },
 
       execute: () => {
-        turnstileRef.current?.execute()
+        setShowChallenge(true)
+
+        /*
+         * Wait until React makes the Turnstile container visible,
+         * then start Cloudflare verification.
+         */
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            turnstileRef.current?.execute()
+          })
+        })
       },
     }))
 
@@ -70,7 +85,6 @@ export const TurnstileWidget = forwardRef<
           <div
             className="
               flex
-              min-h-[78px]
               w-full
               items-center
               justify-center
@@ -79,6 +93,7 @@ export const TurnstileWidget = forwardRef<
               border-destructive/40
               bg-destructive/10
               px-4
+              py-4
               text-center
               text-[10px]
               tracking-[0.1em]
@@ -92,70 +107,117 @@ export const TurnstileWidget = forwardRef<
     }
 
     return (
-      <div className="w-full font-mono text-xs">
+      <div className="w-full">
 
-        <label
-          className="
-            mb-1.5
-            block
-            text-[10px]
-            font-bold
-            uppercase
-            tracking-[0.2em]
-            text-primary
-          "
-        >
-          SECURITY VERIFICATION
-        </label>
+        {showChallenge && (
+          <div className="w-full font-mono text-xs">
 
-        <div
-          className="
-            flex
-            w-full
-            max-w-full
-            items-center
-            justify-center
-            overflow-visible
-            rounded-sm
-            border
-            border-primary/30
-            bg-background/60
-            p-3
-            shadow-[0_0_15px_rgba(168,85,247,0.12)]
-          "
-        >
-          <Turnstile
-            ref={turnstileRef}
-            siteKey={siteKey}
+            <label
+              className="
+                mb-1.5
+                block
+                text-[10px]
+                font-bold
+                uppercase
+                tracking-[0.2em]
+                text-primary
+              "
+            >
+              SECURITY VERIFICATION
+            </label>
 
-            onSuccess={(token) => {
-              onSuccess(token)
-            }}
+            <div
+              className="
+                flex
+                w-full
+                items-center
+                justify-center
+                rounded-sm
+                border
+                border-primary/30
+                bg-background/60
+                p-3
+                shadow-[0_0_15px_rgba(168,85,247,0.12)]
+              "
+            >
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={siteKey}
 
-            onExpire={() => {
-              onExpire?.()
-            }}
+                onSuccess={(token) => {
+                  setShowChallenge(false)
+                  onSuccess(token)
+                }}
 
-            onError={() => {
-              onError?.()
-            }}
+                onExpire={() => {
+                  setShowChallenge(false)
+                  onExpire?.()
+                }}
 
-            options={{
-              theme: 'dark',
-              size: 'normal',
-              execution: 'execute',
-              appearance: 'always',
-              refreshExpired: 'auto',
-            }}
+                onError={() => {
+                  setShowChallenge(false)
+                  onError?.()
+                }}
 
+                options={{
+                  theme: 'dark',
+                  size: 'normal',
+                  execution: 'execute',
+                  appearance: 'execute',
+                  refreshExpired: 'auto',
+                }}
+
+                style={{
+                  width: '100%',
+                  maxWidth: '300px',
+                  overflow: 'visible',
+                }}
+              />
+            </div>
+
+          </div>
+        )}
+
+        {!showChallenge && (
+          <div
             style={{
-              width: '100%',
-              maxWidth: '300px',
-              
-              overflow: 'visible',
+              position: 'absolute',
+              width: '1px',
+              height: '1px',
+              overflow: 'hidden',
+              opacity: 0,
+              pointerEvents: 'none',
             }}
-          />
-        </div>
+          >
+            <Turnstile
+              ref={turnstileRef}
+              siteKey={siteKey}
+
+              onSuccess={(token) => {
+                setShowChallenge(false)
+                onSuccess(token)
+              }}
+
+              onExpire={() => {
+                setShowChallenge(false)
+                onExpire?.()
+              }}
+
+              onError={() => {
+                setShowChallenge(false)
+                onError?.()
+              }}
+
+              options={{
+                theme: 'dark',
+                size: 'normal',
+                execution: 'execute',
+                appearance: 'execute',
+                refreshExpired: 'auto',
+              }}
+            />
+          </div>
+        )}
 
       </div>
     )
