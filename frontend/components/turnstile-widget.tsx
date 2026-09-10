@@ -138,27 +138,9 @@ export const TurnstileWidget = forwardRef<
 
             options={{
               theme: 'dark',
-
               size: 'normal',
-
-              /**
-               * Render Cloudflare Turnstile normally.
-               *
-               * No custom execute() call.
-               * No hidden widget.
-               * No custom CAPTCHA mask.
-               */
-              execution: 'render',
-
-              /**
-               * Always display Cloudflare's widget.
-               */
-              appearance: 'always',
-
-              /**
-               * If a verification expires, Cloudflare
-               * refreshes the widget for the participant.
-               */
+              execution: 'execute',
+              appearance: 'execute',
               refreshExpired: 'auto',
             }}
 
