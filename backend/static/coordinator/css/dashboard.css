@@ -1,38 +1,400 @@
-/* Coordinator dashboard — extends the palette from admin.css (same --bg,
-   --panel, --border, --accent etc.) with the richer components this view
-   needs: stat cards, a capacity bar, a live-filter search box, toasts,
-   and a loading skeleton. Kept as its own file rather than growing
-   admin.css, so the super-admin panel is never at risk of a regression
-   here. */
+/* ==========================================================
+   CyberCarnival Coordinator Dashboard
+   Desktop + Tablet + Mobile Responsive
+   ========================================================== */
 
 .coord-shell {
+  width: 100%;
   max-width: 1100px;
   margin: 0 auto;
   padding: 32px 24px 80px;
 }
 
+
+/* ==========================================================
+   GENERAL
+   ========================================================== */
+
+.coordinator-event-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.coordinator-event-shell {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 80px;
+}
+
+.coordinator-brand-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.coordinator-brand-link:hover {
+  color: var(--accent);
+}
+
+
+/* ==========================================================
+   TOPBAR
+   ========================================================== */
+
+.coordinator-topbar {
+  gap: 16px;
+}
+
+.coordinator-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.coordinator-topbar-right form {
+  margin: 0;
+}
+
+.coordinator-who {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ==========================================================
+   EVENT HEADER
+   ========================================================== */
+
+.coordinator-event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.coordinator-event-heading {
+  min-width: 0;
+}
+
+.coordinator-event-heading h1 {
+  margin: 0;
+  color: var(--fg);
+  font-size: clamp(22px, 3vw, 28px);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.coordinator-back-button {
+  display: inline-flex;
+  margin-bottom: 10px;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.coordinator-event-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.coordinator-event-category {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.meta-divider {
+  opacity: 0.5;
+}
+
+.coordinator-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.coordinator-action-button,
+.coordinator-scan-button {
+  min-height: 44px;
+  text-decoration: none;
+}
+
+.coordinator-scan-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+
+/* ==========================================================
+   ATTENDANCE CARDS
+   ========================================================== */
+
+.coordinator-attendance-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.attendance-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card-bg);
+  text-align: center;
+}
+
+.attendance-number {
+  color: var(--fg);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.attendance-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.attendance-present {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.attendance-present .attendance-number,
+.attendance-present .attendance-label {
+  color: #10b981;
+}
+
+.attendance-remaining {
+  border-color: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.attendance-remaining .attendance-number,
+.attendance-remaining .attendance-label {
+  color: #f87171;
+}
+
+.attendance-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.attendance-dot-present {
+  background: #10b981;
+}
+
+.attendance-dot-remaining {
+  background: #f87171;
+}
+
+
+/* ==========================================================
+   PARTICIPANTS HEADER
+   ========================================================== */
+
+.coordinator-participants-section {
+  width: 100%;
+  min-width: 0;
+}
+
+.participants-heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.participants-heading-row h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.participants-eyebrow {
+  margin: 0 0 5px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.participant-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.participant-search-wrap {
+  position: relative;
+  min-width: 280px;
+}
+
+.participant-search-wrap input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px 9px 34px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.participant-search-wrap input:focus {
+  border-color: var(--accent);
+}
+
+.participant-search-wrap input::placeholder {
+  color: var(--muted);
+}
+
+.participant-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  z-index: 1;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+#part-status-filter {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+#part-status-filter:focus {
+  border-color: var(--accent);
+}
+
+
+/* ==========================================================
+   PARTICIPANTS TABLE — DESKTOP
+   ========================================================== */
+
+.coordinator-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.coordinator-participant-table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.coordinator-participant-table th {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.coordinator-participant-table td {
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.coordinator-participant-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.coordinator-participant-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.coordinator-participant-table code {
+  color: var(--accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+}
+
+.table-empty-state {
+  padding: 40px 20px !important;
+  color: var(--muted);
+  text-align: center !important;
+}
+
+
+/* ==========================================================
+   EXISTING GENERAL COORDINATOR COMPONENTS
+   ========================================================== */
+
 .coord-intro {
   margin-bottom: 28px;
 }
+
 .coord-intro h2 {
   margin: 0 0 4px;
   font-size: 22px;
   letter-spacing: 0.02em;
 }
+
 .coord-intro p {
   margin: 0;
   color: var(--muted);
   font-size: 13px;
 }
 
-/* ---------- event card ---------- */
+
+/* ==========================================================
+   EVENT CARD
+   ========================================================== */
 
 .event-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
   margin-bottom: 28px;
   overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
 }
 
 .event-card-head {
@@ -54,9 +416,14 @@
 .event-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
   flex-wrap: wrap;
+  gap: 10px;
 }
+
+
+/* ==========================================================
+   BADGES
+   ========================================================== */
 
 .badge {
   display: inline-flex;
@@ -69,89 +436,148 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
 .badge::before {
-  content: "";
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: currentColor;
+  content: "";
 }
-.badge-open   { background: rgba(94, 234, 212, 0.12); color: var(--accent); }
-.badge-closed { background: rgba(248, 113, 113, 0.12); color: var(--danger); }
 
-.btn-primary, .btn-danger, .btn-outline {
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  padding: 10px 16px;
-  min-height: 44px;
+.badge-open {
+  background: rgba(94, 234, 212, 0.12);
+  color: var(--accent);
+}
+
+.badge-closed {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--danger);
+}
+
+
+/* ==========================================================
+   BUTTONS
+   ========================================================== */
+
+.btn-primary,
+.btn-danger,
+.btn-outline {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
   border-radius: 6px;
+  background: transparent;
+  color: var(--text);
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.1s ease, opacity 0.15s ease;
+  transition:
+    transform 0.1s ease,
+    opacity 0.15s ease;
 }
-.btn-primary:hover, .btn-danger:hover, .btn-outline:hover { transform: translateY(-1px); }
-.btn-primary:active, .btn-danger:active, .btn-outline:active { transform: translateY(0); }
-.btn-primary:disabled { opacity: 0.5; cursor: default; transform: none; }
 
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #05201c; }
-.btn-danger  { background: var(--danger); border-color: var(--danger); color: #2a0a0a; }
-.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary:hover,
+.btn-danger:hover,
+.btn-outline:hover {
+  transform: translateY(-1px);
+}
 
-/* ---------- stats row ---------- */
+.btn-primary:active,
+.btn-danger:active,
+.btn-outline:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.btn-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #05201c;
+}
+
+.btn-danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #2a0a0a;
+}
+
+.btn-outline:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+
+/* ==========================================================
+   STATS ROW
+   ========================================================== */
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns:
+    repeat(auto-fit, minmax(150px, 1fr));
   gap: 1px;
   background: var(--border);
 }
 
 .stat {
-  background: var(--panel);
   padding: 16px 20px;
+  background: var(--panel);
 }
+
 .stat .num {
   font-size: 24px;
   font-weight: 700;
   line-height: 1.1;
 }
+
 .stat .label {
   margin-top: 4px;
-  font-size: 11px;
   color: var(--muted);
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .capacity-bar {
-  margin-top: 10px;
   height: 5px;
+  margin-top: 10px;
+  overflow: hidden;
   border-radius: 999px;
   background: var(--border);
-  overflow: hidden;
 }
+
 .capacity-bar-fill {
   height: 100%;
-  background: var(--accent);
   border-radius: 999px;
+  background: var(--accent);
   transition: width 0.4s ease;
 }
-.capacity-bar-fill.capacity-full { background: var(--danger); }
 
-/* ---------- toolbar (search + export) ---------- */
+.capacity-bar-fill.capacity-full {
+  background: var(--danger);
+}
+
+
+/* ==========================================================
+   SEARCH TOOLBAR
+   ========================================================== */
 
 .event-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 16px 24px;
-  flex-wrap: wrap;
 }
 
 .search-box {
@@ -159,57 +585,83 @@
   flex: 1;
   min-width: 200px;
 }
+
 .search-box input {
   width: 100%;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  color: var(--text);
   padding: 9px 12px 9px 32px;
+  border: 1px solid var(--border);
   border-radius: 6px;
+  outline: none;
+  background: var(--bg);
+  color: var(--text);
   font-family: inherit;
   font-size: 13px;
 }
+
 .search-box input:focus {
-  outline: none;
   border-color: var(--accent);
 }
+
 .search-box svg {
   position: absolute;
-  left: 10px;
   top: 50%;
+  left: 10px;
   transform: translateY(-50%);
   opacity: 0.5;
   pointer-events: none;
 }
 
 .search-count {
-  font-size: 12px;
   color: var(--muted);
+  font-size: 12px;
   white-space: nowrap;
 }
 
-/* ---------- registrations table ---------- */
 
-.reg-table-wrap { padding: 0 24px 24px; overflow-x: auto; }
+/* ==========================================================
+   LEGACY REGISTRATION TABLE
+   ========================================================== */
 
-.reg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.reg-table-wrap {
+  padding: 0 24px 24px;
+  overflow-x: auto;
+}
+
+.reg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
 .reg-table th {
-  text-align: left;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--muted);
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-align: left;
+  text-transform: uppercase;
   white-space: nowrap;
 }
+
 .reg-table td {
   padding: 12px;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
-.reg-table tr:last-child td { border-bottom: none; }
-.reg-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+.reg-table tr:last-child td {
+  border-bottom: none;
+}
+
+.reg-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+
+/* ==========================================================
+   MEMBER ROWS
+   ========================================================== */
 
 .member-row {
   display: flex;
@@ -218,61 +670,106 @@
   gap: 8px;
   padding: 3px 0;
 }
-.member-row + .member-row { border-top: 1px dashed var(--border); padding-top: 6px; margin-top: 3px; }
-.member-name { font-weight: 600; }
+
+.member-row + .member-row {
+  margin-top: 3px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+}
+
+.member-name {
+  font-weight: 600;
+}
+
 .member-name .leader-tag {
-  font-weight: 500;
-  font-size: 10px;
-  color: var(--accent);
   margin-left: 6px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 500;
   text-transform: uppercase;
 }
-.member-contact { color: var(--muted); font-size: 12px; }
+
+.member-contact {
+  color: var(--muted);
+  font-size: 12px;
+}
 
 .copy-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-  border-radius: 4px;
+  flex-shrink: 0;
   padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-family: inherit;
   font-size: 11px;
   cursor: pointer;
-  font-family: inherit;
-  flex-shrink: 0;
 }
-.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
-.copy-btn.copied { color: var(--accent); border-color: var(--accent); }
+
+.copy-btn:hover,
+.copy-btn.copied {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 .token-chip {
+  color: var(--muted);
   font-family: ui-monospace, monospace;
   font-size: 11px;
-  color: var(--muted);
   letter-spacing: 0.02em;
 }
 
-/* ---------- empty / loading states ---------- */
+
+/* ==========================================================
+   EMPTY / LOADING
+   ========================================================== */
 
 .empty-state {
   padding: 48px 24px;
-  text-align: center;
   color: var(--muted);
   font-size: 13px;
+  text-align: center;
 }
-.empty-state .icon { font-size: 28px; margin-bottom: 10px; opacity: 0.5; }
+
+.empty-state .icon {
+  margin-bottom: 10px;
+  font-size: 28px;
+  opacity: 0.5;
+}
 
 .skeleton {
-  background: linear-gradient(90deg, var(--panel) 25%, var(--border) 37%, var(--panel) 63%);
+  border-radius: 6px;
+  background:
+    linear-gradient(
+      90deg,
+      var(--panel) 25%,
+      var(--border) 37%,
+      var(--panel) 63%
+    );
   background-size: 400% 100%;
   animation: skeleton-shine 1.4s ease infinite;
-  border-radius: 6px;
 }
-@keyframes skeleton-shine {
-  0% { background-position: 100% 50%; }
-  100% { background-position: 0 50%; }
-}
-.skeleton-card { height: 180px; margin-bottom: 28px; border-radius: 10px; }
 
-/* ---------- toast ---------- */
+@keyframes skeleton-shine {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.skeleton-card {
+  height: 180px;
+  margin-bottom: 28px;
+  border-radius: 10px;
+}
+
+
+/* ==========================================================
+   TOASTS
+   ========================================================== */
 
 #toast-stack {
   position: fixed;
@@ -283,32 +780,490 @@
   flex-direction: column;
   gap: 8px;
 }
+
 .toast {
-  background: var(--panel);
+  max-width: 320px;
+  padding: 12px 16px;
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  color: var(--text);
-  padding: 12px 16px;
   border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: var(--text);
   font-size: 13px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   animation: toast-in 0.2s ease;
-  max-width: 320px;
 }
-.toast.toast-error { border-left-color: var(--danger); }
+
+.toast.toast-error {
+  border-left-color: var(--danger);
+}
+
 @keyframes toast-in {
-  from { opacity: 0; transform: translateX(12px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 
-/* Participant detail modal */
-.member-detail-btn { background:none; border:0; padding:0; color:inherit; font:inherit; font-weight:700; cursor:pointer; text-align:left; }
-.member-detail-btn:hover { color:var(--accent); text-decoration:underline; }
-.member-modal-backdrop { position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.72); display:flex; align-items:center; justify-content:center; padding:20px; }
-.member-modal-card { position:relative; width:min(520px,100%); background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:22px; box-shadow:0 24px 70px rgba(0,0,0,.55); }
-.member-modal-card h3 { margin-top:0; }
-.member-modal-card dl { display:grid; grid-template-columns:150px 1fr; gap:10px 16px; margin:18px 0 0; }
-.member-modal-card dt { color:var(--muted); font-size:12px; }
-.member-modal-card dd { margin:0; overflow-wrap:anywhere; }
-.member-modal-close { position:absolute; right:12px; top:10px; border:0; background:none; color:var(--muted); font-size:24px; cursor:pointer; }
+/* ==========================================================
+   PARTICIPANT DETAIL MODAL
+   ========================================================== */
+
+.member-detail-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.member-detail-btn:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.member-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.member-modal-card {
+  position: relative;
+  width: min(520px, 100%);
+  max-height: calc(100dvh - 40px);
+  padding: 22px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+}
+
+.member-modal-card h3 {
+  margin-top: 0;
+}
+
+.member-modal-card dl {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px 16px;
+  margin: 18px 0 0;
+}
+
+.member-modal-card dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.member-modal-card dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.member-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+
+/* ==========================================================
+   TABLET
+   ========================================================== */
+
+@media (max-width: 900px) {
+
+  .coordinator-event-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .coordinator-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .participants-heading-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .participant-controls {
+    width: 100%;
+  }
+
+  .participant-search-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+}
+
+
+/* ==========================================================
+   MOBILE
+   ========================================================== */
+
+@media (max-width: 640px) {
+
+  .coord-shell,
+  .coordinator-event-shell {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+
+  /* ---------- top bar ---------- */
+
+  .coordinator-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .coordinator-topbar-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .coordinator-who {
+    max-width: 65vw;
+    font-size: 11px;
+  }
+
+  .coordinator-logout {
+    min-height: 38px;
+  }
+
+
+  /* ---------- event heading ---------- */
+
+  .coordinator-event-header {
+    gap: 18px;
+  }
+
+  .coordinator-event-heading h1 {
+    font-size: 22px;
+  }
+
+  .coordinator-event-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+  }
+
+  .meta-divider {
+    display: none;
+  }
+
+
+  /* ---------- action buttons ---------- */
+
+  .coordinator-header-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .coordinator-header-actions a {
+    width: 100%;
+    text-align: center;
+  }
+
+  .coordinator-scan-button,
+  .coordinator-action-button {
+    justify-content: center;
+    min-height: 46px;
+  }
+
+
+  /* ---------- stats ---------- */
+
+  .coordinator-attendance-cards {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .attendance-card {
+    padding: 14px 7px;
+  }
+
+  .attendance-number {
+    font-size: 25px;
+  }
+
+  .attendance-label {
+    gap: 4px;
+    font-size: 8px;
+    letter-spacing: 0.04em;
+  }
+
+  .attendance-dot {
+    width: 6px;
+    height: 6px;
+  }
+
+
+  /* ---------- participants ---------- */
+
+  .participants-heading-row h2 {
+    font-size: 17px;
+  }
+
+  .participant-controls {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .participant-search-wrap,
+  #part-status-filter {
+    width: 100%;
+  }
+
+  #part-status-filter {
+    min-height: 44px;
+  }
+
+
+  /* ======================================================
+     MOBILE PARTICIPANT TABLE → CARDS
+     ====================================================== */
+
+  .coordinator-table-wrapper {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .coordinator-participant-table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .coordinator-participant-table thead {
+    display: none;
+  }
+
+  .coordinator-participant-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .coordinator-participant-table tbody tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+  }
+
+  .coordinator-participant-table tbody td {
+    display: grid;
+    grid-template-columns: 105px minmax(0, 1fr);
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    text-align: left;
+  }
+
+  .coordinator-participant-table tbody td:last-child {
+    border-bottom: 0;
+  }
+
+  .coordinator-participant-table tbody td::before {
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .coordinator-participant-table tbody td:nth-child(1)::before {
+    content: "TOKEN";
+  }
+
+  .coordinator-participant-table tbody td:nth-child(2)::before {
+    content: "PARTICIPANT";
+  }
+
+  .coordinator-participant-table tbody td:nth-child(3)::before {
+    content: "CONTACT";
+  }
+
+  .coordinator-participant-table tbody td:nth-child(4)::before {
+    content: "COLLEGE";
+  }
+
+  .coordinator-participant-table tbody td:nth-child(5)::before {
+    content: "STATUS";
+  }
+
+  .coordinator-participant-table tbody td:nth-child(6)::before {
+    content: "CHECK-IN";
+  }
+
+  .coordinator-participant-table tbody td:nth-child(7)::before {
+    content: "CHECKED BY";
+  }
+
+  .coordinator-participant-table .table-empty-state {
+    display: block;
+    padding: 32px 16px !important;
+    text-align: center !important;
+  }
+
+  .coordinator-participant-table .table-empty-state::before {
+    display: none;
+  }
+
+
+  /* ---------- old registration rows ---------- */
+
+  .event-card-head {
+    padding: 18px 14px;
+  }
+
+  .event-actions {
+    width: 100%;
+  }
+
+  .event-actions button,
+  .event-actions a {
+    flex: 1;
+  }
+
+  .event-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px;
+  }
+
+  .search-box {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .reg-table-wrap {
+    padding: 0 12px 16px;
+  }
+
+
+  /* ---------- member modal ---------- */
+
+  .member-modal-backdrop {
+    align-items: flex-end;
+    padding: 10px;
+  }
+
+  .member-modal-card {
+    width: 100%;
+    max-height: 88dvh;
+    padding: 20px 16px;
+    border-radius: 12px;
+  }
+
+  .member-modal-card dl {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .member-modal-card dt {
+    margin-top: 10px;
+  }
+
+
+  /* ---------- toast ---------- */
+
+  #toast-stack {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+  }
+
+  .toast {
+    width: 100%;
+    max-width: none;
+  }
+
+}
+
+
+/* ==========================================================
+   VERY SMALL PHONES
+   ========================================================== */
+
+@media (max-width: 380px) {
+
+  .coordinator-event-shell {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .coordinator-attendance-cards {
+    gap: 6px;
+  }
+
+  .attendance-card {
+    padding: 12px 5px;
+  }
+
+  .attendance-number {
+    font-size: 22px;
+  }
+
+  .attendance-label {
+    font-size: 7px;
+  }
+
+  .coordinator-participant-table tbody td {
+    grid-template-columns: 88px minmax(0, 1fr);
+    padding: 9px 10px;
+  }
+
+}
+
+
+/* ==========================================================
+   REDUCED MOTION
+   ========================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .skeleton,
+  .toast {
+    animation: none !important;
+  }
+
+}
