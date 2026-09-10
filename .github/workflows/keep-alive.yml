@@ -2,8 +2,8 @@ name: Keep Render Awake
 
 on:
   schedule:
-    # Runs every 14 minutes (Render spins down after 15 minutes of inactivity)
-    - cron: '*/14 * * * *'
+    # Runs every 10 minutes to guarantee hitting well before the 15-minute spin-down threshold, even if GitHub Actions experiences minor queue delays
+    - cron: '*/10 * * * *'
   workflow_dispatch: # Allows manual trigger from GitHub Actions UI or CLI
 
 jobs:
