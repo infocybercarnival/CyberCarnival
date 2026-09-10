@@ -25,8 +25,7 @@ export default function RegisterPage() {
   const [message, setMessage] = useState('')
 
   const [turnstileToken, setTurnstileToken] = useState('')
-  const [humanCheckStarted, setHumanCheckStarted] = useState(false)
-  const [humanVerified, setHumanVerified] = useState(false)
+  
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
 
   const [googleLoading, setGoogleLoading] = useState(false)
@@ -94,14 +93,7 @@ export default function RegisterPage() {
     }
   }, [])
 
-  function handleTurnstileVerify() {
-    if (humanCheckStarted || humanVerified) return
-
-    setError('')
-    setMessage('')
-    setHumanCheckStarted(true)
-    turnstileRef.current?.execute()
-  }
+  
 
   async function handleGoogleClick() {
     if (!turnstileToken) {
