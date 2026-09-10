@@ -13,6 +13,7 @@ import {
 
 export interface TurnstileWidgetRef {
   reset: () => void
+  execute: () => void
 }
 
 interface TurnstileWidgetProps {
@@ -42,6 +43,10 @@ export const TurnstileWidget = forwardRef<
     useImperativeHandle(ref, () => ({
       reset: () => {
         turnstileRef.current?.reset()
+      },
+
+      execute: () => {
+        turnstileRef.current?.execute()
       },
     }))
 
@@ -121,7 +126,6 @@ export const TurnstileWidget = forwardRef<
         >
           <Turnstile
             ref={turnstileRef}
-
             siteKey={siteKey}
 
             onSuccess={(token) => {
