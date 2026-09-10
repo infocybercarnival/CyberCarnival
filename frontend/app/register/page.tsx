@@ -92,6 +92,12 @@ export default function RegisterPage() {
     }
   }, [])
 
+  function handleTurnstileVerify() {
+    setError('')
+    setMessage('')
+    turnstileRef.current?.execute()
+  }
+
   async function handleGoogleClick() {
     if (!turnstileToken) {
       setError(
@@ -259,7 +265,18 @@ export default function RegisterPage() {
           </div>
         )}
 
-        <div className="mt-6">
+        <div className="mt-6 flex flex-col gap-3">
+          {!turnstileToken && (
+            <button
+              type="button"
+              onClick={handleTurnstileVerify}
+              disabled={googleLoading || loading}
+              className="w-full rounded-sm border border-primary/50 bg-primary/10 px-5 py-3 font-mono text-[10px] font-bold tracking-[0.22em] text-primary transition-all hover:border-primary hover:bg-primary/20 hover:shadow-[0_0_18px_rgba(168,85,247,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              VERIFY HUMAN →
+            </button>
+          )}
+
           <TurnstileWidget
             ref={turnstileRef}
             onSuccess={(token) => {
@@ -271,8 +288,15 @@ export default function RegisterPage() {
             }}
             onError={() => {
               setTurnstileToken('')
+              setError('Security verification failed. Please try again.')
             }}
           />
+
+          {turnstileToken && (
+            <div className="rounded-sm border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-center font-mono text-[10px] font-bold tracking-[0.18em] text-emerald-300">
+              ✓ SECURITY VERIFIED
+            </div>
+          )}
         </div>
 
         <button
