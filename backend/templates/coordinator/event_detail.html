@@ -4,6 +4,13 @@
 {{ event.name }} — Coordinator Portal
 {% endblock %}
 
+{% block extra_css %}
+<link
+  rel="stylesheet"
+  href="/static/coordinator/css/dashboard.css?v=1.3.0"
+/>
+{% endblock %}
+
 {% block body %}
 
 <meta
@@ -156,7 +163,9 @@
         </div>
 
         <div class="attendance-label">
-          <span class="attendance-dot attendance-dot-present"></span>
+          <span
+            class="attendance-dot attendance-dot-present"
+          ></span>
           PRESENT
         </div>
 
@@ -173,7 +182,9 @@
         </div>
 
         <div class="attendance-label">
-          <span class="attendance-dot attendance-dot-remaining"></span>
+          <span
+            class="attendance-dot attendance-dot-remaining"
+          ></span>
           REMAINING
         </div>
 
@@ -247,7 +258,9 @@
       <!-- =========================
            PARTICIPANT TABLE
       ========================== -->
-      <div class="registration-table-wrapper coordinator-table-wrapper">
+      <div
+        class="registration-table-wrapper coordinator-table-wrapper"
+      >
 
         <table
           class="table coordinator-participant-table"
