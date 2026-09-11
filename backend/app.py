@@ -34,6 +34,7 @@ logger = get_logger("app")
 
 def create_app() -> Flask:
     app = Flask(__name__)
+    app.url_map.strict_slashes = False
 
     if config.TRUST_PROXY_HOPS > 0:
         app.wsgi_app = ProxyFix(
