@@ -11,6 +11,7 @@ import {
   fetchMyEvents,
   completeProfile,
   logout,
+  getApiUrl,
   type PublicUser,
   type MyEvent,
   ApiValidationError,
@@ -332,13 +333,38 @@ export function DashboardClient() {
                           )}
 
                           {ev.status === 'confirmed' && (
-                            <div className="border border-emerald-500/40 bg-emerald-500/10 p-3 rounded-[6px] text-emerald-300">
-                              <p className="font-bold tracking-wider uppercase text-[11px] flex items-center gap-1.5">
-                                ✓ CONFIRMED
-                              </p>
-                              <p className="mt-1.5 text-[11px] text-emerald-200/90 leading-relaxed font-semibold">
-                                Your registration has been confirmed.
-                              </p>
+                            <div className="space-y-3">
+                              <div className="border border-emerald-500/40 bg-emerald-500/10 p-3 rounded-[6px] text-emerald-300">
+                                <div className="flex items-center justify-between">
+                                  <p className="font-bold tracking-wider uppercase text-[11px] flex items-center gap-1.5">
+                                    ✓ CONFIRMED
+                                  </p>
+                                  {ev.checked_in ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded">
+                                      CHECKED IN ✓
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 bg-primary/20 text-primary border border-primary/40 rounded">
+                                      ENTRY TICKET
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-1.5 text-[11px] text-emerald-200/90 leading-relaxed font-semibold">
+                                  Your registration has been confirmed. Present your entry QR code at venue check-in.
+                                </p>
+                              </div>
+
+                              {/* Entry QR Code Image */}
+                              <div className="flex flex-col items-center justify-center p-3 border border-primary/30 bg-background/80 rounded-[8px]">
+                                <img
+                                  src={`${getApiUrl()}/api/registrations/${ev.registration_id}/qr`}
+                                  alt={`${ev.event_name} Admission QR Code`}
+                                  className="h-36 w-36 rounded border border-border bg-white p-1.5 object-contain shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+                                />
+                                <p className="mt-2 text-[10px] font-mono tracking-widest text-muted-foreground uppercase text-center font-bold">
+                                  {ev.checked_in ? '✓ ATTENDANCE VERIFIED' : 'SCAN AT VENUE FOR ENTRY'}
+                                </p>
+                              </div>
                             </div>
                           )}
 

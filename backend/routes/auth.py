@@ -622,6 +622,9 @@ def my_events():
             ),
             "status": reg.status,
             "rejection_reason": reg.rejection_reason,
+            "qr_url": f"/api/registrations/{reg.id}/qr" if reg.status == "confirmed" else None,
+            "checked_in": reg.checked_in if reg.status == "confirmed" else False,
+            "checked_in_at": reg.checked_in_at.isoformat() if (reg.status == "confirmed" and reg.checked_in_at) else None,
             "members": [
                 {
                     "name": (

@@ -1,7 +1,8 @@
-from flask import Blueprint, request, jsonify, session, send_file, redirect
+from flask import Blueprint, request, jsonify, session, send_file, redirect, Response
 from urllib.parse import urlsplit
 
 import config
+from utils.qrcode_gen import generate_qr_png
 from extensions import limiter, db
 from services.registration_service import (
     register_for_event, get_registration, preflight_warnings, member_preview,
@@ -392,7 +393,7 @@ def view_ticket(registration_id):
     return jsonify({
         "status": reg.status,
         "registration_id": reg.id,
-        "ticket_token": reg.ticket_token,
+        "qr_url": f"/api/registrations/{reg.id}/qr",
         "checked_in": reg.checked_in or False,
         "checked_in_at": reg.checked_in_at.isoformat() if reg.checked_in_at else None,
         "event_name": event.name if event else "Unknown event",
@@ -411,3 +412,27 @@ def view_ticket(registration_id):
             for m in sorted_members
         ],
     })
+
+
+@bp.get("/api/registrations/<registration_id>/qr")
+@limiter.limit("30 per minute")
+def view_registration_qr(registration_id):
+    reg = get_registration(registration_id)
+    if not reg or reg.status != "confirmed":
+        return jsonify({"error": "ticket not found or registration not confirmed"}), 404
+
+    provided_token = request.args.get("token", "").strip()
+    user_id = session.get("user_id")
+    is_staff = bool(session.get("is_admin")) or bool(session.get("is_coordinator"))
+    is_member = bool(user_id) and ((reg.leader_user_id == user_id) or any(m.user_id == user_id for m in reg.members))
+    valid_token = bool(provided_token) and bool(reg.ticket_token) and secrets.compare_digest(reg.ticket_token, provided_token)
+
+    if not (valid_token or is_staff or is_member):
+        return jsonify({"error": "unauthorized ticket access"}), 403
+
+    frontend_base = (config.SITE_URL or "").rstrip("/")
+    token_param = f"&token={reg.ticket_token}" if reg.ticket_token else ""
+    qr_payload = f"{frontend_base}/ticket?id={reg.id}{token_param}"
+
+    png_bytes = generate_qr_png(qr_payload, box_size=8, border=2)
+    return Response(png_bytes, mimetype="image/png", headers={"Cache-Control": "no-store"})

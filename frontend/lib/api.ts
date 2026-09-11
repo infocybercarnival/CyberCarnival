@@ -400,6 +400,9 @@ export type MyEvent = {
     | 'rejected'
     | 'cancelled'
   rejection_reason?: string | null
+  qr_url?: string | null
+  checked_in?: boolean
+  checked_in_at?: string | null
   members: {
     name: string
     token: string
@@ -630,6 +633,10 @@ export async function submitParticipantDetails(
 
 export type Ticket = {
   status: string
+  registration_id: string
+  qr_url?: string | null
+  checked_in?: boolean
+  checked_in_at?: string | null
   event_name: string
   team_name: string | null
   venue: string | null
