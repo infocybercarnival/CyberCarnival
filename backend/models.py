@@ -58,6 +58,24 @@ class OAuthFlow(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
 
 
+class AuthExchangeToken(db.Model):
+    """
+    Short-lived (60s) single-use token to exchange an OAuth callback result
+    for a same-origin session cookie through the frontend proxy (/api/auth/session-exchange).
+    This bridges direct backend callbacks (e.g. onrender.com) to the frontend domain (vercel.app)
+    so session cookies are set natively as 1st-party cookies, solving cross-site cookie blocking in Brave.
+    """
+    __tablename__ = "auth_exchange_tokens"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_uuid)
+    token = db.Column(db.String(128), nullable=False, unique=True, index=True)
+    user_id = db.Column(db.String(36), db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    redirect_target = db.Column(db.String(255), nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
+
+
+
 class User(db.Model):
     __tablename__ = "users"
 

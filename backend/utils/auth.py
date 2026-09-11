@@ -41,13 +41,19 @@ def login_required(view):
     return wrapped
 
 
+from utils.logger import get_logger
+
+logger = get_logger("auth_decorator")
+
 def user_login_required(view):
     """Same pattern as login_required, for participant accounts (/api/*).
     Always JSON — the public API has no server-rendered login page to redirect to."""
     @wraps(view)
     def wrapped(*args, **kwargs):
         if _check_revoked() or not session.get("user_id"):
+            logger.info("[AUTH_TRACE] current_user_request authenticated=false session_user_id_present=false")
             return jsonify({"error": "authentication required"}), 401
+        logger.info("[AUTH_TRACE] current_user_request authenticated=true session_user_id_present=true")
         return view(*args, **kwargs)
 
     return wrapped

@@ -289,7 +289,73 @@ def google_callback():
     session["sid"] = generate_sid()
     session.permanent = True
 
+    current_host = (request.host_url or "").rstrip("/").lower()
+    clean_frontend_base = frontend_base.rstrip("/").lower()
+
+    if clean_frontend_base and not clean_frontend_base.startswith(current_host):
+        from models import AuthExchangeToken
+        exchange_token = secrets.token_urlsafe(32)
+        expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=60)
+
+        token_record = AuthExchangeToken(
+            token=exchange_token,
+            user_id=user.id,
+            redirect_target=f"{frontend_base}/dashboard",
+            expires_at=expires_at,
+        )
+        db.session.add(token_record)
+        db.session.commit()
+        logger.info("[AUTH_TRACE] google_callback redirecting to session-exchange bridge user_id=%s", user.id)
+        return redirect(f"{frontend_base}/api/auth/session-exchange?token={exchange_token}")
+
+    logger.info("[AUTH_TRACE] google_callback direct redirect user_id=%s", user.id)
     return redirect(f"{frontend_base}/dashboard")
+
+
+@bp.get("/session-exchange")
+@limiter.limit("20 per minute")
+def session_exchange():
+    """
+    Exchanges a single-use short-lived token for a same-origin session cookie.
+    Used during OAuth callbacks when the backend callback lands on a different
+    host (Render) than the frontend app (Vercel).
+    """
+    token = str(request.args.get("token") or "").strip()
+    frontend_base = get_frontend_base()
+
+    if not token:
+        if session.get("user_id"):
+            return redirect(f"{frontend_base}/dashboard")
+        return redirect(f"{frontend_base}/login?error=invalid_exchange_token")
+
+    from models import AuthExchangeToken
+    record = AuthExchangeToken.query.filter_by(token=token).first()
+
+    if not record:
+        if session.get("user_id"):
+            return redirect(f"{frontend_base}/dashboard")
+        return redirect(f"{frontend_base}/login?error=invalid_exchange_token")
+
+    target = record.redirect_target or f"{frontend_base}/dashboard"
+
+    if record.expires_at and record.expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
+        db.session.delete(record)
+        db.session.commit()
+        if session.get("user_id"):
+            return redirect(target)
+        return redirect(f"{frontend_base}/login?error=exchange_token_expired")
+
+    user_id = record.user_id
+    db.session.delete(record)
+    db.session.commit()
+
+    session.clear()
+    session["user_id"] = user_id
+    session["sid"] = generate_sid()
+    session.permanent = True
+
+    logger.info("[AUTH_TRACE] session_exchange completed successfully user_id=%s", user_id)
+    return redirect(target)
 
 
 

@@ -1,19 +1,24 @@
 export function getApiUrl(): string {
   const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim()
 
-  if (configuredApiUrl) {
-    return configuredApiUrl.replace(/\/+$/, '')
-  }
-
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname
 
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return `http://${hostname}:5000`
+      return configuredApiUrl && (configuredApiUrl.includes('localhost') || configuredApiUrl.includes('127.0.0.1'))
+        ? configuredApiUrl.replace(/\/+$/, '')
+        : `http://${hostname}:5000`
     }
 
-    // Office-server / same-origin fallback.
-    return window.location.origin
+    // In production browser environments, use relative URLs ("") so requests go through
+    // same-origin proxy rewrites (/api/...). This ensures session cookies are stored
+    // and transmitted as 1st-party cookies, preventing Brave Shields and other privacy
+    // features from blocking cross-site authentication cookies.
+    return ''
+  }
+
+  if (configuredApiUrl) {
+    return configuredApiUrl.replace(/\/+$/, '')
   }
 
   return ''
@@ -336,15 +341,26 @@ export async function resendLoginOtp(): Promise<void> {
 }
 
 export async function fetchMe(): Promise<PublicUser | null> {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[AUTH_TRACE] checking_session')
+  }
+
   const res = await apiFetch('/api/auth/me', {
     cache: 'no-store',
   })
 
   if (res.status === 401) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[AUTH_TRACE] session_result authenticated=false')
+    }
     return null
   }
 
-  return parseOrThrow(res)
+  const user = await parseOrThrow(res)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[AUTH_TRACE] session_result authenticated=true')
+  }
+  return user
 }
 
 export async function completeProfile(data: {
