@@ -26,23 +26,37 @@ export function getApiUrl(): string {
 
 export const API_URL = getApiUrl()
 
-async function fetchCsrfToken(baseUrl: string): Promise<string> {
-  const res = await fetch(`${baseUrl}/api/auth/csrf-token`, {
-    method: 'GET',
-    credentials: 'include',
-    cache: 'no-store',
-  })
+async function fetchCsrfToken(baseUrl: string): Promise<string | null> {
+  try {
+    let res = await fetch(`${baseUrl}/api/auth/csrf-token`, {
+      method: 'GET',
+      credentials: 'include',
+      cache: 'no-store',
+    })
 
-  if (!res.ok) {
-    throw new Error(`Could not obtain CSRF token (${res.status})`)
+    if (!res.ok) {
+      res = await fetch(`${baseUrl}/api/auth/csrf-token/`, {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-store',
+      })
+    }
+
+    if (!res.ok) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`[CSRF_TRACE] Could not obtain CSRF token (${res.status})`)
+      }
+      return null
+    }
+
+    const data = await res.json().catch(() => null)
+    return data?.csrf_token || null
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[CSRF_TRACE] Error obtaining CSRF token:', err)
+    }
+    return null
   }
-
-  const data = await res.json()
-  if (!data?.csrf_token) {
-    throw new Error('CSRF token missing from server response')
-  }
-
-  return data.csrf_token as string
 }
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
@@ -53,7 +67,9 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
 
   if (unsafe) {
     const csrfToken = await fetchCsrfToken(baseUrl)
-    headers.set('X-CSRFToken', csrfToken)
+    if (csrfToken) {
+      headers.set('X-CSRFToken', csrfToken)
+    }
   }
 
   return fetch(`${baseUrl}${path}`, {

@@ -33,7 +33,7 @@ bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 logger = get_logger("auth")
 
 
-@bp.get("/csrf-token")
+@bp.route("/csrf-token", methods=["GET"], strict_slashes=False)
 def csrf_token():
     """Issue a session-bound CSRF token for the separate frontend."""
     return jsonify({"csrf_token": generate_csrf()})
