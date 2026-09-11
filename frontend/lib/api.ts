@@ -628,8 +628,8 @@ export type Ticket = {
 export async function fetchTicket(
   registrationId: string
 ): Promise<Ticket> {
-  const res = await fetch(
-    `${getApiUrl()}/api/registrations/${encodeURIComponent(
+  const res = await apiFetch(
+    `/api/registrations/${encodeURIComponent(
       registrationId
     )}/ticket`,
     {

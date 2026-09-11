@@ -10,6 +10,10 @@ from utils.logger import get_logger
 logger = get_logger("registration_service")
 
 
+def _utc_now() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+
 class DuplicateRegistrationError(Exception): pass
 class EventNotFoundError(Exception): pass
 class EventFullError(Exception): pass
@@ -433,7 +437,7 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
     file.seek(0)
 
     if file_size > config.MAX_PAYMENT_PROOF_SIZE_BYTES:
-        raise PaymentFileTooLargeError("File size exceeds the 5 MB limit")
+        raise PaymentFileTooLargeError("File size exceeds the 500 KB limit")
 
     filename = file.filename.lower()
     ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
@@ -451,22 +455,28 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
 
     mime_type = "image/jpeg" if is_jpeg else "image/png"
 
-    safe_filename = f"proof_{reg.id}_{uuid.uuid4().hex[:8]}.{ext}"
-    dest_path = config.PAYMENT_PROOF_DIR / safe_filename
-    if hasattr(file, "save"):
-        file.save(str(dest_path))
-    else:
-        with open(dest_path, "wb") as f:
-            f.write(file.getvalue() if hasattr(file, "getvalue") else file.read())
+    from services.storage_service import upload_payment_proof
+
+    file_bytes = file.read() if hasattr(file, "read") else b""
+    file.seek(0)
+
+    upload_result = upload_payment_proof(
+        user_id=user_id,
+        registration_id=reg.id,
+        file_bytes=file_bytes,
+        filename=filename,
+        mime_type=mime_type,
+    )
+    safe_filename = upload_result["storage_reference"]
 
     reg.transaction_id = txn_clean
     reg.payment_amount = event.fee_amount
-    reg.payment_submitted_at = datetime.datetime.utcnow()
+    reg.payment_submitted_at = _utc_now()
     reg.payment_proof_filename = safe_filename
     reg.payment_proof_mime_type = mime_type
     reg.payment_proof_size = file_size
     reg.disclaimer_accepted = True
-    reg.disclaimer_accepted_at = datetime.datetime.utcnow()
+    reg.disclaimer_accepted_at = _utc_now()
     reg.status = "pending_verification"
     reg.payment_verified_at = None
     reg.payment_verified_by = None
@@ -556,7 +566,7 @@ def verify_manual_payment(registration_id: str, actor: str, approved: bool, reje
         logger.info("Registration %s is already rejected/removed — skipping duplicate decline email", registration_id)
         return True
 
-    now = datetime.datetime.utcnow()
+    now = _utc_now()
     if approved:
         reg.status = "confirmed"
         if not reg.ticket_token:
@@ -664,7 +674,7 @@ def check_in_ticket(registration_id: str, token: str | None, actor: str) -> dict
             "team_name": reg.team_name,
         }
 
-    now = datetime.datetime.utcnow()
+    now = _utc_now()
     reg.checked_in = True
     reg.checked_in_at = now
     reg.checked_in_by = actor
@@ -741,14 +751,11 @@ def delete_registration(registration_id: str) -> bool:
     db.session.delete(reg)
     db.session.commit()
 
-    # 2. Only AFTER database commit succeeds, clean up physical proof file on disk
+    # 2. Only AFTER database commit succeeds, clean up physical proof file or Supabase Storage object
     if proof_filename:
         try:
-            import os
-            import config
-            proof_path = os.path.join(config.PAYMENT_PROOF_DIR, proof_filename)
-            if os.path.exists(proof_path):
-                os.remove(proof_path)
+            from services.storage_service import delete_file
+            delete_file(proof_filename)
         except Exception as e:
             logger.warning(f"Post-commit cleanup warning: could not delete proof file '{proof_filename}' for registration {registration_id}: {e}")
 

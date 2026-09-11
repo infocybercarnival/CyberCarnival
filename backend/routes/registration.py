@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, session, send_file
+from flask import Blueprint, request, jsonify, session, send_file, redirect
 from urllib.parse import urlsplit
 
 import config
@@ -303,7 +303,14 @@ def view_payment_proof(registration_id):
     if not (is_admin or is_authorized_coord or is_owner):
         return jsonify({"error": "unauthorized access to payment proof"}), 403
 
-    return send_from_directory(config.PAYMENT_PROOF_DIR, reg.payment_proof_filename)
+    fn = reg.payment_proof_filename
+    if fn and fn.startswith("supabase:"):
+        from services.storage_service import get_signed_payment_proof_url
+        signed_url = get_signed_payment_proof_url(fn)
+        if signed_url:
+            return redirect(signed_url)
+
+    return send_from_directory(config.PAYMENT_PROOF_DIR, fn)
 
 
 @bp.get("/api/registrations/<registration_id>/participant-details")

@@ -2,7 +2,7 @@ import csv
 import io
 import datetime
 
-from flask import Blueprint, request, jsonify, session, Response
+from flask import Blueprint, request, jsonify, session, Response, redirect
 
 from extensions import limiter, db
 from utils.auth import login_required
@@ -132,7 +132,13 @@ def admin_view_payment_proof(registration_id):
     reg = regs.get_registration(registration_id)
     if not reg or not reg.payment_proof_filename:
         return jsonify({"error": "payment proof not found"}), 404
-    return send_from_directory(config.PAYMENT_PROOF_DIR, reg.payment_proof_filename)
+    fn = reg.payment_proof_filename
+    if fn and fn.startswith("supabase:"):
+        from services.storage_service import get_signed_payment_proof_url
+        signed_url = get_signed_payment_proof_url(fn)
+        if signed_url:
+            return redirect(signed_url)
+    return send_from_directory(config.PAYMENT_PROOF_DIR, fn)
 
 
 @bp.get("/registrations/export.csv")
@@ -212,7 +218,7 @@ def admin_check_in_ticket():
     token = (body.get("token") or "").strip() or None
     if not registration_id:
         return jsonify({"error": "registration_id or ticket_id is required"}), 422
-    
+
     actor = _actor()
     res = regs.check_in_ticket(registration_id=registration_id, token=token, actor=actor)
     status_code = 200 if res["success"] or res["status"] == "ALREADY_CHECKED_IN" else 400

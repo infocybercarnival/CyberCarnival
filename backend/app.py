@@ -72,13 +72,13 @@ def create_app() -> Flask:
     CORS(
         app,
         resources={
-            r"/api/*": {
-                "origins": config.ALLOWED_ORIGINS or []
-            }
+            r"/api/*": {"origins": config.ALLOWED_ORIGINS or []},
+            r"/admin/api/*": {"origins": config.ALLOWED_ORIGINS or []},
+            r"/coordinator/api/*": {"origins": config.ALLOWED_ORIGINS or []},
         },
         supports_credentials=True,
         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Content-Type", "X-CSRFToken"],
+        allow_headers=["Content-Type", "X-CSRFToken", "Authorization", "Accept"],
     )
 
     @app.before_request

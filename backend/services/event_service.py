@@ -205,28 +205,23 @@ def _save_poster_to_field(event: Event, file_storage, field_name: str) -> str:
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise ValueError("file is not a valid image") from exc
 
-    safe_name = secure_filename(f"{uuid.uuid4().hex}.{ext}")
+    import io
+    from services.storage_service import upload_event_asset
 
-    try:
-        config.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise ValueError(f"could not create poster upload directory: {str(exc)}") from exc
-
-    dest = config.UPLOAD_DIR / safe_name
     save_format = "JPEG" if ext in ("jpg", "jpeg") else ext.upper()
-
     if save_format == "JPEG" and normalized.mode == "RGBA":
         normalized = normalized.convert("RGB")
 
-    try:
-        normalized.save(dest, format=save_format)
-    except (OSError, ValueError) as exc:
-        raise ValueError(f"could not save poster file: {str(exc)}") from exc
+    buf = io.BytesIO()
+    normalized.save(buf, format=save_format)
+    file_bytes = buf.getvalue()
+    mime_type = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+
+    new_url = upload_event_asset("posters", file_bytes, filename, mime_type)
 
     old_url = getattr(event, field_name)
 
     try:
-        new_url = f"/uploads/posters/{safe_name}"
         setattr(event, field_name, new_url)
         db.session.commit()
         db.session.refresh(event)

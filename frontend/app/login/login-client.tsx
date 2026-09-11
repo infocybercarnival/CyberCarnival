@@ -26,9 +26,19 @@ export function LoginClient() {
   
   const turnstileRef = useRef<TurnstileWidgetRef>(null)
   const googleLoginInFlightRef = useRef(false)
+  const passwordLoginInFlightRef = useRef(false)
+  const verifyOtpInFlightRef = useRef(false)
 
   const [status, setStatus] = useState<'idle' | 'authenticating' | 'verifying_otp' | 'resending_otp' | 'google_connecting' | 'success'>('idle')
   const [error, setError] = useState('')
+
+  const getSafeRedirectUrl = () => {
+    const raw = searchParams.get('redirect') || ''
+    if (!raw || raw.startsWith('/login') || raw.startsWith('/register')) {
+      return '/dashboard'
+    }
+    return raw
+  }
 
   // Session Check on Mount — Auth State Machine
   useEffect(() => {
@@ -37,8 +47,7 @@ export function LoginClient() {
       .then((user) => {
         if (!isMounted) return
         if (user) {
-          const redirectUrl = searchParams.get('redirect') || '/dashboard'
-          router.replace(redirectUrl)
+          router.replace(getSafeRedirectUrl())
         } else {
           setCheckingAuth(false)
         }
@@ -49,7 +58,7 @@ export function LoginClient() {
     return () => {
       isMounted = false
     }
-  }, [router, searchParams])
+  }, [router])
 
   // Handle URL Query error parameters from Google OAuth Callback / Server
   useEffect(() => {
@@ -71,7 +80,7 @@ export function LoginClient() {
     }
   }, [searchParams])
 
-  // Cooldown countdown timer for resend OTP
+  // Resend OTP countdown timer
   useEffect(() => {
     if (cooldown <= 0) return
     const timer = setInterval(() => {
@@ -82,6 +91,8 @@ export function LoginClient() {
 
   const handlePasswordLogin = async (e: FormEvent) => {
     e.preventDefault()
+    if (passwordLoginInFlightRef.current) return
+
     if (!username.trim() || !password.trim()) {
       setError('INVALID CREDENTIALS')
       return
@@ -91,6 +102,7 @@ export function LoginClient() {
       return
     }
 
+    passwordLoginInFlightRef.current = true
     setStatus('authenticating')
     setError('')
 
@@ -103,39 +115,50 @@ export function LoginClient() {
         setStatus('idle')
       } else {
         setStatus('success')
-        const redirectUrl = searchParams.get('redirect') || '/dashboard'
+        const redirectUrl = getSafeRedirectUrl()
         setTimeout(() => {
-          router.push(redirectUrl)
+          router.replace(redirectUrl)
         }, 600)
       }
     } catch (err) {
       setStatus('idle')
-      turnstileRef.current?.reset()
-      setTurnstileToken('')
-      if (err instanceof ApiValidationError) {
-        setError(err.message.toUpperCase())
-      } else {
-        setError('INVALID CREDENTIALS')
+      const errMsg = err instanceof ApiValidationError ? err.message : 'INVALID CREDENTIALS'
+      const normalizedError = errMsg.toLowerCase()
+      const captchaNeedsReset =
+        normalizedError.includes('security verification') ||
+        normalizedError.includes('turnstile') ||
+        normalizedError.includes('captcha') ||
+        normalizedError.includes('expired')
+
+      if (captchaNeedsReset) {
+        turnstileRef.current?.reset()
+        setTurnstileToken('')
       }
+      setError(errMsg.toUpperCase())
+    } finally {
+      passwordLoginInFlightRef.current = false
     }
   }
 
   const handleVerifyOtp = async (e: FormEvent) => {
     e.preventDefault()
+    if (verifyOtpInFlightRef.current) return
+
     if (!otp.trim() || otp.trim().length !== 6) {
       setError('PLEASE ENTER THE 6-DIGIT VERIFICATION CODE')
       return
     }
 
+    verifyOtpInFlightRef.current = true
     setStatus('verifying_otp')
     setError('')
 
     try {
       await verifyLoginOtp(otp.trim())
       setStatus('success')
-      const redirectUrl = searchParams.get('redirect') || '/dashboard'
+      const redirectUrl = getSafeRedirectUrl()
       setTimeout(() => {
-        router.push(redirectUrl)
+        router.replace(redirectUrl)
       }, 600)
     } catch (err) {
       setStatus('idle')
@@ -144,6 +167,8 @@ export function LoginClient() {
       } else {
         setError('INVALID VERIFICATION CODE')
       }
+    } finally {
+      verifyOtpInFlightRef.current = false
     }
   }
 
@@ -330,7 +355,7 @@ export function LoginClient() {
                   </button>
                 </div>
 
-                {/* Default Cloudflare Turnstile widget */}
+                {/* Cloudflare Turnstile */}
                 <TurnstileWidget
                   ref={turnstileRef}
                   onSuccess={(token) => {

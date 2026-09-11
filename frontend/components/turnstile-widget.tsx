@@ -78,14 +78,8 @@ export const TurnstileWidget = forwardRef<
           options={{
             theme: 'dark',
             size: 'normal',
-
-            // IMPORTANT:
-            // Do not verify automatically when page loads.
-            execution: 'execute',
-
-            // Show Turnstile when execute() is called.
-            appearance: 'execute',
-
+            execution: 'render',
+            appearance: 'always',
             refreshExpired: 'auto',
           }}
 

@@ -43,7 +43,7 @@ LOGIN_ATTEMPTS_FILE = DATA_DIR / "login_attempts.json"
 # --- CORS / Allowed Origins -------------------------------------------------
 
 ALLOWED_ORIGINS = [
-    origin.strip()
+    origin.strip().rstrip("/")
     for origin in os.environ.get("ALLOWED_ORIGINS", "").split(",")
     if origin.strip()
 ]
@@ -274,7 +274,7 @@ ALLOWED_POSTER_EXTENSIONS = {
 PAYMENT_PROOF_DIR = DATA_DIR / "uploads" / "payment_proofs"
 PAYMENT_PROOF_DIR.mkdir(parents=True, exist_ok=True)
 
-MAX_PAYMENT_PROOF_SIZE_BYTES = 5 * 1024 * 1024
+MAX_PAYMENT_PROOF_SIZE_BYTES = 500 * 1024
 
 ALLOWED_PAYMENT_PROOF_EXTENSIONS = {
     "png",
@@ -288,6 +288,20 @@ ALLOWED_PAYMENT_PROOF_MIMES = {
     "image/jpg",
     "image/pjpeg",
 }
+
+
+# --- Supabase Storage --------------------------------------------------------
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+
+SUPABASE_BUCKET_PAYMENT_PROOFS = os.environ.get(
+    "SUPABASE_BUCKET_PAYMENT_PROOFS", "payment-proofs"
+).strip()
+
+SUPABASE_BUCKET_ASSETS = os.environ.get(
+    "SUPABASE_BUCKET_ASSETS", "event-assets"
+).strip()
 
 
 # --- Frontend Build Directory ----------------------------------------------
@@ -308,7 +322,6 @@ MAX_CONTENT_LENGTH = 12 * 1024 * 1024
 # --- Session / Cookie Security ---------------------------------------------
 
 SESSION_COOKIE_NAME = "cybercarnival_session"
-SESSION_COOKIE_SECURE = IS_PRODUCTION
 SESSION_COOKIE_HTTPONLY = True
 
 CROSS_SITE_FRONTEND = (
@@ -324,6 +337,8 @@ SESSION_COOKIE_SAMESITE = (
     if IS_PRODUCTION and CROSS_SITE_FRONTEND
     else "Lax"
 )
+
+SESSION_COOKIE_SECURE = IS_PRODUCTION or SESSION_COOKIE_SAMESITE == "None"
 
 PERMANENT_SESSION_LIFETIME_SECONDS = 60 * 60 * 4
 

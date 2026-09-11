@@ -36,6 +36,10 @@ export default function RegisterPage() {
 
   const [loading, setLoading] = useState(false)
 
+  const googleInFlightRef = useRef(false)
+  const generateOtpInFlightRef = useRef(false)
+  const verifyOtpInFlightRef = useRef(false)
+
   // Session Check on Mount — Auth State Machine
   useEffect(() => {
     let isMounted = true
@@ -44,7 +48,10 @@ export default function RegisterPage() {
         if (!isMounted) return
         if (user) {
           const params = new URLSearchParams(window.location.search)
-          const redirectUrl = params.get('redirect') || '/dashboard'
+          const rawRedirect = params.get('redirect') || ''
+          const redirectUrl = (!rawRedirect || rawRedirect.startsWith('/login') || rawRedirect.startsWith('/register'))
+            ? '/dashboard'
+            : rawRedirect
           router.replace(redirectUrl)
         } else {
           setCheckingAuth(false)
@@ -69,73 +76,71 @@ export default function RegisterPage() {
     } else if (err === 'oauth_cancelled') {
       setError('Google authentication was cancelled.')
     } else if (err === 'config_missing') {
-      setError(
-        'Google login is currently not configured on the server.'
-      )
+      setError('Google login is currently not configured on the server.')
     } else if (
       err === 'invalid_state' ||
       err === 'token_exchange_failed' ||
       err === 'invalid_id_token'
     ) {
-      setError(
-        'Google authentication failed. Please try again.'
-      )
+      setError('Google authentication failed. Please try again.')
     } else if (err === 'captcha_failed') {
-      setError(
-        'Security verification failed. Please try again.'
-      )
+      setError('Security verification failed. Please try again.')
     } else if (err === 'account_disabled') {
       setError('Your account is currently disabled.')
     } else if (err) {
-      setError(
-        'Authentication error occurred. Please try again.'
-      )
+      setError('Authentication error occurred. Please try again.')
     }
   }, [])
 
-  
 
   async function handleGoogleClick() {
+    if (googleInFlightRef.current) return
+
     if (!turnstileToken) {
-      setError(
-        'Please complete the security verification.'
-      )
+      setError('Please complete the security verification.')
       return
     }
 
+    googleInFlightRef.current = true
     setGoogleLoading(true)
     setError('')
     setMessage('')
 
     try {
-      const authUrl = await initiateGoogleLogin(
-        turnstileToken,
-        'register'
-      )
-
+      const authUrl = await initiateGoogleLogin(turnstileToken, 'register')
       window.location.href = authUrl
     } catch (err) {
-      setError(
-        err instanceof ApiValidationError
+      const errMsg = err instanceof ApiValidationError
+        ? err.message
+        : err instanceof Error
           ? err.message
-          : err instanceof Error
-            ? err.message
-            : 'Google authentication failed.'
-      )
+          : 'Google authentication failed.'
 
-      turnstileRef.current?.reset()
-      setTurnstileToken('')
+      setError(errMsg)
+
+      const normalizedError = errMsg.toLowerCase()
+      if (
+        normalizedError.includes('security verification') ||
+        normalizedError.includes('turnstile') ||
+        normalizedError.includes('captcha') ||
+        normalizedError.includes('expired')
+      ) {
+        turnstileRef.current?.reset()
+        setTurnstileToken('')
+      }
       setGoogleLoading(false)
+    } finally {
+      googleInFlightRef.current = false
     }
   }
 
   async function handleGenerateOtp() {
+    if (generateOtpInFlightRef.current) return
+
     const cleanEmail = email.trim().toLowerCase()
 
     if (!turnstileToken) {
-      setError(
-        'Please complete the security verification.'
-      )
+      setError('Please complete the security verification.')
       return
     }
 
@@ -144,42 +149,46 @@ export default function RegisterPage() {
       return
     }
 
+    generateOtpInFlightRef.current = true
     setLoading(true)
     setError('')
     setMessage('')
 
     try {
-      const result = await requestOtp(
-        cleanEmail,
-        turnstileToken
-      )
-
+      const result = await requestOtp(cleanEmail, turnstileToken)
       setOtpSent(true)
 
       if (result.cooldown_active) {
-        setMessage(
-          'An OTP was already sent. Enter the active OTP below.'
-        )
+        setMessage('An OTP was already sent. Enter the active OTP below.')
       } else {
-        setMessage(
-          `OTP sent successfully to ${cleanEmail}`
-        )
+        setMessage(`OTP sent successfully to ${cleanEmail}`)
       }
     } catch (err) {
-      setError(
-        err instanceof ApiValidationError
-          ? err.message
-          : 'Could not send OTP. Please try again.'
-      )
+      const errMsg = err instanceof ApiValidationError
+        ? err.message
+        : 'Could not send OTP. Please try again.'
 
-      turnstileRef.current?.reset()
-      setTurnstileToken('')
+      setError(errMsg)
+
+      const normalizedError = errMsg.toLowerCase()
+      if (
+        normalizedError.includes('security verification') ||
+        normalizedError.includes('turnstile') ||
+        normalizedError.includes('captcha') ||
+        normalizedError.includes('expired')
+      ) {
+        turnstileRef.current?.reset()
+        setTurnstileToken('')
+      }
     } finally {
       setLoading(false)
+      generateOtpInFlightRef.current = false
     }
   }
 
   async function handleVerifyOtp() {
+    if (verifyOtpInFlightRef.current) return
+
     const cleanEmail = email.trim().toLowerCase()
     const cleanOtp = otp.trim()
 
@@ -193,13 +202,13 @@ export default function RegisterPage() {
       return
     }
 
+    verifyOtpInFlightRef.current = true
     setLoading(true)
     setError('')
     setMessage('')
 
     try {
       await verifyOtp(cleanEmail, cleanOtp)
-
       setMessage(
         'Account created successfully. Check your email for your CyberCarnival token, username and password.'
       )
@@ -211,6 +220,7 @@ export default function RegisterPage() {
       )
     } finally {
       setLoading(false)
+      verifyOtpInFlightRef.current = false
     }
   }
 

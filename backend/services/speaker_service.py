@@ -86,21 +86,26 @@ def save_portrait(speaker: Speaker, file_storage) -> str:
     except (UnidentifiedImageError, OSError, ValueError):
         raise ValueError("file is not a valid image")
 
-    safe_name = f"speaker_{uuid.uuid4().hex}.{ext}"
-    dest = config.UPLOAD_DIR / safe_name
+    import io
+    from services.storage_service import upload_speaker_portrait, delete_file
+
     save_format = "JPEG" if ext in ("jpg", "jpeg") else ext.upper()
     if save_format == "JPEG" and normalized.mode == "RGBA":
         normalized = normalized.convert("RGB")
-    normalized.save(dest, format=save_format)
 
-    if speaker.portrait_url and speaker.portrait_url.startswith("/uploads/posters/"):
-        old_path = config.UPLOAD_DIR / speaker.portrait_url.rsplit("/", 1)[-1]
-        if old_path.exists():
-            try:
-                old_path.unlink()
-            except OSError:
-                pass
+    buf = io.BytesIO()
+    normalized.save(buf, format=save_format)
+    file_bytes = buf.getvalue()
+    mime_type = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
 
-    speaker.portrait_url = f"/uploads/posters/{safe_name}"
+    new_url = upload_speaker_portrait(file_bytes, filename, mime_type)
+
+    if speaker.portrait_url:
+        try:
+            delete_file(speaker.portrait_url)
+        except Exception:
+            pass
+
+    speaker.portrait_url = new_url
     db.session.commit()
     return speaker.portrait_url

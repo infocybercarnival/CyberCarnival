@@ -4,7 +4,7 @@ import base64
 import hashlib
 import secrets
 from urllib.parse import urlencode
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 from google.oauth2 import id_token as google_id_token
@@ -134,7 +134,7 @@ def google_login():
         code_verifier=code_verifier,
         source=source,
         frontend_base=get_frontend_base(),
-        expires_at=datetime.utcnow() + timedelta(minutes=10),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=10),
     )
     db.session.add(flow)
     db.session.commit()
@@ -189,7 +189,7 @@ def google_callback():
         db.session.commit()
         return redirect(f"{error_redirect_base}?error=invalid_callback")
 
-    if flow.expires_at and flow.expires_at < datetime.utcnow():
+    if flow.expires_at and flow.expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
         db.session.delete(flow)
         db.session.commit()
         return redirect(f"{error_redirect_base}?error=invalid_state")

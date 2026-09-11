@@ -33,6 +33,10 @@ class EmailAlreadyRegisteredError(Exception):
     pass
 
 
+def _utc_now() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+
 def request_otp(email: str) -> None:
     if User.query.filter_by(email=email).first():
         raise EmailAlreadyRegisteredError(email)
@@ -42,7 +46,7 @@ def request_otp(email: str) -> None:
         .order_by(OtpVerification.created_at.desc())
         .first()
     )
-    now = datetime.datetime.utcnow()
+    now = _utc_now()
     if recent and (now - recent.created_at).total_seconds() < config.OTP_RESEND_COOLDOWN_SECONDS:
         raise CooldownError(email)
 
@@ -125,7 +129,7 @@ def request_login_otp(user: User) -> None:
         .order_by(OtpVerification.created_at.desc())
         .first()
     )
-    now = datetime.datetime.utcnow()
+    now = _utc_now()
     if recent and (now - recent.created_at).total_seconds() < config.OTP_RESEND_COOLDOWN_SECONDS:
         raise CooldownError(user.email)
 
@@ -154,7 +158,7 @@ def verify_login_otp(user: User, otp: str) -> bool:
     if not entry:
         raise InvalidOtpError(user.email)
 
-    now = datetime.datetime.utcnow()
+    now = _utc_now()
     if now > entry.expires_at:
         raise ExpiredOtpError(user.email)
 

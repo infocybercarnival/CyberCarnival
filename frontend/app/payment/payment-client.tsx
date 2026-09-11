@@ -82,8 +82,8 @@ export function PaymentClient(props: Props) {
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setSubmitError('File is too large. Maximum allowed file size is 5 MB.')
+    if (file.size > 500 * 1024) {
+      setSubmitError('File is too large. Maximum allowed file size is 500 KB.')
       setProofFile(null)
       setFilePreview(null)
       return
@@ -108,7 +108,7 @@ export function PaymentClient(props: Props) {
     }
 
     if (!data?.has_proof && !proofFile) {
-      setSubmitError('Please upload a valid payment proof screenshot (JPG, JPEG, or PNG, max 5 MB).')
+      setSubmitError('Please upload a valid payment proof screenshot (JPG, JPEG, or PNG, max 500 KB).')
       setFieldErrors({ payment_proof: 'Payment proof image is required.' })
       return
     }
