@@ -15,9 +15,8 @@ from __future__ import annotations
 
 import html as html_lib
 import smtplib
-from email.mime.image import MIMEImage
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from email.message import EmailMessage
+from email.utils import formatdate, make_msgid
 from pathlib import Path
 from typing import Iterable
 
@@ -31,14 +30,99 @@ LOGO_PATH = Path(config.BASE_DIR) / "static" / "email-logo.png"
 
 
 # ---------------------------------------------------------------------------
-# Core SMTP delivery
+# Core SMTP delivery & EmailMessage builder
 # ---------------------------------------------------------------------------
+
+def build_email_message(
+    to: str,
+    subject: str,
+    html: str,
+    *,
+    plain_text: str | None = None,
+    qr_data: str | None = None,
+    attachment_bytes: bytes | None = None,
+    attachment_filename: str | None = None,
+) -> EmailMessage:
+    """
+    Constructs an RFC-compliant EmailMessage object with Date, Message-ID, From, To,
+    Subject, plain text fallback, HTML body alternative, inline images (logo/QR), and attachments.
+    """
+    from_addr = config.EMAIL_FROM or config.EMAIL_SMTP_USER or "noreply@cybercarnival.in"
+    from_header = (
+        f"{config.EMAIL_FROM_NAME} <{from_addr}>"
+        if config.EMAIL_FROM_NAME
+        else from_addr
+    )
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_header
+    msg["To"] = to
+    msg["Date"] = formatdate(localtime=True)
+
+    msgid_domain = (
+        getattr(config, "SMTP_MSGID_DOMAIN", "cybercarnival.in")
+        or "cybercarnival.in"
+    ).strip()
+    msg["Message-ID"] = make_msgid(domain=msgid_domain)
+
+    # Plain text fallback
+    fallback_text = plain_text or (
+        f"CyberCarnival 2026 Notification\n\n"
+        f"Subject: {subject}\n\n"
+        f"Please view this email in an HTML-capable email client to read the full notification and ticket details."
+    )
+    msg.set_content(fallback_text)
+
+    # HTML alternative
+    msg.add_alternative(html, subtype="html")
+    html_part = msg.get_body(preferencelist=("html",))
+
+    # Inline related images attached to html_part
+    if LOGO_PATH.exists() and html_part:
+        with LOGO_PATH.open("rb") as f:
+            logo_bytes = f.read()
+        html_part.add_related(
+            logo_bytes,
+            maintype="image",
+            subtype="png",
+            cid="<logo>",
+            filename="cybercarnival-logo.png",
+        )
+    else:
+        logger.warning(
+            "email logo missing at %s — sending card without inline logo",
+            LOGO_PATH,
+        )
+
+    if qr_data and html_part:
+        qr_bytes = generate_qr_png(qr_data)
+        html_part.add_related(
+            qr_bytes,
+            maintype="image",
+            subtype="png",
+            cid="<qr>",
+            filename="ticket-qr.png",
+        )
+
+    # File attachment
+    if attachment_bytes and attachment_filename:
+        msg.add_attachment(
+            attachment_bytes,
+            maintype="image",
+            subtype="png",
+            filename=attachment_filename,
+        )
+
+    return msg
+
 
 def _send_html_email(
     to: str,
     subject: str,
     html: str,
     *,
+    plain_text: str | None = None,
     qr_data: str | None = None,
     attachment_bytes: bytes | None = None,
     attachment_filename: str | None = None,
@@ -59,75 +143,49 @@ def _send_html_email(
             "EMAIL_SMTP_PASSWORD are not configured."
         )
 
-    from_addr = config.EMAIL_FROM or config.EMAIL_SMTP_USER
-
-    msg = MIMEMultipart("related")
-    msg["Subject"] = subject
-    msg["From"] = f"{config.EMAIL_FROM_NAME} <{from_addr}>"
-    msg["To"] = to
-
-    alternative = MIMEMultipart("alternative")
-    alternative.attach(
-        MIMEText(
-            "CyberCarnival notification. Please open this message in an "
-            "HTML-capable email client.",
-            "plain",
-            "utf-8",
-        )
+    msg = build_email_message(
+        to=to,
+        subject=subject,
+        html=html,
+        plain_text=plain_text,
+        qr_data=qr_data,
+        attachment_bytes=attachment_bytes,
+        attachment_filename=attachment_filename,
     )
-    alternative.attach(MIMEText(html, "html", "utf-8"))
-    msg.attach(alternative)
 
-    if LOGO_PATH.exists():
-        with LOGO_PATH.open("rb") as f:
-            logo = MIMEImage(f.read())
-        logo.add_header("Content-ID", "<logo>")
-        logo.add_header(
-            "Content-Disposition",
-            "inline",
-            filename="cybercarnival-logo.png",
-        )
-        msg.attach(logo)
-    else:
-        logger.warning(
-            "email logo missing at %s — sending card without inline logo",
-            LOGO_PATH,
-        )
-
-    if qr_data:
-        qr = MIMEImage(generate_qr_png(qr_data))
-        qr.add_header("Content-ID", "<qr>")
-        qr.add_header(
-            "Content-Disposition",
-            "inline",
-            filename="ticket-qr.png",
-        )
-        msg.attach(qr)
-
-    if attachment_bytes and attachment_filename:
-        attachment = MIMEImage(attachment_bytes)
-        attachment.add_header(
-            "Content-Disposition",
-            "attachment",
-            filename=attachment_filename,
-        )
-        msg.attach(attachment)
-
-    host, _, port = config.EMAIL_SMTP_URL.partition(":")
-    port = int(port) if port else 587
+    host, _, port_str = config.EMAIL_SMTP_URL.partition(":")
+    port = int(port_str) if port_str else 587
+    local_hostname = (
+        getattr(config, "SMTP_LOCAL_HOSTNAME", "srv4.smrtech.in")
+        or "srv4.smrtech.in"
+    ).strip()
 
     try:
-        with smtplib.SMTP(host, port, timeout=10) as server:
-            server.starttls()
-            server.login(
-                config.EMAIL_SMTP_USER,
-                config.EMAIL_SMTP_PASSWORD,
-            )
-            server.sendmail(
-                from_addr,
-                [to],
-                msg.as_string(),
-            )
+        if port == 465:
+            with smtplib.SMTP_SSL(
+                host,
+                port,
+                local_hostname=local_hostname,
+                timeout=10,
+            ) as server:
+                server.login(
+                    config.EMAIL_SMTP_USER,
+                    config.EMAIL_SMTP_PASSWORD,
+                )
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(
+                host,
+                port,
+                local_hostname=local_hostname,
+                timeout=10,
+            ) as server:
+                server.starttls()
+                server.login(
+                    config.EMAIL_SMTP_USER,
+                    config.EMAIL_SMTP_PASSWORD,
+                )
+                server.send_message(msg)
 
         logger.info(
             "email sent to=%s subject=%r",
@@ -491,7 +549,7 @@ def _render_card(
                 height:4px;
                 line-height:4px;
                 background:#8b5cf6;
-                font-size:0;
+                font-size:4px;
               ">&nbsp;</td>
             </tr>
 

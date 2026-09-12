@@ -268,6 +268,16 @@ EMAIL_FROM_NAME = os.environ.get(
     "CyberCarnival",
 )
 
+SMTP_LOCAL_HOSTNAME = os.environ.get(
+    "SMTP_LOCAL_HOSTNAME",
+    "srv4.smrtech.in",
+).strip()
+
+SMTP_MSGID_DOMAIN = os.environ.get(
+    "SMTP_MSGID_DOMAIN",
+    "cybercarnival.in",
+).strip()
+
 
 # --- OTP --------------------------------------------------------------------
 
