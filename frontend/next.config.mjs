@@ -8,6 +8,8 @@ const basePath =
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',
+
   ...(basePath ? { basePath } : {}),
 
   typescript: {
