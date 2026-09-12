@@ -1,7 +1,7 @@
 import os
 import sys
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pathlib import Path
 
@@ -189,7 +189,7 @@ class TestProfileCompletionFlow(unittest.TestCase):
         self.assertEqual(updated_user.phone, '9876543210')
 
         # Re-fetch from DB
-        db_user = User.query.get(u.id)
+        db_user = db.session.get(User, u.id)
         self.assertTrue(db_user.profile_completed)
         self.assertEqual(db_user.full_name, 'John Doe')
 
@@ -249,7 +249,7 @@ class TestProfileCompletionFlow(unittest.TestCase):
 
         # Must strictly preserve authenticated user's email
         self.assertEqual(updated_user.email, 'test_prof1@example.com')
-        db_user = User.query.get(u.id)
+        db_user = db.session.get(User, u.id)
         self.assertEqual(db_user.email, 'test_prof1@example.com')
 
     def test_15_details_confirmed_false_rejected(self):
@@ -321,7 +321,7 @@ class TestProfileCompletionFlow(unittest.TestCase):
             leader_user_id=u.id,
             participant_mode='individual',
             status='confirmed',
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None)
         )
         db.session.add(reg)
         db.session.commit()

@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS events (
     prize VARCHAR(120),
     active BOOLEAN NOT NULL DEFAULT TRUE,
     registration_open BOOLEAN NOT NULL DEFAULT TRUE,
+    whatsapp_group_link TEXT,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT ck_events_min_team_positive CHECK (min_team_size IS NULL OR min_team_size >= 1),

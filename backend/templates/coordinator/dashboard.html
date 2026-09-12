@@ -95,12 +95,22 @@
   </main>
 </div>
 
+<!-- =========================
+     REGISTRATION DETAIL MODAL
+========================== -->
+<div id="registration-modal-backdrop" class="member-modal-backdrop" style="display:none;">
+  <div class="member-modal-card" style="max-width: 680px; width: 92%; max-height: 90vh; overflow-y: auto;">
+    <button type="button" class="member-modal-close" id="reg-modal-close" aria-label="Close">×</button>
+    <div id="reg-modal-content"></div>
+  </div>
+</div>
+
 <div id="toast-stack"></div>
 
 {% if event %}
 <script>
   window.EVENT_ID = "{{ event.id }}";
 </script>
-<script src="/static/coordinator/js/dashboard.js"></script>
+<script src="/static/coordinator/js/dashboard.js?v=2.0.0"></script>
 {% endif %}
 {% endblock %}

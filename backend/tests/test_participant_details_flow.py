@@ -1,4 +1,5 @@
 import sys
+import uuid
 from pathlib import Path
 
 backend_dir = str(Path(__file__).resolve().parent.parent)
@@ -283,26 +284,36 @@ def test_participant_details():
         res_get = client.get(f"/api/registrations/{reg_team_id}/participant-details")
         retrieved = res_get.get_json()["participants"]
         assert len(retrieved) == 2
-        assert retrieved[0]["participant_name"] == "Alice Leader Updated"
-        assert retrieved[1]["participant_name"] == "Bob Teammate Updated"
+        retrieved_names = {p["participant_name"] for p in retrieved}
+        retrieved_emails = {p["participant_email"] for p in retrieved}
+        assert "Alice Leader Updated" in retrieved_names
+        assert "Bob Teammate Updated" in retrieved_names
+        assert u1.email in retrieved_emails
+        assert u2.email in retrieved_emails
         print("  -> PASSED: Participant details saved, retrieved, and updated successfully")
 
         # --- TEST 16: PostgreSQL Unique Constraint Verification ---
         print("\n[TEST 16] PostgreSQL Unique Index verification...")
-        m1 = db.session.query(RegistrationMember).filter_by(registration_id=reg_solo_id).first()
-        m2 = db.session.query(RegistrationMember).filter_by(registration_id=reg_team_id, is_leader=False).first()
-        m1.participant_email = "duplicate_db_check@srmist.edu.in"
-        m1.active_registration = True
-        db.session.flush()
-
-        try:
-            m2.participant_email = "duplicate_db_check@srmist.edu.in"
-            m2.active_registration = True
+        dialect = db.engine.name
+        if dialect == "postgresql":
+            m1 = db.session.query(RegistrationMember).filter_by(registration_id=reg_solo_id).first()
+            m2 = db.session.query(RegistrationMember).filter_by(registration_id=reg_team_id, is_leader=False).first()
+            m1.participant_email = "duplicate_db_check@srmist.edu.in"
+            m1.active_registration = True
             db.session.flush()
-            print("  -> FAILED: PostgreSQL unique constraint did not raise exception")
-        except Exception as e:
+
+            try:
+                m2.participant_email = "duplicate_db_check@srmist.edu.in"
+                m2.active_registration = True
+                db.session.flush()
+                print("  -> FAILED: PostgreSQL unique constraint did not raise exception")
+            except Exception as e:
+                print(f"  -> PASSED: PostgreSQL unique index caught duplicate email violation")
+            finally:
+                db.session.rollback()
+        else:
+            print("  -> SKIPPED: PostgreSQL-specific partial unique index is verified on PostgreSQL database (current dialect: sqlite)")
             db.session.rollback()
-            print(f"  -> PASSED: PostgreSQL unique index caught duplicate email violation")
 
         # --- TEST 17, 18, 19, 20: Payment, Ticket, Public Pages, Admin ---
         print("\n[TEST 17-20] Payment, Ticket generation, Public pages, Admin views...")
@@ -314,8 +325,12 @@ def test_participant_details():
         assert tkt_res.status_code == 200
         tkt_data = tkt_res.get_json()
         assert len(tkt_data["members"]) == 2
-        assert tkt_data["members"][0]["name"] == "Alice Leader Updated"
-        assert tkt_data["members"][0]["email"] == u1.email
+        tkt_member_names = {m["name"] for m in tkt_data["members"]}
+        tkt_member_emails = {m["email"] for m in tkt_data["members"]}
+        assert "Alice Leader Updated" in tkt_member_names
+        assert "Bob Teammate Updated" in tkt_member_names
+        assert u1.email in tkt_member_emails
+        assert u2.email in tkt_member_emails
         print("  -> PASSED: Ticket generation includes full participant details")
 
         # Admin registrations list check
@@ -327,7 +342,13 @@ def test_participant_details():
         assert admin_res.status_code == 200
         admin_regs = admin_res.get_json()
         target_admin_reg = next(r for r in admin_regs if r["id"] == reg_team_id)
-        assert target_admin_reg["members"][0]["participant_name"] == "Alice Leader Updated"
+        assert len(target_admin_reg["members"]) == 2
+        admin_member_names = {m["participant_name"] for m in target_admin_reg["members"]}
+        admin_member_emails = {m["participant_email"] for m in target_admin_reg["members"]}
+        assert "Alice Leader Updated" in admin_member_names
+        assert "Bob Teammate Updated" in admin_member_names
+        assert u1.email in admin_member_emails
+        assert u2.email in admin_member_emails
         print("  -> PASSED: Admin panel registrations view receives complete participant details")
 
         print("\n=======================================================")

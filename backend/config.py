@@ -17,6 +17,7 @@ load_dotenv(BASE_DIR / ".env")
 
 ENV = os.environ.get("FLASK_ENV", "development")
 IS_PRODUCTION = ENV == "production"
+LOAD_TEST_ENABLED = os.environ.get("LOAD_TEST_ENABLED", "1" if not IS_PRODUCTION else "0").lower() in ("1", "true", "yes")
 
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "")
@@ -214,7 +215,10 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 SQLALCHEMY_ENGINE_OPTIONS = {
     "pool_pre_ping": True,
-    "pool_recycle": 280,
+    "pool_size": int(os.environ.get("SQLALCHEMY_POOL_SIZE", "5")),
+    "max_overflow": int(os.environ.get("SQLALCHEMY_MAX_OVERFLOW", "10")),
+    "pool_timeout": int(os.environ.get("SQLALCHEMY_POOL_TIMEOUT", "30")),
+    "pool_recycle": int(os.environ.get("SQLALCHEMY_POOL_RECYCLE", "280")),
 }
 
 

@@ -448,6 +448,10 @@ def _event_fields_from_form(form) -> dict:
         raw_reg = form.get("registration_open", "").strip().lower()
         data["registration_open"] = raw_reg in ("true", "on", "1", "yes")
 
+    if "whatsapp_group_link" in form:
+        link = form.get("whatsapp_group_link", "").strip()
+        data["whatsapp_group_link"] = link[:2000] if link else None
+
     return data
 
 

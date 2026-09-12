@@ -253,6 +253,7 @@ def _render_card(
     code_value: str | None = None,
     button_text: str | None = None,
     button_url: str | None = None,
+    whatsapp_group_link: str | None = None,
     show_qr: bool = False,
     footer_note: str | None = None,
 ) -> str:
@@ -378,6 +379,54 @@ def _render_card(
         </div>
         """
 
+    whatsapp_html = ""
+    if whatsapp_group_link and str(whatsapp_group_link).strip():
+        clean_wa = str(whatsapp_group_link).strip()
+        whatsapp_html = f"""
+        <div style="
+          margin-top:22px;
+          padding:20px 18px;
+          border:1px solid #25d366;
+          border-radius:10px;
+          background:#091a10;
+          text-align:center;
+        ">
+          <div style="
+            color:#25d366;
+            font-size:12px;
+            font-weight:900;
+            letter-spacing:1.5px;
+            text-transform:uppercase;
+            margin-bottom:8px;
+          ">📱 Join Your Event WhatsApp Group</div>
+          <p style="
+            margin:0 0 16px 0;
+            color:#c8e6d0;
+            font-size:12px;
+            line-height:1.6;
+          ">
+            Important announcements, schedules, instructions, and event updates
+            will be shared through the official WhatsApp group.
+          </p>
+          <a
+            href="{_e(clean_wa)}"
+            target="_blank"
+            style="
+              display:inline-block;
+              padding:12px 22px;
+              border-radius:6px;
+              background:#25d366;
+              color:#000000;
+              text-decoration:none;
+              font-size:11px;
+              font-weight:900;
+              letter-spacing:1.5px;
+              text-transform:uppercase;
+            "
+          >JOIN WHATSAPP GROUP &nbsp;→</a>
+        </div>
+        """
+
     button_html = ""
     if button_text and button_url:
         button_html = f"""
@@ -485,6 +534,7 @@ def _render_card(
                 {code_html}
                 {details_html}
                 {_list_html(list_items)}
+                {whatsapp_html}
                 {qr_html}
                 {button_html}
 
@@ -762,6 +812,7 @@ def send_registration_confirmation_email(
     fee: str | None = None,
     members: list[str] | None = None,
     ticket_token: str | None = None,
+    whatsapp_group_link: str | None = None,
 ) -> None:
     ticket_url = _ticket_url(
         registration_id,
@@ -803,11 +854,14 @@ def send_registration_confirmation_email(
         list_items=members,
         button_text="VIEW TICKET",
         button_url=ticket_url,
+        whatsapp_group_link=whatsapp_group_link,
         footer_note=(
             "Keep this confirmation email. Your attendance ticket will also "
             "be sent again on the event date."
         ),
     )
+
+    wa_summary = f"\nWhatsApp Group Link: {whatsapp_group_link}" if whatsapp_group_link else ""
 
     _send_html_email(
         to,
@@ -822,7 +876,7 @@ def send_registration_confirmation_email(
         ),
         dev_summary=(
             f"Registration {registration_id} confirmed for {event_name}.\n"
-            f"Ticket URL: {ticket_url}"
+            f"Ticket URL: {ticket_url}{wa_summary}"
         ),
     )
 

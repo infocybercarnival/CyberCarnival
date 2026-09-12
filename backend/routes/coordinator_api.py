@@ -31,7 +31,8 @@ def _event():
 
 
 def _owns_event(event_id: str) -> bool:
-    return bool(event_id and session.get("coordinator_event_id") == event_id)
+    evt = _event()
+    return bool(evt and event_id and evt.id == event_id)
 
 
 def _actor():
@@ -229,28 +230,65 @@ def event_check_in_ticket(event_id=None):
     participant_email = reg.leader.email if reg.leader else ""
 
     # Double Scan Protection
+    roster = [
+        {
+            "name": m.participant_name or (m.user.full_name if m.user else None) or (m.user.username if m.user else ""),
+            "email": m.participant_email or (m.user.email if m.user else ""),
+            "college": m.college_name or (m.user.college if m.user else ""),
+            "phone": m.participant_phone or (m.user.phone if m.user else ""),
+            "is_leader": m.is_leader,
+        }
+        for m in reg.members
+    ]
+
     if reg.checked_in:
         checked_in_at_str = reg.checked_in_at.strftime("%Y-%m-%d %H:%M:%S UTC") if reg.checked_in_at else "Earlier"
         actor_name = reg.checked_in_by or (primary_event.coordinator_username or "Coordinator")
         return jsonify({
-            "success": False,
+            "success": True,
+            "already_checked_in": True,
             "status": "ALREADY_PRESENT",
-            "message": "Already marked as present",
+            "message": "Already checked in",
             "participant": {
                 "name": participant_name,
-                "email": participant_email
+                "email": participant_email,
             },
             "event": assigned_event.name,
             "checked_in_at": checked_in_at_str,
             "checked_in_by": actor_name,
             "registration_id": reg.id,
+            "ticket_token": reg.ticket_token,
             "team_name": reg.team_name,
-            "attendance_stats": event_attendance_summary(assigned_event.id)
+            "participant_mode": reg.participant_mode,
+            "members": roster,
+            "registration": {
+                "id": reg.id,
+                "ticket_token": reg.ticket_token,
+                "team_name": reg.team_name,
+                "participant_mode": reg.participant_mode,
+                "status": reg.status,
+                "checked_in": True,
+                "checked_in_at": checked_in_at_str,
+            },
+            "attendance_stats": event_attendance_summary(assigned_event.id),
         }), 200
 
     # Execute check-in
     actor_str = primary_event.coordinator_username or "Coordinator"
     res = check_in_ticket(registration_id=reg.id, token=token, actor=actor_str)
+    res["already_checked_in"] = False
+    res["ticket_token"] = reg.ticket_token
+    res["participant_mode"] = reg.participant_mode
+    res["members"] = roster
+    res["registration"] = {
+        "id": reg.id,
+        "ticket_token": reg.ticket_token,
+        "team_name": reg.team_name,
+        "participant_mode": reg.participant_mode,
+        "status": reg.status,
+        "checked_in": True,
+        "checked_in_at": res.get("checked_in_at"),
+    }
     res["attendance_stats"] = event_attendance_summary(assigned_event.id)
 
     log_action(f"coordinator:{primary_event.coordinator_username or 'unknown'}", "TICKET_CHECK_IN", f"event={assigned_event.id} reg_id={reg.id} status={res['status']}", request.remote_addr or "unknown")

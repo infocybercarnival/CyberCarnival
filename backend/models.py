@@ -8,12 +8,21 @@ import time
 import uuid
 from datetime import datetime, timedelta
 
+from typing import TYPE_CHECKING, Any
+
 import config
 from extensions import db
 
 
 def new_uuid() -> str:
     return str(uuid.uuid4())
+
+
+if TYPE_CHECKING:
+    # Provide explicit typed __init__(**kwargs: Any) on db.Model for static type checkers
+    # (Pyright/Pylance/Pyrefly). At runtime, this block is ignored by Python.
+    def _db_model_init(self: Any, **kwargs: Any) -> None: ...
+    db.Model.__init__ = _db_model_init  # type: ignore[assignment]
 
 
 class Admin(db.Model):
@@ -152,6 +161,9 @@ class Event(db.Model):
     # it explicitly once they've got enough entries or the deadline passes.
     registration_open = db.Column(db.Boolean, nullable=False, default=True)
 
+    # Optional WhatsApp group link for approved participants
+    whatsapp_group_link = db.Column(db.Text, nullable=True)
+
     # One shared coordinator login per event. Every faculty/student coordinator
     # assigned to this event uses the same credential. Password hashes are never
     # exposed through public/admin serializers.
@@ -270,6 +282,7 @@ class Event(db.Model):
         d["coordinator_username"] = self.coordinator_username or ""
         d["coordinator_login_active"] = bool(self.coordinator_login_active)
         d["coordinator_credentials_configured"] = bool(self.coordinator_username and self.coordinator_password_hash)
+        d["whatsapp_group_link"] = self.whatsapp_group_link or ""
         return d
 
 
@@ -301,7 +314,8 @@ class Coordinator(db.Model):
             if ce:
                 return ce.role
         elif self.events:
-            ce = CoordinatorEvent.query.filter_by(coordinator_id=self.id, event_id=self.events[0].id).first()
+            evts: Any = self.events
+            ce = CoordinatorEvent.query.filter_by(coordinator_id=self.id, event_id=evts[0].id).first()
             if ce:
                 return ce.role
         return "STUDENT"
@@ -310,7 +324,8 @@ class Coordinator(db.Model):
         if self.event:
             return self.event
         if self.events:
-            return self.events[0]
+            evts: Any = self.events
+            return evts[0]
         return None
 
     def to_admin_dict(self):

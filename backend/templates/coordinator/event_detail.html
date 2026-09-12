@@ -234,6 +234,22 @@
 
 
           <select
+            id="part-reg-filter"
+            aria-label="Filter registration status"
+            style="padding: 8px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--fg); font-size: 13px;"
+          >
+            <option value="">
+              ALL REGISTRATIONS
+            </option>
+            <option value="confirmed">
+              CONFIRMED ONLY
+            </option>
+            <option value="pending_verification">
+              PENDING VERIFICATION ONLY
+            </option>
+          </select>
+
+          <select
             id="part-status-filter"
             aria-label="Filter attendance status"
           >
@@ -269,13 +285,14 @@
 
           <thead>
             <tr>
-              <th>TOKEN</th>
+              <th>REG ID / TOKEN</th>
               <th>PARTICIPANT / TEAM</th>
               <th>EMAIL / PHONE</th>
               <th>COLLEGE</th>
-              <th>STATUS</th>
+              <th>REG STATUS</th>
+              <th>CHECK-IN STATUS</th>
               <th>CHECK-IN TIME</th>
-              <th>CHECKED IN BY</th>
+              <th>ACTIONS</th>
             </tr>
           </thead>
 
@@ -283,7 +300,7 @@
 
             <tr>
               <td
-                colspan="7"
+                colspan="8"
                 class="table-empty-state"
               >
                 Loading participants...
@@ -302,6 +319,15 @@
 
 </div>
 
+<!-- =========================
+     REGISTRATION DETAIL MODAL
+========================== -->
+<div id="registration-modal-backdrop" class="member-modal-backdrop" style="display:none;">
+  <div class="member-modal-card" style="max-width: 680px; width: 92%; max-height: 90vh; overflow-y: auto;">
+    <button type="button" class="member-modal-close" id="reg-modal-close" aria-label="Close">×</button>
+    <div id="reg-modal-content"></div>
+  </div>
+</div>
 
 <div id="toast-stack"></div>
 
@@ -310,6 +336,6 @@
   window.EVENT_ID = "{{ event.id }}";
 </script>
 
-<script src="/static/coordinator/js/event_detail.js"></script>
+<script src="/static/coordinator/js/event_detail.js?v=2.0.0"></script>
 
 {% endblock %}

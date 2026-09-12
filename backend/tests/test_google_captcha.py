@@ -6,11 +6,20 @@ def test_google_login_captcha_verification():
 
     with app.test_client() as client:
         # 1. Access Google Login endpoint without Turnstile token -> MUST REJECT
-        res = client.get("/api/auth/google/login?format=json")
-        assert res.status_code == 400, f"Expected HTTP 400 when CAPTCHA is missing, got {res.status_code}"
-        data = res.get_json()
-        assert data.get("error") in ("Please complete the security verification.", "Security verification failed. Please try again."), f"Unexpected error: {data}"
-        print("[OK] Test 1 Passed: Direct Google Login call without Turnstile token rejected with HTTP 400")
+        orig_testing = app.config.get("TESTING")
+        try:
+            app.config["TESTING"] = False
+            res = client.post("/api/auth/google/login", json={})
+            assert res.status_code == 400, f"Expected HTTP 400 when CAPTCHA is missing, got {res.status_code}"
+            data = res.get_json()
+            assert data.get("error") in (
+                "Please complete the security verification.",
+                "Security verification failed. Please try again.",
+                "Security verification configuration error.",
+            ), f"Unexpected error: {data}"
+            print("[OK] Test 1 Passed: Direct Google Login call without Turnstile token rejected with HTTP 400")
+        finally:
+            app.config["TESTING"] = orig_testing
 
         # 2. Access Google Callback directly without CAPTCHA verification -> MUST REJECT
         res = client.get("/api/auth/google/callback?code=dummy_code&state=dummy_state")

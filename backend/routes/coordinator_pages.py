@@ -36,15 +36,8 @@ def _get_logged_event():
 
 
 def _owns_event(event_id: str) -> bool:
-    logged_event_id = session.get(
-        "coordinator_event_id"
-    )
-
-    return bool(
-        event_id
-        and logged_event_id
-        and logged_event_id == event_id
-    )
+    event = _get_logged_event()
+    return bool(event and event_id and event.id == event_id)
 
 
 def _build_event_page_data(event):
@@ -61,6 +54,8 @@ def _build_event_page_data(event):
         "id": event.id,
         "name": event.name,
         "category": event.category,
+        "tag": event.tag,
+        "description": event.description,
         "date": event.event_date,
         "time": event.event_time,
         "venue": event.venue,

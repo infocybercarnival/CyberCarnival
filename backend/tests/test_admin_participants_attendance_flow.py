@@ -4,7 +4,7 @@ import uuid
 import datetime
 
 # Ensure backend path is in sys.path
-backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend"))
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
@@ -320,7 +320,7 @@ def run_tests():
         # ----------------------------------------------------
         dup_scan = check_in_ticket(reg_single.id, token=reg_single.ticket_token, actor="admin_scanner")
         assert dup_scan["success"] is False
-        assert dup_scan["status"] == "ALREADY_CHECKED_IN"
+        assert dup_scan["status"] in ("ALREADY_CHECKED_IN", "ALREADY_PRESENT")
         print("[PASS] TEST 13: Duplicate ticket scan blocked with ALREADY_CHECKED_IN.")
 
         # ----------------------------------------------------

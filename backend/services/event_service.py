@@ -83,6 +83,9 @@ def _apply_fields(event: Event, data: dict) -> None:
     if "registration_open" in data:
         event.registration_open = bool(data["registration_open"])
 
+    if "whatsapp_group_link" in data:
+        event.whatsapp_group_link = data["whatsapp_group_link"]
+
 
 def create_event(data: dict) -> Event:
     event = Event(name=data["name"])

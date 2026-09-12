@@ -1229,6 +1229,10 @@
           '<label>Prize Pool</label>' +
           '<input type="text" name="prize" maxlength="120" placeholder="e.g. ₹50,000 CASH PRIZE" value="' + escapeHtml(ev ? ev.prize || "" : "") + '" />' +
         '</div>' +
+        '<div class="form-field-group">' +
+          '<label>WhatsApp Group Link (Optional — Included in Approval Email)</label>' +
+          '<input type="url" name="whatsapp_group_link" maxlength="500" placeholder="e.g. https://chat.whatsapp.com/XXXXXXXXXXXX" value="' + escapeHtml(ev ? ev.whatsapp_group_link || "" : "") + '" />' +
+        '</div>' +
 
         '<div class="form-section-title">4. Visibility & Registration Status</div>' +
         '<div class="form-grid-2">' +

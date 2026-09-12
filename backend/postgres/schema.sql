@@ -68,6 +68,7 @@ CREATE TABLE events (
   event_start_date date,
   event_end_date date,
   fee_amount integer,
+  whatsapp_group_link text,
   CONSTRAINT ck_events_min_team_positive CHECK (min_team_size IS NULL OR min_team_size >= 1),
   CONSTRAINT ck_events_max_team_positive CHECK (max_team_size IS NULL OR max_team_size >= 1),
   CONSTRAINT ck_events_team_range CHECK (min_team_size IS NULL OR max_team_size IS NULL OR min_team_size <= max_team_size),

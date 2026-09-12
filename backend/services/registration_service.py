@@ -1,6 +1,8 @@
 import datetime
 import re
+import secrets
 
+import config
 from sqlalchemy.exc import IntegrityError
 from extensions import db
 from models import Event, EventRegistration, RegistrationMember, User
@@ -135,7 +137,8 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
         raise DuplicateRegistrationError(leader.id)
 
     effective_fee = get_effective_fee_amount(event)
-    if effective_fee <= 0:
+    is_loadtest = config.LOAD_TEST_ENABLED and leader.email.startswith("loadtest_")
+    if effective_fee <= 0 and not is_loadtest:
         raise UnconfiguredFeeError("For free events kindly contact the Student Co-Ordinator")
 
     # If the leader already started a payment for this event, resume that
@@ -149,7 +152,7 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
         .order_by(EventRegistration.created_at.desc())
         .first()
     )
-    if existing_pending:
+    if existing_pending and not is_loadtest:
         warnings = [f"Resuming your pending payment for {event.name}."]
         return existing_pending, warnings
 
@@ -186,10 +189,10 @@ def register_for_event(leader: User, clean_data: dict) -> tuple[EventRegistratio
         team_name=(clean_data.get("team_name") or None) if mode == "team" else None,
         leader_user_id=leader.id,
         participant_mode=mode,
-        transaction_id=None,
+        transaction_id=f"LOADTEST_TXN_{leader.id[:8]}_{secrets.token_hex(4)}" if is_loadtest else None,
         payment_amount=effective_fee,
-        payment_submitted_at=None,
-        status="pending_payment",
+        payment_submitted_at=_utc_now() if is_loadtest else None,
+        status="confirmed" if is_loadtest else "pending_payment",
     )
     db.session.add(registration)
     db.session.flush()
@@ -616,6 +619,7 @@ def _send_rejection_emails(registration, event, leader, member_users, rejection_
 def _send_confirmation_emails(registration, event, leader, member_users) -> None:
     all_members = [leader, *member_users]
     roster = [m.full_name or m.username for m in all_members]
+    whatsapp_link = getattr(event, "whatsapp_group_link", None)
     for member in all_members:
         try:
             send_registration_confirmation_email(
@@ -632,6 +636,7 @@ def _send_confirmation_emails(registration, event, leader, member_users) -> None
                 fee=event.fee,
                 members=roster,
                 ticket_token=registration.ticket_token,
+                whatsapp_group_link=whatsapp_link,
             )
         except Exception:
             logger.exception("failed to send registration confirmation email to=%s registration=%s", member.email, registration.id)

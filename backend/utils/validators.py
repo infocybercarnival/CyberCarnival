@@ -13,7 +13,7 @@ SAFE_TEXT_RE = re.compile(r"^[A-Za-z0-9 .,'\-&()/]{0,200}$")
 ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
 OTP_RE = re.compile(r"^[0-9]{6}$")
 TOKEN_RE = re.compile(r"^CC[A-Z0-9]{8,14}$")
-TEAM_NAME_RE = re.compile(r"^[A-Za-z0-9 .,'\-&()/]{0,120}$")
+TEAM_NAME_RE = re.compile(r"^[A-Za-z0-9 _.,'\-&()/]{0,120}$")
 
 
 class ValidationError(Exception):
@@ -242,10 +242,11 @@ def validate_event_registration_payload(data: dict) -> dict:
         errors["event_id"] = "invalid"
 
     try:
-        team_name = _strip(data.get("team_name", ""))
+        raw_tn = data.get("team_name")
+        team_name = _strip(raw_tn) if raw_tn else ""
         if team_name and not TEAM_NAME_RE.match(team_name):
             errors["team_name"] = "contains unsupported characters"
-        clean["team_name"] = team_name
+        clean["team_name"] = team_name or None
     except ValueError:
         errors["team_name"] = "invalid"
 

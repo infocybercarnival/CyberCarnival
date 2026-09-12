@@ -62,6 +62,13 @@ def create_app() -> Flask:
         config.SQLALCHEMY_ENGINE_OPTIONS
     )
 
+    if config.LOAD_TEST_ENABLED:
+        app.config["RATELIMIT_ENABLED"] = False
+        app.config["WTF_CSRF_ENABLED"] = False
+        app.config["WTF_CSRF_CHECK_DEFAULT"] = False
+        app.config["WTF_CSRF_METHODS"] = []
+        limiter.enabled = False
+
     limiter.init_app(app)
     csrf.init_app(app)
     db.init_app(app)
@@ -266,6 +273,7 @@ if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
         port=port,
-        debug=not config.IS_PRODUCTION
+        debug=not config.IS_PRODUCTION and not config.LOAD_TEST_ENABLED,
+        threaded=True,
     )
 

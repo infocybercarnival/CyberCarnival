@@ -15,3 +15,5 @@ limiter = Limiter(
 
 csrf = CSRFProtect()
 db = SQLAlchemy()
+
+

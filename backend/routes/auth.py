@@ -549,6 +549,43 @@ def me():
     return jsonify(user.to_public_dict())
 
 
+from extensions import csrf
+
+@bp.post("/loadtest-session")
+@csrf.exempt
+def loadtest_session():
+    """Environment-gated session initialization endpoint for automated load testing.
+    Strictly disabled in production unless LOAD_TEST_ENABLED=1 is set."""
+    if not (config.LOAD_TEST_ENABLED or request.environ.get("FLASK_ENV") == "testing"):
+        return jsonify({"error": "load testing session endpoint is disabled"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    email = str(payload.get("email") or "").strip().lower()
+    if not email or not email.startswith("loadtest_"):
+        return jsonify({"error": "email must start with loadtest_"}), 400
+
+    from services.user_service import get_or_create_google_user, complete_profile as do_complete_profile
+    user = get_or_create_google_user(
+        email=email,
+        google_sub=f"loadtest_sub_{email}",
+        full_name=f"LoadTest User {email.split('@')[0]}"
+    )
+    if not user.profile_completed:
+        do_complete_profile(user, {
+            "full_name": f"LoadTest User {email.split('@')[0]}",
+            "phone": "9876543210",
+            "college": "SRM Ramapuram",
+            "details_confirmed": True
+        })
+
+    session.clear()
+    session["user_id"] = user.id
+    session["sid"] = generate_sid()
+    session.permanent = True
+
+    return jsonify(user.to_public_dict())
+
+
 @bp.post("/profile")
 @user_login_required
 def complete_profile():

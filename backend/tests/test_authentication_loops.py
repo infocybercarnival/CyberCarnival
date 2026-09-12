@@ -127,7 +127,7 @@ class TestAuthenticationLoops(unittest.TestCase):
         from utils.security import hash_password
 
         email = "newreguser@looptest.com"
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         # Seed active OTP
         otp_entry = OtpVerification(
             email=email,
@@ -135,7 +135,7 @@ class TestAuthenticationLoops(unittest.TestCase):
             purpose="signup",
             attempts=0,
             max_attempts=5,
-            expires_at=datetime.utcnow() + timedelta(minutes=10)
+            expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=10)
         )
         db.session.add(otp_entry)
         db.session.commit()
