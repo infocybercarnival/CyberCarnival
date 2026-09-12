@@ -15,9 +15,15 @@ from pathlib import Path
 import requests
 
 import config
+from services import alert_service
 from utils.logger import get_logger
 
 logger = get_logger("storage_service")
+
+
+class SupabaseStorageError(Exception):
+    """Raised when a Supabase Storage operation fails in production."""
+    pass
 
 
 def is_supabase_storage_configured() -> bool:
@@ -129,7 +135,8 @@ def upload_payment_proof(
     Validates and uploads payment proof screenshot to Supabase Storage private bucket
     `payment-proofs` under path `payment-proofs/{user_id}/{registration_id}_{uuid}.{ext}`.
 
-    Falls back to local PAYMENT_PROOF_DIR if Supabase credentials are missing.
+    In production or when Supabase Storage is configured, failures raise SupabaseStorageError
+    and trigger a critical AdminAlert instead of writing to local disk.
     """
     ext = (filename.rsplit(".", 1)[-1] if "." in filename else "png").lower().strip()
     if ext not in config.ALLOWED_PAYMENT_PROOF_EXTENSIONS:
@@ -139,9 +146,10 @@ def upload_payment_proof(
     storage_path = f"{user_id}/{registration_id}_{unique_id}.{ext}"
     bucket = config.SUPABASE_BUCKET_PAYMENT_PROOFS
 
-    if is_supabase_storage_configured():
+    if is_supabase_storage_configured() or config.IS_PRODUCTION:
         success = upload_to_supabase(bucket, storage_path, file_bytes, mime_type)
         if success:
+            alert_service.create_recovery_alert("supabase_storage", "Supabase Storage")
             storage_reference = f"supabase:{bucket}/{storage_path}"
             signed_url = get_signed_url(bucket, storage_path)
             return {
@@ -150,8 +158,17 @@ def upload_payment_proof(
                 "signed_url": signed_url,
                 "filename": storage_reference,
             }
+        else:
+            alert_service.create_or_update_alert(
+                title="🚨 Supabase Storage Unavailable",
+                message="A payment screenshot upload failed because Supabase Storage was unavailable. The file was NOT stored on the server filesystem.",
+                severity="critical",
+                category="supabase_storage",
+                meta={"user_id": user_id, "registration_id": registration_id, "file_size": len(file_bytes)},
+            )
+            raise SupabaseStorageError("Payment storage is temporarily unavailable. Please try again later.")
 
-    # Fallback to local storage (e.g. dev environment)
+    # Fallback to local storage ONLY in offline development mode
     local_filename = f"{registration_id}_{unique_id}.{ext}"
     local_dest = config.PAYMENT_PROOF_DIR / local_filename
     with open(local_dest, "wb") as f:
@@ -184,14 +201,24 @@ def upload_event_asset(
     storage_path = f"{subfolder}/{unique_name}"
     bucket = config.SUPABASE_BUCKET_ASSETS
 
-    if is_supabase_storage_configured():
+    if is_supabase_storage_configured() or config.IS_PRODUCTION:
         success = upload_to_supabase(bucket, storage_path, file_bytes, mime_type)
         if success:
+            alert_service.create_recovery_alert("supabase_storage", "Supabase Storage")
             pub_url = get_public_url(bucket, storage_path)
             if pub_url:
                 return pub_url
+        else:
+            alert_service.create_or_update_alert(
+                title="🚨 Supabase Storage Asset Upload Failed",
+                message="An event asset upload failed because Supabase Storage was unavailable. The asset was NOT stored on the server filesystem.",
+                severity="warning",
+                category="supabase_storage",
+                meta={"subfolder": subfolder, "filename": filename},
+            )
+            raise SupabaseStorageError("Asset storage is temporarily unavailable. Please try again later.")
 
-    # Fallback to local UPLOAD_DIR
+    # Fallback to local UPLOAD_DIR ONLY in offline development mode
     local_dest = config.UPLOAD_DIR / unique_name
     with open(local_dest, "wb") as f:
         f.write(file_bytes)

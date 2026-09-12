@@ -1132,3 +1132,81 @@ def send_admin_new_registration_notification(
                 to,
                 registration_id,
             )
+
+
+# ---------------------------------------------------------------------------
+# Infrastructure & Health Email Alerts
+# ---------------------------------------------------------------------------
+
+def send_infrastructure_alert_email(
+    subject: str,
+    title: str,
+    message: str,
+    service_name: str,
+    severity: str = "critical",
+    occurrence_count: int = 1,
+    impact: str | None = None,
+    is_recovery: bool = False,
+    meta: dict | None = None,
+) -> bool:
+    """
+    Sends an independent external SMTP critical infrastructure email alert or recovery email
+    to config.ADMIN_ALERT_EMAIL.
+
+    Catches all exceptions safely and never crashes calling operations or leaks secrets.
+    """
+    recipient = config.ADMIN_ALERT_EMAIL or config.ADMIN_NOTIFICATION_EMAIL
+    if not recipient:
+        logger.warning("No ADMIN_ALERT_EMAIL configured — skipping infrastructure alert email")
+        return False
+
+    status_str = "RECOVERED" if is_recovery else severity.upper()
+    status_color = "#34d399" if is_recovery else ("#ef4444" if severity == "critical" else "#f59e0b")
+    eyebrow = "SYSTEM RECOVERY" if is_recovery else "INFRASTRUCTURE ALERT"
+
+    rows = [
+        ("Service", service_name),
+        ("Severity", severity.upper()),
+        ("Occurrence Count", occurrence_count),
+    ]
+
+    if impact:
+        rows.append(("Impact", impact))
+
+    if meta:
+        for k, v in meta.items():
+            if (
+                "key" not in k.lower()
+                and "token" not in k.lower()
+                and "secret" not in k.lower()
+                and "pass" not in k.lower()
+                and "url" not in k.lower()
+            ):
+                rows.append((k, str(v)))
+
+    admin_url = f"{config.SITE_URL.rstrip('/')}/admin/"
+
+    card = _render_card(
+        eyebrow=eyebrow,
+        title=title,
+        message=message,
+        status=status_str,
+        status_color=status_color,
+        rows=rows,
+        button_text="OPEN COMMAND CENTER",
+        button_url=admin_url,
+        footer_note="CyberCarnival Infrastructure Health & Monitoring System",
+    )
+
+    try:
+        _send_html_email(
+            recipient,
+            subject,
+            card,
+            dev_summary=f"Infrastructure Alert ({severity}): {title} - {message}",
+        )
+        logger.info("infrastructure alert email sent to=%s subject=%r", recipient, subject)
+        return True
+    except Exception as exc:
+        logger.error("Failed to send infrastructure alert email to=%s: %s", recipient, exc)
+        return False

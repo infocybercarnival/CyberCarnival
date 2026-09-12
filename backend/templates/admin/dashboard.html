@@ -12,6 +12,21 @@
         <span class="live-text" id="live-status-text">LIVE</span>
         <span class="live-time" id="live-status-time">Just now</span>
       </div>
+      <div class="alert-bell-wrapper" style="position: relative; display: inline-block; margin-right: 12px;">
+        <button type="button" id="alert-bell-btn" class="btn-ghost" style="position: relative; padding: 6px 12px; font-size: 1.1rem; cursor: pointer;" title="System Notifications">
+          🔔
+          <span id="alert-unread-badge" style="display: none; position: absolute; top: -4px; right: -4px; background: #ef4444; color: #fff; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 10px; border: 1px solid #111;">0</span>
+        </button>
+        <div id="alert-dropdown-panel" class="alert-dropdown" style="display: none; position: absolute; right: 0; top: 40px; width: 380px; max-height: 480px; overflow-y: auto; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 9999; padding: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px; margin-bottom: 10px;">
+            <strong style="color: #f8fafc; font-size: 0.9rem;">Notifications</strong>
+            <span id="alert-panel-count" style="font-size: 0.8rem; color: #94a3b8;">0 unread</span>
+          </div>
+          <div id="alert-list-container" style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="color: #94a3b8; font-size: 0.8rem; text-align: center; padding: 12px;">Loading notifications...</div>
+          </div>
+        </div>
+      </div>
       <span class="who">{{ admin_username }}</span>
       <form method="post" action="{{ url_for('admin_auth.logout') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -32,6 +47,17 @@
   <main>
     <section id="tab-overview" class="panel active">
       <h2>Overview</h2>
+      <div id="system-health-banner" style="margin-bottom: 20px; padding: 12px 16px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 8px; font-family: monospace; font-size: 0.85rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <strong style="color: #f1f5f9; font-size: 0.9rem;">🛡️ INFRASTRUCTURE & HEALTH MONITORING</strong>
+          <span id="health-refresh-time" style="color: #94a3b8; font-size: 0.75rem;">Checked: Just now</span>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;" id="health-items-container">
+          <span id="health-db-status">🟢 Database: Checking...</span>
+          <span id="health-storage-status">🟢 Storage: Checking...</span>
+          <span id="health-quota-status">⚪ Quota: Reactive Monitoring Active</span>
+        </div>
+      </div>
       <div class="cards" id="overview-cards"></div>
       <h3>Registrations by event</h3>
       <table class="table" id="overview-table">

@@ -45,7 +45,7 @@ class TestComprehensiveSecurityAndUploads(unittest.TestCase):
             db.session.remove()
             db.drop_all()
 
-    # TC-001: Valid payment proof upload
+    # TC-001: Valid payment proof upload (PNG)
     def test_tc001_payment_proof_valid_upload(self):
         with self.app.app_context():
             user = db.session.get(User, self.user_id)
@@ -75,15 +75,20 @@ class TestComprehensiveSecurityAndUploads(unittest.TestCase):
             self.assertEqual(updated_reg.status, "pending_verification")
             self.assertTrue(bool(updated_reg.payment_proof_filename))
 
-    # TC-002: Payment proof oversized upload > 500 KB
-    def test_tc002_payment_proof_oversized_upload(self):
+    # TC-001b: Valid payment proof upload (WEBP & exact 200 KB boundary: 204,800 bytes)
+    def test_payment_proof_exact_200kb_and_webp_accepted(self):
         with self.app.app_context():
             user = db.session.get(User, self.user_id)
             reg, _ = registration_service.register_for_event(user, {"event_id": self.event_id, "participant_mode": "individual"})
             reg_id = reg.id
 
-        oversized_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * (600 * 1024)
-        file = (io.BytesIO(oversized_data), "proof.png")
+        # WEBP header (12 bytes) + padding to reach exactly 200 KB (204,800 bytes)
+        target_size = 200 * 1024
+        webp_header = b"RIFF" + (target_size - 8).to_bytes(4, "little") + b"WEBP"
+        exact_200kb_data = webp_header + b"\x00" * (target_size - len(webp_header))
+        self.assertEqual(len(exact_200kb_data), 204800)
+
+        file = (io.BytesIO(exact_200kb_data), "proof.webp")
 
         with self.client.session_transaction() as sess:
             sess["user_id"] = self.user_id
@@ -92,16 +97,62 @@ class TestComprehensiveSecurityAndUploads(unittest.TestCase):
             f"/api/registrations/{reg_id}/payment",
             data={
                 "event_id": self.event_id,
-                "transaction_id": "UPI12345679",
+                "transaction_id": "UPI12345688",
                 "disclaimer_accepted": "true",
                 "payment_proof": file
             },
             content_type="multipart/form-data"
         )
-        self.assertEqual(res.status_code, 413)
-        self.assertIn("500 KB limit", res.get_json().get("error", ""))
+        self.assertEqual(res.status_code, 200)
 
-    # TC-003: Invalid payment file rejection
+        with self.app.app_context():
+            updated_reg = db.session.get(EventRegistration, reg_id)
+            self.assertEqual(updated_reg.status, "pending_verification")
+            self.assertEqual(updated_reg.payment_proof_mime_type, "image/webp")
+
+    # TC-002: Payment proof oversized upload > 200 KB (e.g. 204,801 bytes) rejected before Supabase Storage upload
+    def test_tc002_payment_proof_oversized_upload(self):
+        from unittest.mock import patch
+
+        with self.app.app_context():
+            user = db.session.get(User, self.user_id)
+            reg, _ = registration_service.register_for_event(user, {"event_id": self.event_id, "participant_mode": "individual"})
+            reg_id = reg.id
+
+        # 204,801 bytes file (200 KB + 1 byte)
+        oversized_data = b"\x89PNG\r\n\x1a\n" + b"\x00" * (204801 - 8)
+        self.assertEqual(len(oversized_data), 204801)
+        file = (io.BytesIO(oversized_data), "proof.png")
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.user_id
+
+        with patch("services.storage_service.upload_to_supabase") as mock_supabase_upload, \
+             patch("services.storage_service.upload_payment_proof") as mock_storage_upload:
+
+            res = self.client.post(
+                f"/api/registrations/{reg_id}/payment",
+                data={
+                    "event_id": self.event_id,
+                    "transaction_id": "UPI12345679",
+                    "disclaimer_accepted": "true",
+                    "payment_proof": file
+                },
+                content_type="multipart/form-data"
+            )
+            self.assertEqual(res.status_code, 413)
+            self.assertEqual(res.get_json().get("error"), "Payment screenshot must not exceed 200 KB.")
+
+            # CRITICAL SECURITY CONFIRMATION: Oversized files are rejected before hitting storage layer
+            mock_supabase_upload.assert_not_called()
+            mock_storage_upload.assert_not_called()
+
+        with self.app.app_context():
+            unchanged_reg = db.session.get(EventRegistration, reg_id)
+            self.assertEqual(unchanged_reg.status, "pending_payment")
+            self.assertIsNone(unchanged_reg.payment_proof_filename)
+
+    # TC-003: Invalid payment file format rejection
     def test_tc003_invalid_payment_file_rejection(self):
         with self.app.app_context():
             user = db.session.get(User, self.user_id)
@@ -125,6 +176,29 @@ class TestComprehensiveSecurityAndUploads(unittest.TestCase):
             content_type="multipart/form-data"
         )
         self.assertEqual(res.status_code, 422)
+        self.assertIn("Only JPG, JPEG, PNG, and WEBP images are allowed.", res.get_json().get("error", ""))
+
+    # TC-003b: Missing payment proof file rejection
+    def test_payment_proof_missing_file_rejection(self):
+        with self.app.app_context():
+            user = db.session.get(User, self.user_id)
+            reg, _ = registration_service.register_for_event(user, {"event_id": self.event_id, "participant_mode": "individual"})
+            reg_id = reg.id
+
+        with self.client.session_transaction() as sess:
+            sess["user_id"] = self.user_id
+
+        res = self.client.post(
+            f"/api/registrations/{reg_id}/payment",
+            data={
+                "event_id": self.event_id,
+                "transaction_id": "UPI12345699",
+                "disclaimer_accepted": "true"
+            },
+            content_type="multipart/form-data"
+        )
+        self.assertEqual(res.status_code, 422)
+        self.assertEqual(res.get_json().get("error"), "Please upload a payment screenshot.")
 
     # TC-004: Unauthorized payment proof access
     def test_tc004_unauthorized_payment_proof_access(self):
@@ -226,6 +300,62 @@ class TestComprehensiveSecurityAndUploads(unittest.TestCase):
         res = self.client.post(f"/admin/api/registrations/{reg_id}/verify", json={"approved": True})
         self.assertEqual(res.status_code, 401)
 
+    # TC-013: Admin event team capacity configuration (max_teams, min_team_size, max_team_size)
+    def test_admin_event_team_capacity_configuration(self):
+        with self.client.session_transaction() as sess:
+            sess["is_admin"] = True
+            sess["admin_username"] = "admin"
+
+        # 1. Create Event with capacity and team size rules
+        create_res = self.client.post(
+            "/admin/api/events",
+            data={
+                "name": "Hackathon 2026",
+                "category": "TECHNICAL",
+                "min_team_size": "2",
+                "max_team_size": "5",
+                "max_teams": "20",
+                "fee_rupees": "500"
+            }
+        )
+        self.assertEqual(create_res.status_code, 201)
+        evt_id = create_res.get_json().get("event_id")
+        self.assertTrue(bool(evt_id))
+
+        with self.app.app_context():
+            created_evt = db.session.get(Event, evt_id)
+            self.assertEqual(created_evt.min_team_size, 2)
+            self.assertEqual(created_evt.max_team_size, 5)
+            self.assertEqual(created_evt.max_teams, 20)
+
+        # 2. Edit Event capacity and team size rules
+        edit_res = self.client.put(
+            f"/admin/api/events/{evt_id}",
+            data={
+                "name": "Hackathon 2026 Updated",
+                "min_team_size": "3",
+                "max_team_size": "6",
+                "max_teams": "25"
+            }
+        )
+        self.assertEqual(edit_res.status_code, 200)
+
+        with self.app.app_context():
+            updated_evt = db.session.get(Event, evt_id)
+            self.assertEqual(updated_evt.min_team_size, 3)
+            self.assertEqual(updated_evt.max_team_size, 6)
+            self.assertEqual(updated_evt.max_teams, 25)
+
+        # 3. Verify detail endpoint returns updated fields
+        detail_res = self.client.get(f"/admin/api/events/{evt_id}")
+        self.assertEqual(detail_res.status_code, 200)
+        data = detail_res.get_json()
+        self.assertEqual(data.get("min_team_size"), 3)
+        self.assertEqual(data.get("max_team_size"), 6)
+        self.assertEqual(data.get("max_teams"), 25)
+        self.assertEqual(data.get("capacity"), 25)
+
 
 if __name__ == "__main__":
     unittest.main()
+

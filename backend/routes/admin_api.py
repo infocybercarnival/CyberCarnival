@@ -902,6 +902,68 @@ def remove_admin_coordinator_event(coordinator_id, event_id):
     return jsonify(coord.to_admin_dict())
 
 
+# -------------------------------------------------------------------------
+# Admin Alerts / System Notifications API
+# -------------------------------------------------------------------------
+
+@bp.get("/alerts")
+@login_required
+@limiter.limit("60 per minute")
+def get_admin_alerts():
+    from services import alert_service
+    status_filter = request.args.get("status")
+    limit_val = int(request.args.get("limit", "50"))
+    alerts_list = alert_service.list_alerts(status_filter=status_filter, limit=limit_val)
+    unread_count = alert_service.get_unread_count()
+    return jsonify({
+        "alerts": alerts_list,
+        "unread_count": unread_count
+    })
+
+
+@bp.get("/alerts/unread-count")
+@login_required
+@limiter.limit("60 per minute")
+def get_admin_alerts_unread_count():
+    from services import alert_service
+    return jsonify({
+        "unread_count": alert_service.get_unread_count()
+    })
+
+
+@bp.post("/alerts/<alert_id>/read")
+@login_required
+@limiter.limit("60 per minute")
+def mark_admin_alert_read(alert_id):
+    from services import alert_service
+    success = alert_service.mark_as_read(alert_id)
+    if not success:
+        return jsonify({"error": "alert not found"}), 404
+    audit_service.log_action(_actor(), "ADMIN_ALERT_READ", f"alert {alert_id}", _ip())
+    return jsonify({"success": True, "unread_count": alert_service.get_unread_count()})
+
+
+@bp.post("/alerts/<alert_id>/resolve")
+@login_required
+@limiter.limit("60 per minute")
+def mark_admin_alert_resolved(alert_id):
+    from services import alert_service
+    success = alert_service.mark_as_resolved(alert_id)
+    if not success:
+        return jsonify({"error": "alert not found"}), 404
+    audit_service.log_action(_actor(), "ADMIN_ALERT_RESOLVED", f"alert {alert_id}", _ip())
+    return jsonify({"success": True, "unread_count": alert_service.get_unread_count()})
+
+
+@bp.get("/system-health")
+@login_required
+@limiter.limit("30 per minute")
+def get_system_health():
+    from services import monitoring_service
+    health_data = monitoring_service.run_full_system_health_check()
+    return jsonify(health_data)
+
+
 @bp.post("/logout")
 def admin_api_logout():
     from services.session_service import revoke_session

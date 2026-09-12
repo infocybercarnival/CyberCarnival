@@ -106,6 +106,25 @@ ADMIN_NOTIFICATION_EMAIL = (
     .strip()
 )
 
+ADMIN_ALERT_EMAIL = (
+    os.environ.get(
+        "ADMIN_ALERT_EMAIL",
+        ADMIN_NOTIFICATION_EMAIL,
+    )
+    .strip()
+)
+
+ALERT_EMAIL_COOLDOWN_MINUTES = int(
+    os.environ.get("ALERT_EMAIL_COOLDOWN_MINUTES", "60")
+)
+
+SUPABASE_MANAGEMENT_TOKEN = os.environ.get("SUPABASE_MANAGEMENT_TOKEN", "").strip()
+SUPABASE_PROJECT_REF = os.environ.get("SUPABASE_PROJECT_REF", "").strip()
+
+SUPABASE_WARNING_THRESHOLD = int(os.environ.get("SUPABASE_WARNING_THRESHOLD", "80"))
+SUPABASE_CRITICAL_THRESHOLD = int(os.environ.get("SUPABASE_CRITICAL_THRESHOLD", "90"))
+SUPABASE_EMERGENCY_THRESHOLD = int(os.environ.get("SUPABASE_EMERGENCY_THRESHOLD", "95"))
+
 
 # --- CAPTCHA (Cloudflare Turnstile) ----------------------------------------
 
@@ -278,12 +297,13 @@ ALLOWED_POSTER_EXTENSIONS = {
 PAYMENT_PROOF_DIR = DATA_DIR / "uploads" / "payment_proofs"
 PAYMENT_PROOF_DIR.mkdir(parents=True, exist_ok=True)
 
-MAX_PAYMENT_PROOF_SIZE_BYTES = 500 * 1024
+MAX_PAYMENT_PROOF_SIZE_BYTES = 200 * 1024
 
 ALLOWED_PAYMENT_PROOF_EXTENSIONS = {
     "png",
     "jpg",
     "jpeg",
+    "webp",
 }
 
 ALLOWED_PAYMENT_PROOF_MIMES = {
@@ -291,6 +311,7 @@ ALLOWED_PAYMENT_PROOF_MIMES = {
     "image/jpeg",
     "image/jpg",
     "image/pjpeg",
+    "image/webp",
 }
 
 

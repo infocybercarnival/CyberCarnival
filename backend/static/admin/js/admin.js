@@ -1213,15 +1213,15 @@
         '</div>' +
         '<div class="form-grid-3">' +
           '<div class="form-field-group">' +
-            '<label>Min Team Size</label>' +
+            '<label>Minimum Team Size</label>' +
             '<input type="number" name="min_team_size" min="1" placeholder="1" value="' + escapeHtml(ev && ev.min_team_size != null ? ev.min_team_size : "") + '" />' +
           '</div>' +
           '<div class="form-field-group">' +
-            '<label>Max Team Size</label>' +
+            '<label>Maximum Team Size</label>' +
             '<input type="number" name="max_team_size" min="1" placeholder="1" value="' + escapeHtml(ev && ev.max_team_size != null ? ev.max_team_size : "") + '" />' +
           '</div>' +
           '<div class="form-field-group">' +
-            '<label>Max Teams (Capacity)</label>' +
+            '<label>Maximum Total Teams</label>' +
             '<input type="number" name="max_teams" min="0" placeholder="Unlimited" value="' + escapeHtml(ev && ev.max_teams != null ? ev.max_teams : "") + '" />' +
           '</div>' +
         '</div>' +
@@ -1829,6 +1829,190 @@
     );
   }
 
+  // -------------------------------------------------------------------------
+  // System Notifications / Admin Alerts
+  // -------------------------------------------------------------------------
+  function fetchAlertUnreadCount() {
+    api("/admin/api/alerts/unread-count")
+      .then(function (res) {
+        var badge = document.getElementById("alert-unread-badge");
+        var panelCount = document.getElementById("alert-panel-count");
+        if (badge) {
+          var count = res.unread_count || 0;
+          if (count > 0) {
+            badge.textContent = count > 99 ? "99+" : count;
+            badge.style.display = "inline-block";
+          } else {
+            badge.style.display = "none";
+          }
+        }
+        if (panelCount) {
+          panelCount.textContent = (res.unread_count || 0) + " unread";
+        }
+      })
+      .catch(function () {});
+  }
+
+  function loadAndRenderAlerts() {
+    var container = document.getElementById("alert-list-container");
+    if (!container) return;
+
+    api("/admin/api/alerts?limit=30")
+      .then(function (res) {
+        var alerts = res.alerts || [];
+        if (!alerts.length) {
+          container.innerHTML = '<div style="color: #94a3b8; font-size: 0.8rem; text-align: center; padding: 12px;">No system notifications.</div>';
+          return;
+        }
+
+        container.innerHTML = alerts.map(function (a) {
+          var icon = "ℹ️";
+          var borderColor = "rgba(59, 130, 246, 0.4)";
+          if (a.severity === "critical") {
+            icon = "🔴";
+            borderColor = "rgba(239, 68, 68, 0.5)";
+          } else if (a.severity === "warning") {
+            icon = "🟡";
+            borderColor = "rgba(245, 158, 11, 0.5)";
+          } else if (a.severity === "info") {
+            icon = "🟢";
+            borderColor = "rgba(16, 185, 129, 0.5)";
+          }
+
+          var when = a.last_detected_at ? new Date(a.last_detected_at).toLocaleString() : "";
+          var isUnread = a.status === "unread";
+          var isResolved = a.status === "resolved";
+
+          var countBadge = a.occurrence_count > 1
+            ? '<span style="background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 4px; font-size: 0.7rem; color: #cbd5e1; margin-left: 6px;">x' + a.occurrence_count + '</span>'
+            : '';
+
+          var actionsHtml = '';
+          if (!isResolved) {
+            if (isUnread) {
+              actionsHtml += '<button type="button" class="btn-alert-read" data-id="' + a.id + '" style="background: rgba(255,255,255,0.1); border: none; color: #cbd5e1; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; cursor: pointer; margin-right: 4px;">Read</button>';
+            }
+            actionsHtml += '<button type="button" class="btn-alert-resolve" data-id="' + a.id + '" style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); color: #34d399; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; cursor: pointer;">Resolve</button>';
+          } else {
+            actionsHtml += '<span style="font-size: 0.7rem; color: #10b981;">✓ Resolved</span>';
+          }
+
+          return '<div style="background: rgba(30, 41, 59, 0.7); border-left: 3px solid ' + borderColor + '; padding: 8px 10px; border-radius: 4px; font-family: monospace;">' +
+            '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+              '<span style="font-weight: bold; font-size: 0.8rem; color: #f1f5f9;">' + icon + ' ' + escapeHtml(a.title) + countBadge + '</span>' +
+              '<div>' + actionsHtml + '</div>' +
+            '</div>' +
+            '<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px; line-height: 1.3;">' + escapeHtml(a.message) + '</div>' +
+            '<div style="font-size: 0.68rem; color: #64748b; margin-top: 4px; text-align: right;">' + when + '</div>' +
+          '</div>';
+        }).join("");
+
+        // Attach event handlers for read / resolve buttons
+        container.querySelectorAll(".btn-alert-read").forEach(function (btn) {
+          btn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            var alertId = btn.getAttribute("data-id");
+            api("/admin/api/alerts/" + alertId + "/read", { method: "POST" })
+              .then(function () {
+                fetchAlertUnreadCount();
+                loadAndRenderAlerts();
+              });
+          });
+        });
+
+        container.querySelectorAll(".btn-alert-resolve").forEach(function (btn) {
+          btn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            var alertId = btn.getAttribute("data-id");
+            api("/admin/api/alerts/" + alertId + "/resolve", { method: "POST" })
+              .then(function () {
+                fetchAlertUnreadCount();
+                loadAndRenderAlerts();
+              });
+          });
+        });
+      })
+      .catch(function () {
+        container.innerHTML = '<div style="color: #ef4444; font-size: 0.8rem; text-align: center; padding: 12px;">Failed to load notifications.</div>';
+      });
+  }
+
+  function initAlertNotifications() {
+    var bellBtn = document.getElementById("alert-bell-btn");
+    var panel = document.getElementById("alert-dropdown-panel");
+    if (!bellBtn || !panel) return;
+
+    bellBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var isVisible = panel.style.display === "block";
+      if (isVisible) {
+        panel.style.display = "none";
+      } else {
+        panel.style.display = "block";
+        loadAndRenderAlerts();
+      }
+    });
+
+    document.addEventListener("click", function (e) {
+      if (panel.style.display === "block" && !panel.contains(e.target) && e.target !== bellBtn) {
+        panel.style.display = "none";
+      }
+    });
+
+    fetchAlertUnreadCount();
+    setInterval(fetchAlertUnreadCount, 30000);
+  }
+
+  function fetchSystemHealth() {
+    api("/admin/api/system-health")
+      .then(function (res) {
+        var dbSpan = document.getElementById("health-db-status");
+        var storageSpan = document.getElementById("health-storage-status");
+        var quotaSpan = document.getElementById("health-quota-status");
+        var timeSpan = document.getElementById("health-refresh-time");
+
+        if (timeSpan) {
+          timeSpan.textContent = "Checked: " + new Date().toLocaleTimeString();
+        }
+
+        if (dbSpan) {
+          var dbOk = res.database && res.database.status === "healthy";
+          dbSpan.innerHTML = dbOk ? "🟢 Database: Operational" : "🔴 Database: Action Required";
+          dbSpan.style.color = dbOk ? "#34d399" : "#ef4444";
+        }
+
+        if (storageSpan) {
+          var stOk = res.storage && res.storage.status === "healthy";
+          var isDev = res.storage && res.storage.status === "offline_dev";
+          if (stOk) {
+            storageSpan.innerHTML = "🟢 Storage: Operational";
+            storageSpan.style.color = "#34d399";
+          } else if (isDev) {
+            storageSpan.innerHTML = "🟡 Storage: Local Dev Mode";
+            storageSpan.style.color = "#fbbf24";
+          } else {
+            storageSpan.innerHTML = "🔴 Storage: Action Required";
+            storageSpan.style.color = "#ef4444";
+          }
+        }
+
+        if (quotaSpan) {
+          if (res.quota && res.quota.metrics_available) {
+            var pct = res.quota.max_usage_pct;
+            var qStatus = res.quota.status;
+            var qColor = qStatus === "healthy" ? "#34d399" : (qStatus === "warning" ? "#fbbf24" : "#ef4444");
+            var qIcon = qStatus === "healthy" ? "🟢" : (qStatus === "warning" ? "🟡" : "🔴");
+            quotaSpan.innerHTML = qIcon + " Quota: " + pct + "% (" + escapeHtml(qStatus.toUpperCase()) + ")";
+            quotaSpan.style.color = qColor;
+          } else {
+            quotaSpan.innerHTML = "⚪ Quota Monitoring: Reactive Monitoring Active";
+            quotaSpan.style.color = "#94a3b8";
+          }
+        }
+      })
+      .catch(function () {});
+  }
+
   function showError(err) {
     markConnectionError();
     alert(err.message || "Something went wrong.");
@@ -1836,5 +2020,8 @@
 
   // Initial load and polling start
   loadTab("overview");
+  initAlertNotifications();
+  fetchSystemHealth();
+  setInterval(fetchSystemHealth, 30000);
   startRealtimePolling();
 })();

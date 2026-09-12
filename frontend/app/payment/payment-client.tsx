@@ -10,6 +10,7 @@ import {
 } from '@/lib/api'
 
 const API_URL = getApiUrl()
+const MAX_PAYMENT_PROOF_SIZE = 200 * 1024
 
 type Props = {
   eventId?: string
@@ -73,17 +74,17 @@ export function PaymentClient(props: Props) {
     }
 
     const ext = file.name.split('.').pop()?.toLowerCase()
-    const allowedExtensions = ['jpg', 'jpeg', 'png']
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp']
 
     if (!ext || !allowedExtensions.includes(ext)) {
-      setSubmitError('Invalid file type. Only JPG, JPEG, and PNG image files are allowed.')
+      setSubmitError('Only JPG, JPEG, PNG, and WEBP images are allowed.')
       setProofFile(null)
       setFilePreview(null)
       return
     }
 
-    if (file.size > 500 * 1024) {
-      setSubmitError('File is too large. Maximum allowed file size is 500 KB.')
+    if (file.size > MAX_PAYMENT_PROOF_SIZE) {
+      setSubmitError('Payment screenshot must be 200 KB or smaller.')
       setProofFile(null)
       setFilePreview(null)
       return
@@ -108,8 +109,14 @@ export function PaymentClient(props: Props) {
     }
 
     if (!data?.has_proof && !proofFile) {
-      setSubmitError('Please upload a valid payment proof screenshot (JPG, JPEG, or PNG, max 500 KB).')
-      setFieldErrors({ payment_proof: 'Payment proof image is required.' })
+      setSubmitError('Please upload a payment screenshot.')
+      setFieldErrors({ payment_proof: 'Please upload a payment screenshot.' })
+      return
+    }
+
+    if (proofFile && proofFile.size > MAX_PAYMENT_PROOF_SIZE) {
+      setSubmitError('Payment screenshot must be 200 KB or smaller.')
+      setFieldErrors({ payment_proof: 'Payment screenshot must be 200 KB or smaller.' })
       return
     }
 
@@ -423,14 +430,19 @@ export function PaymentClient(props: Props) {
 
                   {/* Payment Proof File Upload Dropzone */}
                   <div>
-                    <label className="block font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-2">
-                      PAYMENT PROOF SCREENSHOT (JPG / PNG, MAX 5 MB) <span className="text-destructive">*</span>
+                    <label className="block font-mono text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-1">
+                      PAYMENT PROOF SCREENSHOT <span className="text-destructive">*</span>
                     </label>
+
+                    <div className="mb-3 rounded-[6px] border border-primary/20 bg-primary/5 px-3.5 py-2 font-mono text-[11px] text-muted-foreground space-y-0.5">
+                      <p><span className="text-primary font-bold">Accepted formats:</span> JPG, JPEG, PNG, WEBP</p>
+                      <p><span className="text-primary font-bold">Maximum file size:</span> 200 KB</p>
+                    </div>
 
                     <div className="relative group cursor-pointer rounded-[8px] border-2 border-dashed border-primary/30 bg-background/40 p-6 text-center transition-all hover:border-primary/60 hover:bg-primary/5">
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/jpg"
+                        accept="image/jpeg,image/png,image/jpg,image/webp"
                         onChange={handleFileChange}
                         className="absolute inset-0 z-20 h-full w-full opacity-0 cursor-pointer"
                       />
@@ -441,8 +453,8 @@ export function PaymentClient(props: Props) {
                         </span>
                         <span className="mt-1 font-mono text-[10px] text-muted-foreground">
                           {proofFile
-                            ? `${(proofFile.size / (1024 * 1024)).toFixed(2)} MB · Click to change file`
-                            : 'Supported formats: JPG, JPEG, PNG (Max 5 MB)'}
+                            ? `${(proofFile.size / 1024).toFixed(1)} KB · Click to change file`
+                            : 'Accepted formats: JPG, JPEG, PNG, WEBP · Maximum file size: 200 KB'}
                         </span>
                       </div>
                     </div>

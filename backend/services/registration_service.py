@@ -94,6 +94,7 @@ class InvalidPaymentFileError(Exception): pass
 class PaymentFileTooLargeError(Exception): pass
 class UnauthorizedRegistrationAccessError(Exception): pass
 class UnconfiguredFeeError(Exception): pass
+class PaymentStorageUnavailableError(Exception): pass
 
 
 def get_effective_fee_amount(event: Event) -> int:
@@ -432,7 +433,7 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
         raise DuplicateTransactionError(txn_clean)
 
     if not file or not getattr(file, "filename", None):
-        raise InvalidPaymentFileError("Payment proof screenshot file is required")
+        raise InvalidPaymentFileError("Please upload a payment screenshot.")
 
     # Read and check file size
     file.seek(0, os.SEEK_END)
@@ -440,12 +441,12 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
     file.seek(0)
 
     if file_size > config.MAX_PAYMENT_PROOF_SIZE_BYTES:
-        raise PaymentFileTooLargeError("File size exceeds the 500 KB limit")
+        raise PaymentFileTooLargeError("Payment screenshot must not exceed 200 KB.")
 
     filename = file.filename.lower()
     ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
     if ext not in config.ALLOWED_PAYMENT_PROOF_EXTENSIONS:
-        raise InvalidPaymentFileError("Only JPG, JPEG, and PNG image files are allowed")
+        raise InvalidPaymentFileError("Only JPG, JPEG, PNG, and WEBP images are allowed.")
 
     # Inspect magic bytes
     header = file.read(16)
@@ -453,23 +454,33 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
 
     is_jpeg = header.startswith(b"\xff\xd8\xff")
     is_png = header.startswith(b"\x89PNG\r\n\x1a\n")
-    if not (is_jpeg or is_png):
-        raise InvalidPaymentFileError("Uploaded file content is not a valid JPG or PNG image")
+    is_webp = header.startswith(b"RIFF") and len(header) >= 12 and header[8:12] == b"WEBP"
+    if not (is_jpeg or is_png or is_webp):
+        raise InvalidPaymentFileError("Only JPG, JPEG, PNG, and WEBP images are allowed.")
 
-    mime_type = "image/jpeg" if is_jpeg else "image/png"
+    if is_jpeg:
+        mime_type = "image/jpeg"
+    elif is_png:
+        mime_type = "image/png"
+    else:
+        mime_type = "image/webp"
 
-    from services.storage_service import upload_payment_proof
+    from services.storage_service import upload_payment_proof, SupabaseStorageError
 
     file_bytes = file.read() if hasattr(file, "read") else b""
     file.seek(0)
 
-    upload_result = upload_payment_proof(
-        user_id=user_id,
-        registration_id=reg.id,
-        file_bytes=file_bytes,
-        filename=filename,
-        mime_type=mime_type,
-    )
+    try:
+        upload_result = upload_payment_proof(
+            user_id=user_id,
+            registration_id=reg.id,
+            file_bytes=file_bytes,
+            filename=filename,
+            mime_type=mime_type,
+        )
+    except SupabaseStorageError as e:
+        raise PaymentStorageUnavailableError("Payment storage is temporarily unavailable. Please try again later.")
+
     safe_filename = upload_result["storage_reference"]
 
     reg.transaction_id = txn_clean

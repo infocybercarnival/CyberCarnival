@@ -244,7 +244,8 @@ def submit_payment(registration_id):
     try:
         from services.registration_service import (
             submit_payment_proof, InvalidPaymentStateError, DisclaimerNotAcceptedError,
-            InvalidPaymentFileError, PaymentFileTooLargeError, UnauthorizedRegistrationAccessError
+            InvalidPaymentFileError, PaymentFileTooLargeError, UnauthorizedRegistrationAccessError,
+            PaymentStorageUnavailableError
         )
         record = submit_payment_proof(
             registration_id=registration_id,
@@ -276,6 +277,8 @@ def submit_payment(registration_id):
         return jsonify({"error": str(e)}), 413
     except DuplicateTransactionError:
         return jsonify({"error": "this transaction ID has already been submitted"}), 409
+    except PaymentStorageUnavailableError as e:
+        return jsonify({"error": str(e)}), 503
 
 
 @bp.get("/api/registrations/<registration_id>/payment-proof")

@@ -511,3 +511,34 @@ class AuditLogEntry(db.Model):
     target = db.Column(db.String(120), nullable=True)
     meta_json = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.now())
+
+
+class AdminAlert(db.Model):
+    __tablename__ = "admin_alerts"
+
+    id = db.Column(db.String(36), primary_key=True, default=new_uuid)
+    title = db.Column(db.String(150), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    severity = db.Column(db.String(20), nullable=False, default="warning")  # info, warning, critical
+    category = db.Column(db.String(50), nullable=False, default="system")    # supabase_database, supabase_storage, system, deployment
+    status = db.Column(db.String(20), nullable=False, default="unread")      # unread, read, resolved
+    occurrence_count = db.Column(db.Integer, nullable=False, default=1)
+    first_detected_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
+    last_detected_at = db.Column(db.DateTime, nullable=False, default=db.func.now())
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    meta_json = db.Column(db.JSON, nullable=True)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "title": self.title,
+            "message": self.message,
+            "severity": self.severity,
+            "category": self.category,
+            "status": self.status,
+            "occurrence_count": self.occurrence_count,
+            "first_detected_at": self.first_detected_at.isoformat() if self.first_detected_at else None,
+            "last_detected_at": self.last_detected_at.isoformat() if self.last_detected_at else None,
+            "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
+            "meta_json": self.meta_json or {},
+        }
