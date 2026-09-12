@@ -387,6 +387,7 @@ class EventRegistration(db.Model):
     rejection_reason = db.Column(db.Text, nullable=True)
 
     payment_proof_filename = db.Column(db.String(255), nullable=True)
+    payment_proof_path = db.Column(db.Text, nullable=True)
     payment_proof_mime_type = db.Column(db.String(64), nullable=True)
     payment_proof_size = db.Column(db.Integer, nullable=True)
     disclaimer_accepted = db.Column(db.Boolean, nullable=False, default=False)

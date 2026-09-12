@@ -257,7 +257,7 @@ def event_registrations_detail(event_id: str) -> list:
                 "status": reg.status,
                 "transaction_id": reg.transaction_id,
                 "payment_amount": reg.payment_amount,
-                "payment_proof_url": f"/api/registrations/{reg.id}/payment-proof" if reg.payment_proof_filename else None,
+                "payment_proof_url": f"/api/registrations/{reg.id}/payment-proof" if (reg.payment_proof_path or reg.payment_proof_filename) else None,
                 "disclaimer_accepted": reg.disclaimer_accepted,
                 "checked_in": reg.checked_in,
                 "checked_in_at": reg.checked_in_at.strftime("%Y-%m-%d %H:%M:%S UTC") if reg.checked_in_at else None,

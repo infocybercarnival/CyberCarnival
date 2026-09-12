@@ -76,7 +76,7 @@ def _reg_to_dict(reg):
         "payment_verified_at": reg.payment_verified_at.timestamp() if reg.payment_verified_at else None,
         "payment_verified_by": reg.payment_verified_by,
         "rejection_reason": reg.rejection_reason,
-        "payment_proof_url": f"/admin/api/registrations/{reg.id}/proof" if reg.payment_proof_filename else None,
+        "payment_proof_url": f"/admin/api/registrations/{reg.id}/proof" if (reg.payment_proof_path or reg.payment_proof_filename) else None,
         "disclaimer_accepted": reg.disclaimer_accepted,
         "participant_mode": reg.participant_mode,
         "member_count": len(members),
@@ -132,9 +132,10 @@ def admin_view_payment_proof(registration_id):
     from flask import send_from_directory
     import config
     reg = regs.get_registration(registration_id)
-    if not reg or not reg.payment_proof_filename:
+    proof_ref = (reg.payment_proof_path or reg.payment_proof_filename) if reg else None
+    if not reg or not proof_ref:
         return jsonify({"error": "payment proof not found"}), 404
-    fn = reg.payment_proof_filename
+    fn = proof_ref
     if fn and fn.startswith("supabase:"):
         from services.storage_service import get_signed_payment_proof_url
         signed_url = get_signed_payment_proof_url(fn)

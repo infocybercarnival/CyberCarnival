@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS event_registrations (
     payment_verified_by VARCHAR(120),
     rejection_reason TEXT,
     payment_proof_filename VARCHAR(255),
+    payment_proof_path TEXT,
     payment_proof_mime_type VARCHAR(64),
     payment_proof_size INTEGER,
     disclaimer_accepted BOOLEAN NOT NULL DEFAULT FALSE,

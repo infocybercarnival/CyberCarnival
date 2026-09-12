@@ -41,6 +41,11 @@ def upload_to_supabase(
     Endpoint: POST {SUPABASE_URL}/storage/v1/object/{bucket}/{storage_path}
     """
     if not is_supabase_storage_configured():
+        logger.error(
+            "Supabase Storage credentials missing: SUPABASE_URL configured=%s, SUPABASE_SERVICE_ROLE_KEY configured=%s",
+            bool(config.SUPABASE_URL),
+            bool(config.SUPABASE_SERVICE_ROLE_KEY),
+        )
         return False
 
     url = f"{config.SUPABASE_URL}/storage/v1/object/{bucket}/{storage_path}"
@@ -63,18 +68,19 @@ def upload_to_supabase(
             return True
 
         logger.error(
-            "Supabase Storage upload failed bucket=%s path=%s status=%d body=%s",
+            "Supabase Storage upload HTTP failure bucket=%s path=%s status=%d response=%s",
             bucket,
             storage_path,
             resp.status_code,
-            resp.text[:200],
+            resp.text[:300],
         )
         return False
-    except Exception:
+    except Exception as exc:
         logger.exception(
-            "exception uploading to Supabase Storage bucket=%s path=%s",
+            "Exception uploading to Supabase Storage bucket=%s path=%s: %s",
             bucket,
             storage_path,
+            exc,
         )
         return False
 

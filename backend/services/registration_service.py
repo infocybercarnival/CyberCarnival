@@ -342,7 +342,7 @@ def get_payment_page_details(event_id: str, registration_id: str, user_id: str) 
 
         "transaction_id": reg.transaction_id or "",
         "disclaimer_accepted": bool(reg.disclaimer_accepted),
-        "has_proof": bool(reg.payment_proof_filename),
+        "has_proof": bool(reg.payment_proof_path or reg.payment_proof_filename),
 
         "upi_id": config.UPI_ID,
         "upi_payee_name": config.UPI_PAYEE_NAME,
@@ -487,6 +487,7 @@ def submit_payment_proof(registration_id: str, user_id: str, event_id: str, tran
     reg.payment_amount = event.fee_amount
     reg.payment_submitted_at = _utc_now()
     reg.payment_proof_filename = safe_filename
+    reg.payment_proof_path = safe_filename
     reg.payment_proof_mime_type = mime_type
     reg.payment_proof_size = file_size
     reg.disclaimer_accepted = True

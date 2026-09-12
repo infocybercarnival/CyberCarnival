@@ -139,6 +139,7 @@ CREATE TABLE event_registrations (
   payment_verified_at timestamp without time zone,
   payment_verified_by varchar(120),
   payment_proof_filename varchar(255),
+  payment_proof_path text,
   payment_proof_mime_type varchar(64),
   payment_proof_size integer,
   disclaimer_accepted boolean NOT NULL DEFAULT false,

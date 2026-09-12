@@ -295,7 +295,8 @@ def view_payment_proof(registration_id):
         return jsonify({"error": "authentication required"}), 401
 
     reg = get_registration(registration_id)
-    if not reg or not reg.payment_proof_filename:
+    proof_ref = (reg.payment_proof_path or reg.payment_proof_filename) if reg else None
+    if not reg or not proof_ref:
         return jsonify({"error": "payment proof not found"}), 404
 
     is_owner = bool(user_id) and ((reg.leader_user_id == user_id) or any(m.user_id == user_id for m in reg.members))
@@ -309,7 +310,7 @@ def view_payment_proof(registration_id):
     if not (is_admin or is_authorized_coord or is_owner):
         return jsonify({"error": "unauthorized access to payment proof"}), 403
 
-    fn = reg.payment_proof_filename
+    fn = proof_ref
     if fn and fn.startswith("supabase:"):
         from services.storage_service import get_signed_payment_proof_url
         signed_url = get_signed_payment_proof_url(fn)
