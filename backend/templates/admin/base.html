@@ -24,19 +24,15 @@
     rel="stylesheet"
   >
 
-  <!-- Main Admin Styles -->
-  <link
-    rel="stylesheet"
-    href="/static/admin/css/admin.css?v=1.1.0"
-  />
+  <!-- CyberCarnival Shared Theme Styles -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/cybercarnival-theme.css') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='admin/css/admin.css') }}?v=1.2.0" />
 
   <!-- Page-specific CSS -->
   {% block extra_css %}{% endblock %}
 </head>
 
-<body
-  class="bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground"
->
+<body class="bg-background text-foreground antialiased selection:bg-primary selection:text-primary-foreground">
 
   <!-- Atmospheric Falling Spiders & Starfield Background -->
   <canvas
@@ -82,7 +78,7 @@
   </div>
 
   <!-- Main Admin Background Script -->
-  <script src="/static/admin/js/background-field.js"></script>
+  <script src="{{ url_for('static', filename='admin/js/background-field.js') }}"></script>
 
   <!-- Page-specific JS if required -->
   {% block extra_js %}{% endblock %}

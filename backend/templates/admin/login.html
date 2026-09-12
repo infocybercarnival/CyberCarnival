@@ -1,27 +1,70 @@
 {% extends "admin/base.html" %}
-{% block title %}Admin Login — CyberCarnival{% endblock %}
+{% block title %}Admin Access — CyberCarnival Command Center{% endblock %}
 {% block body %}
 <div class="auth-wrap">
-  <form class="auth-card" method="post" action="{{ url_for('admin_auth.login_submit') }}" autocomplete="off">
-    <div class="auth-brand">CYBERCARNIVAL<span>/ ADMIN</span></div>
+  <div class="auth-card">
+    
+    <!-- Top CyberCarnival Brand Header with Admin Badge -->
+    <div class="auth-brand-centered">
+      <div class="auth-brand">
+        CYBERCARNIVAL <span>/ COMMAND CENTER</span>
+      </div>
+    </div>
 
+    <!-- Card Header Block -->
+    <div class="auth-header-block">
+      <span class="auth-tag">ADMINISTRATIVE ACCESS</span>
+      <h1 class="auth-title">SYSTEM COMMAND CENTER</h1>
+      <p class="auth-subtitle">Authorized administrator credential verification required</p>
+    </div>
+
+    <!-- Flashed Error Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
-          <div class="flash flash-{{ category }}">{{ message }}</div>
+          <div class="auth-flash-error">
+            ⚠ {{ message }}
+          </div>
         {% endfor %}
       {% endif %}
     {% endwith %}
 
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <!-- Login Form -->
+    <form class="auth-form" method="post" action="{{ url_for('admin_auth.login_submit') }}" autocomplete="off">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
-    <label for="username">Username</label>
-    <input id="username" name="username" type="text" maxlength="64" required autofocus />
+      <div class="auth-field">
+        <label class="auth-label" for="username">ADMINISTRATOR USERNAME</label>
+        <input 
+          id="username" 
+          name="username" 
+          type="text" 
+          class="auth-input" 
+          placeholder="Enter admin username" 
+          maxlength="64" 
+          required 
+          autofocus 
+        />
+      </div>
 
-    <label for="password">Password</label>
-    <input id="password" name="password" type="password" maxlength="256" required />
+      <div class="auth-field">
+        <label class="auth-label" for="password">PASSWORD</label>
+        <input 
+          id="password" 
+          name="password" 
+          type="password" 
+          class="auth-input" 
+          placeholder="Enter password" 
+          maxlength="256" 
+          required 
+        />
+      </div>
 
-    <button type="submit">Sign in</button>
-  </form>
+      <button type="submit" class="auth-submit-btn">
+        <span>AUTHENTICATE & ACCESS COMMAND CENTER →</span>
+      </button>
+    </form>
+
+  </div>
 </div>
 {% endblock %}

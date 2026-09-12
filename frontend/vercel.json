@@ -17,6 +17,10 @@
     {
       "source": "/coordinator/:path*",
       "destination": "https://cybercarnival.onrender.com/coordinator/:path*"
+    },
+    {
+      "source": "/static/:path*",
+      "destination": "https://cybercarnival.onrender.com/static/:path*"
     }
   ]
 }

@@ -5,284 +5,110 @@
 {% endblock %}
 
 {% block extra_css %}
-<link
-  rel="stylesheet"
-  href="/static/coordinator/css/dashboard.css?v=1.3.0"
-/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/cybercarnival-theme.css') }}" />
 {% endblock %}
 
 {% block body %}
-
-<meta
-  name="csrf-token"
-  content="{{ csrf_token() }}"
-/>
+<meta name="csrf-token" content="{{ csrf_token() }}" />
 
 <div class="shell coordinator-event-page">
 
-  <!-- =========================
-       TOP BAR
-  ========================== -->
-  <header class="topbar coordinator-topbar">
-
+  <!-- TOP BAR -->
+  <header class="topbar">
     <div class="auth-brand">
-      <a
-        href="/coordinator/"
-        class="coordinator-brand-link"
-      >
-        CYBERCARNIVAL
-        <span>/ COORDINATOR</span>
+      <a href="/coordinator/" class="coordinator-brand-link">
+        CYBERCARNIVAL <span>/ COORDINATOR</span>
       </a>
     </div>
 
-    <div class="topbar-right coordinator-topbar-right">
-
-      <span class="who coordinator-who">
-        {{ coordinator_name or coordinator_username }}
-      </span>
-
-      <form
-        method="post"
-        action="{{ url_for('coordinator_auth.logout') }}"
-      >
-        <input
-          type="hidden"
-          name="csrf_token"
-          value="{{ csrf_token() }}"
-        />
-
-        <button
-          type="submit"
-          class="btn-ghost coordinator-logout"
-        >
-          Log out
-        </button>
+    <div class="topbar-right">
+      <span class="who">👤 {{ coordinator_name or coordinator_username }}</span>
+      <form method="post" action="{{ url_for('coordinator_auth.logout') }}" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+        <button type="submit" class="btn-ghost">Log out</button>
       </form>
-
     </div>
-
   </header>
 
+  <main class="coord-shell">
 
-  <main class="coord-shell coordinator-event-shell">
-
-    <!-- =========================
-         EVENT HEADER
-    ========================== -->
-    <section class="coordinator-event-header">
-
-      <div class="coordinator-event-heading">
-
-        <a
-          href="/coordinator/"
-          class="btn-ghost coordinator-back-button"
-        >
-          ← Back to My Events
-        </a>
-
-        <h1>
-          {{ event.name }}
-        </h1>
-
-        <div class="coordinator-event-meta">
-
-          <span class="coordinator-event-category">
-            {{ event.category }}
-          </span>
-
-          <span class="meta-divider">·</span>
-
-          <span>
-            {{ event.date or 'TBA' }}
-          </span>
-
-          <span class="meta-divider">·</span>
-
-          <span>
-            {{ event.venue or 'SRM Ramapuram' }}
-          </span>
-
-        </div>
-
-      </div>
-
-
-      <div class="coordinator-header-actions">
-
-        <a
-          href="/coordinator/events/{{ event.id }}/export.csv"
-          class="btn-ghost coordinator-action-button"
-        >
-          EXPORT CSV
-        </a>
-
-        <a
-          href="/coordinator/events/{{ event.id }}/scan"
-          class="btn-primary coordinator-scan-button"
-        >
-          <span aria-hidden="true">📷</span>
-          <span>SCAN QR TICKETS</span>
-        </a>
-
-      </div>
-
-    </section>
-
-
-    <!-- =========================
-         ATTENDANCE STATS
-    ========================== -->
-    <section
-      class="coordinator-attendance-cards"
-      aria-label="Attendance statistics"
-    >
-
-      <article class="attendance-card attendance-confirmed">
-
-        <div
-          class="attendance-number"
-          id="stat-confirmed"
-        >
-          0
-        </div>
-
-        <div class="attendance-label">
-          CONFIRMED
-        </div>
-
-      </article>
-
-
-      <article class="attendance-card attendance-present">
-
-        <div
-          class="attendance-number"
-          id="stat-present"
-        >
-          0
-        </div>
-
-        <div class="attendance-label">
-          <span
-            class="attendance-dot attendance-dot-present"
-          ></span>
-          PRESENT
-        </div>
-
-      </article>
-
-
-      <article class="attendance-card attendance-remaining">
-
-        <div
-          class="attendance-number"
-          id="stat-remaining"
-        >
-          0
-        </div>
-
-        <div class="attendance-label">
-          <span
-            class="attendance-dot attendance-dot-remaining"
-          ></span>
-          REMAINING
-        </div>
-
-      </article>
-
-    </section>
-
-
-    <!-- =========================
-         PARTICIPANT SECTION
-    ========================== -->
-    <section class="coordinator-participants-section">
-
-      <div class="participants-heading-row">
-
+    <!-- EVENT HERO HEADER -->
+    <section class="cyber-card" style="margin-bottom:28px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:20px;">
         <div>
-          <p class="participants-eyebrow">
-            EVENT ROSTER
-          </p>
-
-          <h2>
-            Event Participants & Attendance
-          </h2>
+          <a href="/coordinator/" class="btn-ghost" style="margin-bottom:14px; display:inline-flex;">
+            ← Back to My Events
+          </a>
+          <h1 style="margin:8px 0; font-size:28px;">{{ event.name }}</h1>
+          <div style="font-size:13px; color:var(--text-muted);">
+            <span class="token-chip status-verified">{{ event.category }}</span>
+            <span class="meta-divider">·</span>
+            <span>Date: {{ event.date or 'TBA' }}</span>
+            <span class="meta-divider">·</span>
+            <span>Venue: {{ event.venue or 'SRM Ramapuram' }}</span>
+          </div>
         </div>
 
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <a href="/coordinator/events/{{ event.id }}/export.csv" class="btn-ghost">
+            📥 EXPORT CSV
+          </a>
+          <a href="/coordinator/events/{{ event.id }}/scan" class="btn-cyber-primary">
+            <span>📷 SCAN QR TICKETS</span>
+          </a>
+        </div>
+      </div>
+    </section>
 
-        <div class="participant-controls">
+    <!-- ATTENDANCE STATS -->
+    <section class="cards" style="margin-bottom:32px;">
+      <div class="card" style="text-align:center;">
+        <div class="val" id="stat-confirmed" style="color:var(--text-main);">0</div>
+        <div class="lbl">CONFIRMED</div>
+      </div>
 
-          <div class="participant-search-wrap">
+      <div class="card" style="text-align:center; background:var(--status-success-bg); border-color:rgba(16,185,129,0.35);">
+        <div class="val" id="stat-present" style="color:var(--status-success);">0</div>
+        <div class="lbl" style="color:var(--status-success);">🟢 PRESENT</div>
+      </div>
 
-            <span
-              class="participant-search-icon"
-              aria-hidden="true"
-            >
-              ⌕
-            </span>
+      <div class="card" style="text-align:center; background:var(--status-danger-bg); border-color:rgba(239,68,68,0.35);">
+        <div class="val" id="stat-remaining" style="color:var(--status-danger);">0</div>
+        <div class="lbl" style="color:var(--status-danger);">⚪ REMAINING</div>
+      </div>
+    </section>
 
-            <input
-              type="search"
-              id="part-search"
-              placeholder="Search name, email, token..."
-              autocomplete="off"
-              aria-label="Search participants"
-            />
+    <!-- PARTICIPANT SECTION -->
+    <section class="cyber-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:20px;">
+        <div>
+          <span class="auth-tag" style="margin-bottom:4px;">EVENT ROSTER</span>
+          <h2 style="margin:4px 0 0 0; font-size:20px;">Event Participants & Attendance</h2>
+        </div>
 
+        <div class="toolbar" style="margin-bottom:0;">
+          <div style="position:relative; flex:1; min-width:200px;">
+            <input type="search" id="part-search" placeholder="Search name, email, token..." autocomplete="off" aria-label="Search participants" class="auth-input" style="padding-left:36px;" />
+            <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted);">🔍</span>
           </div>
 
-
-          <select
-            id="part-reg-filter"
-            aria-label="Filter registration status"
-            style="padding: 8px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); color: var(--fg); font-size: 13px;"
-          >
-            <option value="">
-              ALL REGISTRATIONS
-            </option>
-            <option value="confirmed">
-              CONFIRMED ONLY
-            </option>
-            <option value="pending_verification">
-              PENDING VERIFICATION ONLY
-            </option>
+          <select id="part-reg-filter" aria-label="Filter registration status" class="auth-input" style="min-width:180px;">
+            <option value="">ALL REGISTRATIONS</option>
+            <option value="confirmed">CONFIRMED ONLY</option>
+            <option value="pending_verification">PENDING VERIFICATION ONLY</option>
           </select>
 
-          <select
-            id="part-status-filter"
-            aria-label="Filter attendance status"
-          >
-            <option value="">
-              ALL ATTENDANCE
-            </option>
-
-            <option value="present">
-              PRESENT ONLY
-            </option>
-
-            <option value="remaining">
-              REMAINING ONLY
-            </option>
+          <select id="part-status-filter" aria-label="Filter attendance status" class="auth-input" style="min-width:180px;">
+            <option value="">ALL ATTENDANCE</option>
+            <option value="present">PRESENT ONLY</option>
+            <option value="remaining">REMAINING ONLY</option>
           </select>
-
         </div>
-
       </div>
 
-
-      <!-- =========================
-           PARTICIPANT TABLE
-      ========================== -->
-      <div
-        class="registration-table-wrapper coordinator-table-wrapper"
-      >
-
-        <table
-          class="table coordinator-participant-table"
-          id="coordinator-participants-table"
-        >
-
+      <!-- PARTICIPANT TABLE -->
+      <div class="registration-table-wrapper">
+        <table class="table" id="coordinator-participants-table">
           <thead>
             <tr>
               <th>REG ID / TOKEN</th>
@@ -295,47 +121,32 @@
               <th>ACTIONS</th>
             </tr>
           </thead>
-
           <tbody>
-
             <tr>
-              <td
-                colspan="8"
-                class="table-empty-state"
-              >
+              <td colspan="8" class="table-empty-state" style="text-align:center; padding:32px; color:var(--text-muted);">
                 Loading participants...
               </td>
             </tr>
-
           </tbody>
-
         </table>
-
       </div>
-
     </section>
 
   </main>
-
 </div>
 
-<!-- =========================
-     REGISTRATION DETAIL MODAL
-========================== -->
-<div id="registration-modal-backdrop" class="member-modal-backdrop" style="display:none;">
-  <div class="member-modal-card" style="max-width: 680px; width: 92%; max-height: 90vh; overflow-y: auto;">
-    <button type="button" class="member-modal-close" id="reg-modal-close" aria-label="Close">×</button>
+<!-- REGISTRATION DETAIL MODAL -->
+<div id="registration-modal-backdrop" class="member-modal-backdrop" style="display:none; position:fixed; inset:0; z-index:100; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px); align-items:center; justify-content:center;">
+  <div class="cyber-card" style="max-width:680px; width:92%; max-height:90vh; overflow-y:auto; position:relative;">
+    <button type="button" class="btn-ghost" id="reg-modal-close" aria-label="Close" style="position:absolute; top:16px; right:16px; font-size:18px;">✕</button>
     <div id="reg-modal-content"></div>
   </div>
 </div>
 
-<div id="toast-stack"></div>
-
+<div id="toast-stack" style="position:fixed; bottom:24px; right:24px; z-index:110; display:flex; flex-direction:column; gap:10px;"></div>
 
 <script>
   window.EVENT_ID = "{{ event.id }}";
 </script>
-
-<script src="/static/coordinator/js/event_detail.js?v=2.0.0"></script>
-
+<script src="{{ url_for('static', filename='coordinator/js/event_detail.js') }}?v=2.0.0"></script>
 {% endblock %}
