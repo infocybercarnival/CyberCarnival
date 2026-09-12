@@ -145,6 +145,18 @@ EVENTS = [
         "venue": "TBA",
         "date": "7 — 8 OCTOBER",
     },
+    {
+        "name": "FREE FIRE",
+        "category": "NON-TECHNICAL",
+        "tag": "GAMING",
+        "poster_url": "/assets/posters/freefire_poster.jpeg",
+        "description": "Compete in an action-packed Free Fire tournament and prove your squad is the last one standing.",
+        "fee": "TBA",
+        "min_team_size": 4,
+        "max_team_size": 4,
+        "venue": "SRM RAMAPURAM",
+        "date": "7 — 8 OCTOBER",
+    },
 ]
 
 if __name__ == "__main__":

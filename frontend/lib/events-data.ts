@@ -562,7 +562,7 @@ export const EVENTS: EventInfo[] = [
   tag: 'GAMING',
   desc: 'Compete in an action-packed Free Fire tournament and prove your squad is the last one standing.',
 
-  poster: '/assets/posters/freefire-placeholder.jpg',
+  poster: '/assets/posters/freefire_poster.jpeg',
   posterAlt: 'Free Fire official event poster',
 
   details: {

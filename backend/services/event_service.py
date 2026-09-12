@@ -143,16 +143,14 @@ def set_registration_open(event_id: str, open_: bool) -> bool:
         raise
 
 
-def _delete_local_poster(url: str | None) -> None:
-    if not url or not url.startswith("/uploads/posters/"):
+def _delete_poster_file(url: str | None) -> None:
+    if not url:
         return
-
-    path = config.UPLOAD_DIR / url.rsplit("/", 1)[-1]
-    if path.exists():
-        try:
-            path.unlink()
-        except OSError:
-            pass
+    from services.storage_service import delete_file
+    try:
+        delete_file(url)
+    except Exception:
+        pass
 
 
 def delete_event(event_id: str) -> bool:
@@ -170,8 +168,8 @@ def delete_event(event_id: str) -> bool:
         db.session.rollback()
         raise
 
-    _delete_local_poster(old_poster_url)
-    _delete_local_poster(old_poster_url_2)
+    _delete_poster_file(old_poster_url)
+    _delete_poster_file(old_poster_url_2)
     return True
 
 
@@ -209,7 +207,7 @@ def _save_poster_to_field(event: Event, file_storage, field_name: str) -> str:
         raise ValueError("file is not a valid image") from exc
 
     import io
-    from services.storage_service import upload_event_asset
+    from services.storage_service import upload_event_asset, delete_file
 
     save_format = "JPEG" if ext in ("jpg", "jpeg") else ext.upper()
     if save_format == "JPEG" and normalized.mode == "RGBA":
@@ -221,7 +219,6 @@ def _save_poster_to_field(event: Event, file_storage, field_name: str) -> str:
     mime_type = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
 
     new_url = upload_event_asset("posters", file_bytes, filename, mime_type)
-
     old_url = getattr(event, field_name)
 
     try:
@@ -229,16 +226,16 @@ def _save_poster_to_field(event: Event, file_storage, field_name: str) -> str:
         db.session.commit()
         db.session.refresh(event)
     except Exception:
-        if dest.exists():
-            try:
-                dest.unlink()
-            except OSError:
-                pass
         db.session.rollback()
+        # Clean up newly uploaded asset on DB commit failure
+        try:
+            delete_file(new_url)
+        except Exception:
+            pass
         raise
 
     if old_url and old_url != getattr(event, field_name):
-        _delete_local_poster(old_url)
+        _delete_poster_file(old_url)
 
     return getattr(event, field_name)
 

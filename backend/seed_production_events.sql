@@ -159,6 +159,20 @@ INSERT INTO events (
     '7 — 8 OCTOBER',
     NULL,
     NULL, NULL, NULL, NULL, NULL, NULL, TRUE, TRUE
+),
+(
+    '9fb821a9-a2f0-11f1-9f4c-7c57584ea0d9',
+    'FREE FIRE',
+    'NON-TECHNICAL',
+    'GAMING',
+    'Compete in an action-packed Free Fire tournament and prove your squad is the last one standing.',
+    '/assets/posters/freefire_poster.jpeg',
+    'SRM RAMAPURAM',
+    '7 — 8 OCTOBER',
+    NULL,
+    'TBA',
+    NULL,
+    4, 4, NULL, NULL, TRUE, TRUE
 )
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,

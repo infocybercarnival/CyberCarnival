@@ -281,8 +281,15 @@ SMTP_MSGID_DOMAIN = os.environ.get(
 
 # --- OTP --------------------------------------------------------------------
 
+try:
+    OTP_EXPIRY_MINUTES = int(os.environ.get("OTP_EXPIRY_MINUTES", "7"))
+    if OTP_EXPIRY_MINUTES <= 0:
+        OTP_EXPIRY_MINUTES = 7
+except (ValueError, TypeError):
+    OTP_EXPIRY_MINUTES = 7
+
 OTP_LENGTH = 6
-OTP_TTL_SECONDS = 7 * 60
+OTP_TTL_SECONDS = OTP_EXPIRY_MINUTES * 60
 OTP_MAX_ATTEMPTS = 5
 OTP_RESEND_COOLDOWN_SECONDS = 150
 

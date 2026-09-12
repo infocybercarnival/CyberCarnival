@@ -697,7 +697,7 @@ def send_otp_email(
         rows=[
             (
                 "Expires In",
-                f"{config.OTP_TTL_SECONDS // 60} minutes",
+                f"{config.OTP_EXPIRY_MINUTES} minutes",
             ),
         ],
         footer_note=(
@@ -718,7 +718,7 @@ def send_otp_email(
         html,
         dev_summary=(
             f"CyberCarnival {purpose} OTP: {otp_code}\n"
-            f"Expires in {config.OTP_TTL_SECONDS // 60} minutes."
+            f"Expires in {config.OTP_EXPIRY_MINUTES} minutes."
         ),
     )
 
