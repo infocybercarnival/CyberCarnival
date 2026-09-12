@@ -282,9 +282,9 @@ SMTP_MSGID_DOMAIN = os.environ.get(
 # --- OTP --------------------------------------------------------------------
 
 OTP_LENGTH = 6
-OTP_TTL_SECONDS = 2 * 60
+OTP_TTL_SECONDS = 7 * 60
 OTP_MAX_ATTEMPTS = 5
-OTP_RESEND_COOLDOWN_SECONDS = 60
+OTP_RESEND_COOLDOWN_SECONDS = 150
 
 
 # --- Event Poster Uploads ---------------------------------------------------
