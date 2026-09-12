@@ -28,6 +28,7 @@ from routes.admin_api import bp as admin_api_bp
 from routes.coordinator_auth import bp as coordinator_auth_bp
 from routes.coordinator_pages import bp as coordinator_pages_bp
 from routes.coordinator_api import bp as coordinator_api_bp
+from routes.frontend import bp as frontend_bp
 
 logger = get_logger("app")
 
@@ -183,13 +184,6 @@ def create_app() -> Flask:
         csrf.exempt(coordinator_api_bp)
         csrf.exempt(admin_api_bp)
 
-    @app.get("/")
-    def root():
-        return jsonify({
-            "status": "ok",
-            "service": "CyberCarnival API"
-        })
-
     @app.get("/uploads/posters/<path:filename>")
     def uploaded_poster(filename):
         target = (config.UPLOAD_DIR / filename).resolve()
@@ -206,6 +200,9 @@ def create_app() -> Flask:
             config.UPLOAD_DIR,
             filename
         )
+
+    # Registered last: only matches paths nothing above claimed.
+    app.register_blueprint(frontend_bp)
 
     app.after_request(add_security_headers)
 
