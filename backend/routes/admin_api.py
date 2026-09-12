@@ -1,8 +1,9 @@
 import csv
 import io
+import os
 import datetime
 
-from flask import Blueprint, request, jsonify, session, Response, redirect
+from flask import Blueprint, request, jsonify, session, Response, redirect, send_file, after_this_request
 
 from extensions import limiter, db
 from utils.auth import login_required
@@ -13,6 +14,7 @@ from services import audit_service
 from services import user_service
 from services import coordinator_service as coordinators
 from services import speaker_service as speakers
+from services import backup_service
 from utils.id_generator import new_username, new_temp_password
 from models import User, EventRegistration
 
@@ -975,3 +977,54 @@ def admin_api_logout():
         revoke_session(sid)
     session.clear()
     return jsonify({"success": True, "ok": True, "message": "Logged out successfully"})
+
+
+@bp.get("/database-backup")
+@login_required
+@limiter.limit("5 per minute")
+def admin_download_database_backup():
+    actor = _actor()
+    ip = _ip()
+    try:
+        temp_path, filename = backup_service.generate_database_backup()
+    except backup_service.PgDumpNotFoundError as e:
+        logger.warning("Database backup failed for actor %s: pg_dump not found", actor)
+        audit_service.log_action(actor, "DATABASE_BACKUP_FAILED", "pg_dump binary not installed on server", ip)
+        return jsonify({"error": "PostgreSQL database dump utility (pg_dump) is not available on the server."}), 503
+    except backup_service.DatabaseConnectionConfigError as e:
+        logger.error("Database backup failed for actor %s: invalid DB config", actor)
+        audit_service.log_action(actor, "DATABASE_BACKUP_FAILED", "Database connection configuration error", ip)
+        return jsonify({"error": "Database connection configuration is invalid or missing."}), 500
+    except backup_service.UnsupportedDatabaseTypeError as e:
+        logger.error("Database backup failed for actor %s: unsupported DB dialect", actor)
+        audit_service.log_action(actor, "DATABASE_BACKUP_FAILED", "Unsupported database engine for backup", ip)
+        return jsonify({"error": str(e)}), 400
+    except backup_service.BackupExecutionError as e:
+        logger.error("Database backup failed for actor %s: execution error", actor)
+        audit_service.log_action(actor, "DATABASE_BACKUP_FAILED", "pg_dump execution failed", ip)
+        return jsonify({"error": "Database backup operation failed. Please check system logs for details."}), 500
+    except Exception as e:
+        logger.exception("Unexpected exception during database backup for actor %s", actor)
+        audit_service.log_action(actor, "DATABASE_BACKUP_FAILED", "Unexpected error during database export", ip)
+        return jsonify({"error": "An unexpected error occurred while generating the database backup."}), 500
+
+    audit_service.log_action(actor, "DATABASE_BACKUP_EXPORTED", f"filename: {filename}", ip)
+
+    response = send_file(
+        temp_path,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/sql"
+    )
+    response.headers["Cache-Control"] = "no-store"
+
+    def cleanup_file():
+        try:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+                logger.info("Cleaned up temporary database backup file: %s", temp_path)
+        except Exception as exc:
+            logger.error("Failed to clean up temporary database backup file: %s", str(exc))
+
+    response.call_on_close(cleanup_file)
+    return response

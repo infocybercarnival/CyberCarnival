@@ -13,6 +13,9 @@ frontend/node_modules/
 frontend/.next/
 frontend/out/
 .DS_Store
+cybercarnival_backup_*.sql
+cybercarnival_backup_*.dump
+cybercarnival_sqlite_backup_*.sql
 *.dump
 *.db
 scratch/

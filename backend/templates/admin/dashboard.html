@@ -58,6 +58,17 @@
           <span id="health-quota-status">⚪ Quota: Reactive Monitoring Active</span>
         </div>
       </div>
+      <div id="system-admin-banner" style="margin-bottom: 20px; padding: 14px 16px; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 8px;">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
+          <div>
+            <strong style="color: #f1f5f9; font-size: 0.9rem;">⚙️ SYSTEM ADMINISTRATION & BACKUPS</strong>
+            <p style="color: #94a3b8; font-size: 0.8rem; margin: 4px 0 0 0;">Download complete PostgreSQL database export containing schema, tables, and participant data.</p>
+          </div>
+          <button type="button" id="btn-download-db-backup" class="btn-primary" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+            💾 Download Full Database Backup
+          </button>
+        </div>
+      </div>
       <div class="cards" id="overview-cards"></div>
       <h3>Registrations by event</h3>
       <table class="table" id="overview-table">
@@ -260,6 +271,26 @@
         <button type="submit" class="btn-primary" id="coordinator-modal-submit">SAVE COORDINATOR</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Database Backup Confirmation Modal -->
+<div id="backup-modal-backdrop" class="member-modal-backdrop" style="display:none;">
+  <div class="member-modal-card" style="max-width: 520px; width: 92%;">
+    <button type="button" class="member-modal-close" id="backup-modal-close" aria-label="Close">×</button>
+    <h3 style="color: #f8fafc; margin-top: 0; display: flex; align-items: center; gap: 8px;">
+      ⚠️ Confirm Database Backup Export
+    </h3>
+    <div style="margin: 16px 0; padding: 14px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #fca5a5; font-size: 0.9rem; line-height: 1.5;">
+      This will create a complete PostgreSQL database backup containing CyberCarnival application data and database schema. The backup may contain sensitive participant and registration information. Store it securely.
+    </div>
+    <div id="backup-modal-status" style="display: none; margin-bottom: 12px; font-size: 0.85rem; font-family: monospace; padding: 10px; border-radius: 6px;"></div>
+    <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px;">
+      <button type="button" class="btn-ghost" id="backup-modal-cancel">Cancel</button>
+      <button type="button" class="btn-primary" id="backup-modal-confirm" style="background: #ef4444; border-color: #dc2626;">
+        Confirm & Export Backup
+      </button>
+    </div>
   </div>
 </div>
 

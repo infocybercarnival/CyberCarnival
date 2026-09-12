@@ -2018,10 +2018,121 @@
     alert(err.message || "Something went wrong.");
   }
 
+  function initDatabaseBackupHandler() {
+    var btnOpen = document.getElementById("btn-download-db-backup");
+    var modalBackdrop = document.getElementById("backup-modal-backdrop");
+    var btnClose = document.getElementById("backup-modal-close");
+    var btnCancel = document.getElementById("backup-modal-cancel");
+    var btnConfirm = document.getElementById("backup-modal-confirm");
+    var statusEl = document.getElementById("backup-modal-status");
+
+    if (!btnOpen || !modalBackdrop || !btnConfirm) return;
+
+    function openModal() {
+      if (statusEl) {
+        statusEl.style.display = "none";
+        statusEl.textContent = "";
+        statusEl.style.background = "none";
+      }
+      btnConfirm.disabled = false;
+      btnConfirm.innerHTML = "Confirm & Export Backup";
+      btnCancel.disabled = false;
+      modalBackdrop.style.display = "flex";
+    }
+
+    function closeModal() {
+      if (btnConfirm.disabled && statusEl && statusEl.textContent.indexOf("Exporting") !== -1) {
+        return;
+      }
+      modalBackdrop.style.display = "none";
+    }
+
+    btnOpen.addEventListener("click", openModal);
+    if (btnClose) btnClose.addEventListener("click", closeModal);
+    if (btnCancel) btnCancel.addEventListener("click", closeModal);
+    modalBackdrop.addEventListener("click", function (e) {
+      if (e.target === modalBackdrop) closeModal();
+    });
+
+    btnConfirm.addEventListener("click", function () {
+      btnConfirm.disabled = true;
+      btnCancel.disabled = true;
+      btnConfirm.innerHTML = "⏳ Exporting Backup...";
+
+      if (statusEl) {
+        statusEl.style.display = "block";
+        statusEl.style.background = "rgba(99, 102, 241, 0.15)";
+        statusEl.style.border = "1px solid rgba(99, 102, 241, 0.3)";
+        statusEl.style.color = "#a5b4fc";
+        statusEl.textContent = "⏳ Generating database backup. Please wait...";
+      }
+
+      fetch("/admin/api/database-backup", {
+        method: "GET",
+        headers: {
+          "X-CSRFToken": CSRF_TOKEN
+        }
+      })
+      .then(function (res) {
+        if (!res.ok) {
+          return res.json().catch(function () { return {}; }).then(function (errBody) {
+            throw new Error(errBody.error || "Backup export failed (" + res.status + ")");
+          });
+        }
+
+        var cd = res.headers.get("content-disposition") || "";
+        var filename = "cybercarnival_backup.sql";
+        if (cd && cd.indexOf("filename=") !== -1) {
+          var match = cd.match(/filename=["']?([^"';]+)["']?/);
+          if (match && match[1]) {
+            filename = match[1];
+          }
+        }
+
+        return res.blob().then(function (blob) {
+          var blobUrl = window.URL.createObjectURL(blob);
+          var downloadAnchor = document.createElement("a");
+          downloadAnchor.href = blobUrl;
+          downloadAnchor.download = filename;
+          document.body.appendChild(downloadAnchor);
+          downloadAnchor.click();
+          downloadAnchor.remove();
+          window.URL.revokeObjectURL(blobUrl);
+
+          if (statusEl) {
+            statusEl.style.background = "rgba(34, 197, 94, 0.15)";
+            statusEl.style.border = "1px solid rgba(34, 197, 94, 0.3)";
+            statusEl.style.color = "#86efac";
+            statusEl.textContent = "✅ Database backup successfully generated and downloaded!";
+          }
+
+          setTimeout(function () {
+            btnConfirm.disabled = false;
+            btnConfirm.innerHTML = "Confirm & Export Backup";
+            btnCancel.disabled = false;
+            closeModal();
+          }, 2000);
+        });
+      })
+      .catch(function (err) {
+        if (statusEl) {
+          statusEl.style.background = "rgba(239, 68, 68, 0.15)";
+          statusEl.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+          statusEl.style.color = "#fca5a5";
+          statusEl.textContent = "❌ Error: " + (err.message || "Failed to generate backup.");
+        }
+        btnConfirm.disabled = false;
+        btnConfirm.innerHTML = "Retry Export Backup";
+        btnCancel.disabled = false;
+      });
+    });
+  }
+
   // Initial load and polling start
   loadTab("overview");
   initAlertNotifications();
   fetchSystemHealth();
+  initDatabaseBackupHandler();
   setInterval(fetchSystemHealth, 30000);
   startRealtimePolling();
 })();
