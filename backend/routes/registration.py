@@ -317,7 +317,8 @@ def view_payment_proof(registration_id):
         if signed_url:
             return redirect(signed_url)
 
-    return send_from_directory(config.PAYMENT_PROOF_DIR, fn)
+    local_filename = os.path.basename(fn) if ("/" in fn or "\\" in fn) else fn
+    return send_from_directory(config.PAYMENT_PROOF_DIR, local_filename)
 
 
 @bp.get("/api/registrations/<registration_id>/participant-details")

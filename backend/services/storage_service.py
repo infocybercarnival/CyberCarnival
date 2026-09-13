@@ -152,7 +152,7 @@ def upload_payment_proof(
     storage_path = f"{user_id}/{registration_id}_{unique_id}.{ext}"
     bucket = config.SUPABASE_BUCKET_PAYMENT_PROOFS
 
-    if is_supabase_storage_configured() or config.IS_PRODUCTION:
+    if is_supabase_storage_configured() or (config.IS_PRODUCTION and getattr(config, "STORAGE_BACKEND", "local") != "local"):
         success = upload_to_supabase(bucket, storage_path, file_bytes, mime_type)
         if success:
             alert_service.create_recovery_alert("supabase_storage", "Supabase Storage")
@@ -207,7 +207,7 @@ def upload_event_asset(
     storage_path = f"{subfolder}/{unique_name}"
     bucket = config.SUPABASE_BUCKET_ASSETS
 
-    if is_supabase_storage_configured() or config.IS_PRODUCTION:
+    if is_supabase_storage_configured() or (config.IS_PRODUCTION and getattr(config, "STORAGE_BACKEND", "local") != "local"):
         success = upload_to_supabase(bucket, storage_path, file_bytes, mime_type)
         if success:
             alert_service.create_recovery_alert("supabase_storage", "Supabase Storage")

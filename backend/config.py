@@ -311,7 +311,22 @@ ALLOWED_POSTER_EXTENSIONS = {
 
 # --- Payment Proof Uploads --------------------------------------------------
 
-PAYMENT_PROOF_DIR = DATA_DIR / "uploads" / "payment_proofs"
+STORAGE_BACKEND = os.environ.get("STORAGE_BACKEND", "local").strip().lower()
+
+_raw_proof_dir = os.environ.get(
+    "PAYMENT_PROOF_STORAGE_DIR",
+    "backend/data/uploads/payment_proofs",
+).strip()
+_proof_path = Path(_raw_proof_dir)
+
+if not _proof_path.is_absolute():
+    if _proof_path.parts and _proof_path.parts[0] == "backend":
+        PAYMENT_PROOF_DIR = (BASE_DIR.parent / _proof_path).resolve()
+    else:
+        PAYMENT_PROOF_DIR = (BASE_DIR / _proof_path).resolve()
+else:
+    PAYMENT_PROOF_DIR = _proof_path.resolve()
+
 PAYMENT_PROOF_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_PAYMENT_PROOF_SIZE_BYTES = 200 * 1024
