@@ -3,7 +3,10 @@ __pycache__/
 .venv/
 venv/
 data/*.json
-data/uploads/
+data/uploads/*
+!data/uploads/
+!data/uploads/payment_proofs/
+!data/uploads/payment_proofs/.gitkeep
 logs/*.log
 !data/.gitkeep
 !logs/.gitkeep
