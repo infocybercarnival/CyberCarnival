@@ -25,6 +25,7 @@ const PAPER_PRESENTATION_THEMES = [
   'Privacy & Data Protection',
   'Social Engineering: The Art of Human Hacking',
   'The Next Big Cyber Threat (Open Theme)',
+  'Any topic of your interest is also welcomed',
 ]
 
 function formatTeamSize(min: number | null, max: number | null): string | null {
